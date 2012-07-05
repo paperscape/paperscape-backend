@@ -112,6 +112,8 @@ type Paper struct {
     maincat    string   // main arxiv category
     authors    string   // authors
     title      string   // title
+    journal    string   // journal string
+    doiJSON    string   // DOI in JSON format
     refs       []*Link  // makes references to
     cites      []*Link  // cited by 
     numCites   uint     // number of times cited
@@ -198,10 +200,10 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     // perform query
     var query string
     if id != 0 {
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,authors,title FROM meta_data WHERE meta_data.id = %d", id)
+        query = fmt.Sprintf("SELECT id,arxiv,maincat,authors,title,jname,jyear,jvol,jpage,doi FROM meta_data WHERE id = %d", id)
     } else if len(arxiv) > 0 {
         // security issue: should make sure arxiv string is sanitised
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,authors,title FROM meta_data WHERE arxiv = '%s'", arxiv)
+        query = fmt.Sprintf("SELECT id,arxiv,maincat,authors,title,jname,jyear,jvol,jpage,doi FROM meta_data WHERE arxiv = '%s'", arxiv)
     } else {
         return nil
     }
@@ -211,6 +213,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
 
     if row == nil { return nil }
 
+    // get the fields
     paper := new(Paper)
     if idNum, ok := row[0].(uint64); !ok {
         return nil
@@ -234,7 +237,26 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         fmt.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[4])
         return nil
     } else {
-        paper.title = string(title)
+        paper.title = title
+    }
+    if row[5] == nil {
+    } else {
+        if year, ok := row[6].(int64); ok && year != 0 {
+            if row[7] == nil {
+                paper.journal = fmt.Sprintf("%v/%d//", row[5], year)
+            } else if row[8] == nil {
+                paper.journal = fmt.Sprintf("%v/%d/%v/", row[5], year, row[7])
+            } else {
+                paper.journal = fmt.Sprintf("%v/%d/%v/%v", row[5], year, row[7], row[8])
+            }
+        }
+    }
+    if row[9] == nil {
+    } else if doi, ok := row[9].(string); !ok {
+        fmt.Printf("ERROR: cannot get doi for id=%d; %v\n", paper.id, row[9])
+    } else {
+        doi, _ := json.Marshal(doi)
+        paper.doiJSON = string(doi)
     }
 
     //// Get number of times cited
@@ -635,13 +657,19 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 }
 
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
-    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.authors, paper.title, paper.numCites)
+    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.authors, paper.title, paper.numCites, paper.journal, paper.doiJSON)
 }
 
-func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, title string, numCites uint) {
+func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, title string, numCites uint, journal string, doiJSON string) {
     authorsJSON, _ := json.Marshal(authors)
     titleJSON, _ := json.Marshal(title)
     fmt.Fprintf(w, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d", id, arxiv, authorsJSON, titleJSON, numCites)
+    if len(journal) > 0 {
+        fmt.Fprintf(w, ",\"journal\":\"%s\"", journal)
+    }
+    if len(doiJSON) > 0 {
+        fmt.Fprintf(w, ",\"doi\":%s", doiJSON)
+    }
 }
 
 func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
@@ -966,7 +994,7 @@ func (h *MyHTTPHandler) SearchPaper(searchWhat string, searchString string, rw h
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
-        PrintJSONMetaInfoUsing(rw, uint(id), arxiv, authors, title, uint(numCites))
+        PrintJSONMetaInfoUsing(rw, uint(id), arxiv, authors, title, uint(numCites), "", "")
         fmt.Fprintf(rw, ",\"allRefsCites\":false}")
         numResults += 1
     }
