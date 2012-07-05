@@ -1,6 +1,7 @@
 package main
 
 import (
+    "io"
     "flag"
     "os"
     "bufio"
@@ -99,8 +100,8 @@ type Link struct {
     futurePaper    *Paper   // pointer to the later paper, can be nil
     refOrder       uint     // ordering of this reference made by future to past
     refFreq        uint     // number of in-text references made by future to past
-	pastCited      uint      // number of times past paper cited
-	futureCited    uint      // number of times future paper cited
+    pastCited      uint      // number of times past paper cited
+    futureCited    uint      // number of times future paper cited
     //tredWeightFull float64  // transitively reduced weight, full
     //tredWeightNorm float64  // transitively reduced weight, normalised
 }
@@ -115,7 +116,6 @@ type Paper struct {
     cites      []*Link  // cited by 
     numCites   uint     // number of times cited
     xPos       int      // for loaded profile
-    pinned     bool     // for loaded profile
     notes      string   // for loaded profile
     tags       []string // for loaded profile
 }
@@ -634,6 +634,47 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
     runtime.GC()
 }
 
+func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
+    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.authors, paper.title, paper.numCites)
+}
+
+func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, title string, numCites uint) {
+    authorsJSON, _ := json.Marshal(authors)
+    titleJSON, _ := json.Marshal(title)
+    fmt.Fprintf(w, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d", id, arxiv, authorsJSON, titleJSON, numCites)
+}
+
+func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
+    fmt.Fprintf(w, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
+}
+
+func PrintJSONLinkFutureInfo(w io.Writer, link *Link) {
+    fmt.Fprintf(w, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
+}
+
+func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
+    fmt.Fprintf(w, "\"allRefsCites\":true,\"refs\":[")
+
+    // output the refs (future -> past)
+    for i, link := range paper.refs {
+        if i > 0 {
+            fmt.Fprintf(w, ",")
+        }
+        PrintJSONLinkPastInfo(w, link)
+    }
+
+    // output the cites (past -> future)
+    fmt.Fprintf(w, "],\"cites\":[")
+    for i, link := range paper.cites {
+        if i > 0 {
+            fmt.Fprintf(w, ",")
+        }
+        PrintJSONLinkFutureInfo(w, link)
+    }
+
+    fmt.Fprintf(w, "]")
+}
+
 func (h *MyHTTPHandler) ProfileLogin(username string, rw http.ResponseWriter) {
     if !h.papers.QueryFull("CREATE TABLE IF NOT EXISTS userdata (username VARCHAR(32) UNIQUE PRIMARY KEY, data TEXT CHARACTER SET utf8) ENGINE = MyISAM") {
         fmt.Fprintf(rw, "false")
@@ -683,15 +724,8 @@ func (h *MyHTTPHandler) ProfileLogin(username string, rw http.ResponseWriter) {
         xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
         if negate { xPos = -xPos }
         if tok = s.Scan(); tok != ',' { break }
-        pinned := false
-        if tok = s.Scan(); tok == scanner.Ident {
-            if s.TokenText() == "pinned" {
-                pinned = true
-            } else if s.TokenText() == "unpinned" {
-                pinned = false
-            } else {
-                break
-            }
+        // pinned is obsolete, but we need to parse it for backwards compat
+        if tok = s.Scan(); tok == scanner.Ident && (s.TokenText() == "pinned" || s.TokenText() == "unpinned") {
             if tok = s.Scan(); tok != ',' { break }
             tok = s.Scan()
         }
@@ -706,7 +740,6 @@ func (h *MyHTTPHandler) ProfileLogin(username string, rw http.ResponseWriter) {
         paper := h.papers.QueryPaper(uint(paperId), "")
         h.papers.QueryRefs(paper, false)
         paper.xPos = int(xPos)
-        paper.pinned = pinned
         paper.notes = notes
         paper.tags = tags
         tok = s.Scan()
@@ -720,9 +753,8 @@ func (h *MyHTTPHandler) ProfileLogin(username string, rw http.ResponseWriter) {
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
-        authors, _ := json.Marshal(paper.authors)
-        title, _ := json.Marshal(paper.title)
-        fmt.Fprintf(rw, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d,\"xPos\":%d,\"pinned\":%v,\"notes\":%s,\"tags\":[", paper.id, paper.arxiv, authors, title, paper.numCites, paper.xPos, paper.pinned, paper.notes);
+        PrintJSONMetaInfo(rw, paper)
+        fmt.Fprintf(rw, ",\"xPos\":%d,\"notes\":%s,\"tags\":[", paper.xPos, paper.notes)
         for j, tag := range paper.tags {
             if j > 0 {
                 fmt.Fprintf(rw, ",")
@@ -740,7 +772,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, rw http.ResponseWriter) {
                     } else {
                         fmt.Fprintf(rw, ",")
                     }
-                    fmt.Fprintf(rw, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d}", link.pastId, link.refOrder, link.refFreq)
+                    PrintJSONLinkPastInfo(rw, link)
                     break
                 }
             }
@@ -760,39 +792,22 @@ func (h *MyHTTPHandler) ProfileSave(username string, data string, rw http.Respon
 }
 
 func (h *MyHTTPHandler) GetMetaRefsCites(id uint, rw http.ResponseWriter) {
+    // query the paper and its refs and cites
     paper := h.papers.QueryPaper(id, "")
     h.papers.QueryRefs(paper, false)
     h.papers.QueryCites(paper, false)
 
+    // check the paper exists
     if paper == nil {
         fmt.Fprintf(rw, "null")
         return
     }
 
-    // start the json output
-    {
-        authors, _ := json.Marshal(paper.authors)
-        title, _ := json.Marshal(paper.title)
-        fmt.Fprintf(rw, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d,\"allRefsCites\":true,\"refs\":[", paper.id, paper.arxiv, authors, title, paper.numCites)
-    }
-
-    // output the refs (future -> past)
-    for i, link := range paper.refs {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
-    }
-
-    // output the cites (past -> future)
-    fmt.Fprintf(rw, "],\"cites\":[")
-    for i, link := range paper.cites {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
-    }
-    fmt.Fprintf(rw, "]}")
+    // print the json output
+    PrintJSONMetaInfo(rw, paper)
+    fmt.Fprintf(rw, ",")
+    PrintJSONAllRefsCites(rw, paper)
+    fmt.Fprintf(rw, "}")
 }
 
 func (h *MyHTTPHandler) GetMetas(ids []uint, rw http.ResponseWriter) {
@@ -811,43 +826,28 @@ func (h *MyHTTPHandler) GetMetas(ids []uint, rw http.ResponseWriter) {
             fmt.Fprintf(rw, ",")
         }
 
-        authors, _ := json.Marshal(paper.authors)
-        title, _ := json.Marshal(paper.title)
-        fmt.Fprintf(rw, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d}", paper.id, paper.arxiv, authors, title, paper.numCites)
+        PrintJSONMetaInfo(rw, paper)
+        fmt.Fprintf(rw, "}")
     }
     fmt.Fprintf(rw, "]")
 }
 
 func (h *MyHTTPHandler) GetRefsCites(id uint, rw http.ResponseWriter) {
+    // query the paper and its refs and cites
     paper := h.papers.QueryPaper(id, "")
     h.papers.QueryRefs(paper, false)
     h.papers.QueryCites(paper, false)
 
+    // check the paper exists
     if paper == nil {
         fmt.Fprintf(rw, "null")
         return
     }
 
-    // start the json output
-    fmt.Fprintf(rw, "{\"id\":%d,\"allRefsCites\":true,\"refs\":[", paper.id)
-
-    // output the refs (future -> past)
-    for i, link := range paper.refs {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
-    }
-
-    // output the cites (past -> future)
-    fmt.Fprintf(rw, "],\"cites\":[")
-    for i, link := range paper.cites {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
-    }
-    fmt.Fprintf(rw, "]}")
+    // print the json output
+    fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
+    PrintJSONAllRefsCites(rw, paper)
+    fmt.Fprintf(rw, "}")
 }
 
 /* obsolete
@@ -902,39 +902,22 @@ func (h *MyHTTPHandler) LookupPaper(id uint, arxiv string, refsOnly bool, rw htt
 */
 
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
+    // query the paper and its refs and cites
     paper := h.papers.QueryPaper(0, arxivString)
     h.papers.QueryRefs(paper, false)
     h.papers.QueryCites(paper, false)
 
+    // check the paper exists
     if paper == nil {
         fmt.Fprintf(rw, "null")
         return
     }
 
-    // start the json output
-    {
-        authors, _ := json.Marshal(paper.authors)
-        title, _ := json.Marshal(paper.title)
-        fmt.Fprintf(rw, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d,\"allRefsCites\":true,\"refs\":[", paper.id, paper.arxiv, authors, title, paper.numCites)
-    }
-
-    // output the refs (future -> past)
-    for i, link := range paper.refs {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
-    }
-
-    // output the cites (past -> future)
-    fmt.Fprintf(rw, "],\"cites\":[")
-    for i, link := range paper.cites {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
-    }
-    fmt.Fprintf(rw, "]}")
+    // print the json output
+    PrintJSONMetaInfo(rw, paper)
+    fmt.Fprintf(rw, ",")
+    PrintJSONAllRefsCites(rw, paper)
+    fmt.Fprintf(rw, "}")
 }
 
 func (h *MyHTTPHandler) SearchPaper(searchWhat string, searchString string, rw http.ResponseWriter) {
@@ -983,9 +966,8 @@ func (h *MyHTTPHandler) SearchPaper(searchWhat string, searchString string, rw h
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
-        authorsJSON, _ := json.Marshal(authors)
-        titleJSON, _ := json.Marshal(title)
-        fmt.Fprintf(rw, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d,\"allRefsCites\":false}", id, arxiv, authorsJSON, titleJSON, numCites)
+        PrintJSONMetaInfoUsing(rw, uint(id), arxiv, authors, title, uint(numCites))
+        fmt.Fprintf(rw, ",\"allRefsCites\":false}")
         numResults += 1
     }
     fmt.Fprintf(rw, "]")
