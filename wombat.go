@@ -645,13 +645,38 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         }
 
         // tail of JSON object
-        fmt.Fprintf(rw, ",\"bC2S\":%d,\"bS2C\":%d})\n", len(req.URL.String()), rw.bytesWritten)
+        fmt.Fprintf(rw, ",\"bC2S\":%d,\"bS2C\":%d})\n", int64(len(req.URL.String())) + req.ContentLength, rw.bytesWritten)
+    } else if req.Method == "POST" {
+        // POST verb
+
+        // construct a JSON object to return
+        rw.Header().Set("Access-Control-Allow-Origin", "*") // for cross domain POSTing; see https://developer.mozilla.org/en/http_access_control
+        rw.Header().Set("Content-Type", "application/json")
+        fmt.Fprintf(rw, "{\"r\":")
+        resultBytesStart := rw.bytesWritten
+
+        if req.Form["profileSave"] != nil {
+            // save request
+            if req.Form["data"] != nil {
+                h.ProfileSave(req.Form["profileSave"][0], req.Form["data"][0], rw)
+            }
+        } else {
+            // unknown ajax request
+        }
+
+        if rw.bytesWritten == resultBytesStart {
+            // if no result written, write the null object
+            fmt.Fprintf(rw, "null")
+        }
+
+        // tail of JSON object
+        fmt.Fprintf(rw, ",\"bC2S\":%d,\"bS2C\":%d}\n", int64(len(req.URL.String())) + req.ContentLength, rw.bytesWritten)
     } else {
         // unknown request, return html
         fmt.Fprintf(rw, "<html><head></head><body><p>Unknown request</p></body>\n")
     }
 
-    fmt.Printf("[%s] %s -- %s %s (%d bytes in URL, %d bytes replied)\n", time.Now().Format(time.RFC3339), req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), rw.bytesWritten)
+    fmt.Printf("[%s] %s -- %s %s (bytes: %d URL, %d content, %d replied)\n", time.Now().Format(time.RFC3339), req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
 
     runtime.GC()
 }
