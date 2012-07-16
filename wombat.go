@@ -16,6 +16,7 @@ import (
     "GoMySQL"
     "runtime"
     "bytes"
+    "time"
     //"xiwi"
 )
 
@@ -554,7 +555,6 @@ func (myrw *MyResponseWriter) WriteHeader(val int) {
 func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
     req.ParseForm()
 
-    fmt.Println("request", req.Method, req.URL)
     rw := &MyResponseWriter{rwIn, 0}
 
     if req.Form["callback"] != nil {
@@ -651,7 +651,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "<html><head></head><body><p>Unknown request</p></body>\n")
     }
 
-    fmt.Printf("%d bytes in URL, %d bytes replied\n", len(req.URL.String()), rw.bytesWritten)
+    fmt.Printf("[%s] %s -- %s %s (%d bytes in URL, %d bytes replied)\n", time.Now().Format(time.RFC3339), req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), rw.bytesWritten)
 
     runtime.GC()
 }
@@ -773,7 +773,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, rw http.ResponseWriter) {
         tok = s.Scan()
         paperList = append(paperList, paper)
     }
-    fmt.Printf("for user %s, read %d papers; %v\n", username, len(paperList), tok)
+    fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
 
     // output papers in json format
     fmt.Fprintf(rw, "[")
