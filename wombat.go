@@ -22,7 +22,7 @@ import (
 
 
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
-var flagTable = flag.String("table", "pcite", "MySQL database table to get data from")
+var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
 var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
 var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
@@ -261,7 +261,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     }
 
     //// Get number of times cited
-    query = fmt.Sprintf("SELECT numCites FROM %s WHERE id = %d", *flagTable, paper.id)
+    query = fmt.Sprintf("SELECT numCites FROM %s WHERE id = %d", *flagPciteTable, paper.id)
     row2 := papers.QuerySingleRow(query)
 
     if row2 != nil {
@@ -367,7 +367,7 @@ func (papers *PapersEnv) QueryRefs(paper *Paper, queryRefsMeta bool) {
     if len(paper.refs) != 0 { return }
 
     // perform query
-    query := fmt.Sprintf("SELECT refs FROM %s WHERE id = %d", *flagTable, paper.id)
+    query := fmt.Sprintf("SELECT refs FROM %s WHERE id = %d", *flagPciteTable, paper.id)
     row := papers.QuerySingleRow(query)
     if row == nil { papers.QueryEnd(); return }
 
@@ -398,7 +398,7 @@ func (papers *PapersEnv) QueryCites(paper *Paper, queryCitesMeta bool) {
     if len(paper.cites) != 0 { return }
 
     // perform query
-    query := fmt.Sprintf("SELECT cites FROM %s WHERE id = %d", *flagTable, paper.id)
+    query := fmt.Sprintf("SELECT cites FROM %s WHERE id = %d", *flagPciteTable, paper.id)
     row := papers.QuerySingleRow(query)
     if row == nil { papers.QueryEnd(); return }
 
@@ -631,10 +631,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             fmt.Fprintf(rw, "%s", abs)
         } else if req.Form["searchAuthor"] != nil {
             // search papers for authors
-            h.SearchPaper("authors", req.Form["searchAuthor"][0], rw)
+            h.SearchPaperV2("authors", req.Form["searchAuthor"][0], rw)
         } else if req.Form["searchKeyword"] != nil {
             // search papers for keywords
-            h.SearchPaper("title", req.Form["searchKeyword"][0], rw)
+            h.SearchPaperV2("title", req.Form["searchKeyword"][0], rw)
         } else {
             // unknown ajax request
         }
@@ -974,7 +974,7 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
 }
 
 func (h *MyHTTPHandler) SearchPaper(searchWhat string, searchString string, rw http.ResponseWriter) {
-    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.arxiv,meta_data.authors,meta_data.title," + *flagTable + ".numCites FROM meta_data," + *flagTable + " WHERE MATCH (" + searchWhat + ") AGAINST ('" + searchString + "' IN BOOLEAN MODE) AND meta_data.id = " + *flagTable + ".id") {
+    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.arxiv,meta_data.authors,meta_data.title," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE MATCH (" + searchWhat + ") AGAINST ('" + searchString + "' IN BOOLEAN MODE) AND meta_data.id = " + *flagPciteTable + ".id") {
         fmt.Fprintf(rw, "[]")
         return
     }
@@ -1013,14 +1013,57 @@ func (h *MyHTTPHandler) SearchPaper(searchWhat string, searchString string, rw h
         }
         if title, ok = row[3].(string); !ok { continue }
         if numCites, ok = row[4].(uint64); !ok {
-			numCites = 0
-		}
+            numCites = 0
+        }
 
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
         PrintJSONMetaInfoUsing(rw, uint(id), arxiv, authors, title, uint(numCites), "", "")
         fmt.Fprintf(rw, ",\"allRefsCites\":false}")
+        numResults += 1
+    }
+    fmt.Fprintf(rw, "]")
+}
+
+// this version just returns id and numCites for up to 500 results
+func (h *MyHTTPHandler) SearchPaperV2(searchWhat string, searchString string, rw http.ResponseWriter) {
+    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE MATCH (" + searchWhat + ") AGAINST ('" + searchString + "' IN BOOLEAN MODE) AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+
+    defer h.papers.QueryEnd()
+
+    // get result set  
+    result, err := h.papers.db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+
+    // get each row from the result and create the JSON object
+    fmt.Fprintf(rw, "[")
+    numResults := 0
+    for {
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        var ok bool
+        var id uint64
+        var numCites uint64
+        if id, ok = row[0].(uint64); !ok { continue }
+        if numCites, ok = row[1].(uint64); !ok {
+            numCites = 0
+        }
+
+        if numResults > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        fmt.Fprintf(rw, "{\"id\":%d,\"numCites\":%d}", id, numCites)
         numResults += 1
     }
     fmt.Fprintf(rw, "]")
