@@ -17,6 +17,7 @@ import (
     "runtime"
     "bytes"
     "time"
+	"math/rand"
     //"xiwi"
 )
 
@@ -191,6 +192,8 @@ func (papers *PapersEnv) QuerySingleRow(query string) mysql.Row {
 
 func (papers *PapersEnv) QueryFull(query string) bool {
     if !papers.QueryBegin(query) {
+		// do we need an end here regardless??
+		//papers.QueryEnd()
         return false
     }
     papers.QueryEnd()
@@ -564,13 +567,17 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "%s({\"r\":", callback)
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["profileLogin"] != nil {
+		if req.Form["profileAuth"] != nil {
+			// authenticate request
+			// send user a new "challenge"
+			h.ProfileAuthenticate(req.Form["profileAuth"][0], rw)
+		} else if req.Form["profileLogin"] != nil {
             // login request
-            h.ProfileLogin(req.Form["profileLogin"][0], rw)
+            h.ProfileLogin(req.Form["profileLogin"][0], req.Form["pashHash"][0], rw)
         } else if req.Form["profileSave"] != nil {
             // save request
             if req.Form["data"] != nil {
-                h.ProfileSave(req.Form["profileSave"][0], req.Form["data"][0], rw)
+                h.ProfileSave(req.Form["profileSave"][0], req.Form["pashHash"][0], req.Form["data"][0], rw)
             }
             /*
         } else if req.Form["lookupId"] != nil || req.Form["lookupArxiv"] != nil {
@@ -658,7 +665,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         if req.Form["profileSave"] != nil {
             // save request
             if req.Form["data"] != nil {
-                h.ProfileSave(req.Form["profileSave"][0], req.Form["data"][0], rw)
+                h.ProfileSave(req.Form["profileSave"][0], req.Form["pashHash"][0], req.Form["data"][0], rw)
             }
         } else {
             // unknown ajax request
@@ -728,11 +735,41 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
     fmt.Fprintf(w, "]")
 }
 
-func (h *MyHTTPHandler) ProfileLogin(username string, rw http.ResponseWriter) {
-    if !h.papers.QueryFull("CREATE TABLE IF NOT EXISTS userdata (username VARCHAR(32) UNIQUE PRIMARY KEY, data TEXT CHARACTER SET utf8) ENGINE = MyISAM") {
-        fmt.Fprintf(rw, "false")
-        return
+func (h *MyHTTPHandler) ProfileAuthenticate(username string, rw http.ResponseWriter) {
+
+	// check username exists
+    query := fmt.Sprintf("SELECT username FROM userdata WHERE username = '%s'", username)
+    row := h.papers.QuerySingleRow(query)
+    if row == nil {
+        // unknown username
+        h.papers.QueryEnd()
+		fmt.Printf("ERROR: trying to authenticate username: '%s'\n", username)
+		fmt.Fprintf(rw, "{\"username\":\"\",\"challenge\":\"\"}")
+		return
+	}
+	h.papers.QueryEnd()
+
+	// generate random "challenge" code
+	challenge := rand.Int63();
+
+	// store new challenge code in user database entry
+    query = fmt.Sprintf("UPDATE userdata SET challenge = '%d' WHERE username = '%s'", challenge, username)
+    if !h.papers.QueryFull(query) {
+		fmt.Printf("ERROR: couldn't change user '%s' challenge\n", username)
+		fmt.Fprintf(rw, "{\"username\":\"\",\"challenge\":\"\"}")
+		return
     }
+
+	// return challenge code
+    fmt.Fprintf(rw, "{\"username\":\"%s\",\"challenge\":\"%d\"}", username, challenge)
+}
+
+func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.ResponseWriter) {
+	// TODO find elsewhere to do this!
+    //if !h.papers.QueryFull("CREATE TABLE IF NOT EXISTS userdata (username VARCHAR(32) UNIQUE PRIMARY KEY, data TEXT CHARACTER SET utf8) ENGINE = MyISAM") {
+    //    fmt.Fprintf(rw, "false")
+    //    return
+    //}
 
     // TODO security issue, make sure username is sanitised
     query := fmt.Sprintf("SELECT data FROM userdata WHERE username = '%s'", username)
@@ -835,7 +872,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "]}")
 }
 
-func (h *MyHTTPHandler) ProfileSave(username string, data string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileSave(username string, passhash string, data string, rw http.ResponseWriter) {
     query := fmt.Sprintf("REPLACE INTO userdata (username,data) VALUES ('%s','%s')", username, data)
     if !h.papers.QueryFull(query) {
         fmt.Fprintf(rw, "false")
