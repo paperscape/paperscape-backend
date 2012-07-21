@@ -578,7 +578,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["profileSave"] != nil {
             // save request
             if req.Form["data"] != nil {
-                h.ProfileSave(req.Form["profileSave"][0], req.Form["pashHash"][0], req.Form["data"][0], rw)
+                h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["data"][0], rw)
             }
             /*
         } else if req.Form["lookupId"] != nil || req.Form["lookupArxiv"] != nil {
@@ -666,7 +666,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         if req.Form["profileSave"] != nil {
             // save request
             if req.Form["data"] != nil {
-                h.ProfileSave(req.Form["profileSave"][0], req.Form["pashHash"][0], req.Form["data"][0], rw)
+                h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["data"][0], rw)
             }
         } else {
             // unknown ajax request
@@ -771,8 +771,6 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     //    fmt.Fprintf(rw, "false")
     //    return
     //}
-
-	fmt.Printf("NOTE: logging in '%s'\n", username)
 
 	// Check for valid username and get the user challenge and hash
 	var challenge uint64
@@ -913,7 +911,46 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 }
 
 func (h *MyHTTPHandler) ProfileSave(username string, passhash string, data string, rw http.ResponseWriter) {
-    query := fmt.Sprintf("REPLACE INTO userdata (username,data) VALUES ('%s','%s')", username, data)
+
+	// TODO move this to function so we dont repeat code
+	// Check for valid username and get the user challenge and hash
+	var challenge uint64
+    var userhash string = ""
+	query := fmt.Sprintf("SELECT challenge,userhash FROM userdata WHERE username = '%s'", username)
+    row := h.papers.QuerySingleRow(query)
+    if row == nil {
+        h.papers.QueryEnd()
+		fmt.Printf("ERROR: saving '%s' - no such user\n", username)
+		fmt.Fprintf(rw, "false")
+		return
+	} else {
+        var ok bool
+		proceed := true
+		if challenge, ok = row[0].(uint64); !ok { proceed = false }
+		if userhash, ok = row[1].(string); !ok { proceed = false }
+		h.papers.QueryEnd()
+		if !proceed || userhash == ""  {
+			fmt.Printf("ERROR: '%s', '%d'\n", userhash,challenge)
+			fmt.Printf("ERROR: saving '%s' - challenge,hash error\n", username)
+			fmt.Fprintf(rw, "false")
+			return
+		}
+	}
+
+	// Check the passhash!
+	hash := sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s%d", userhash, challenge))
+	tryhash := fmt.Sprintf("%x",hash.Sum(nil))
+	if passhash != tryhash {
+		fmt.Printf("ERROR: saving '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
+		fmt.Fprintf(rw, "false")
+		return
+	}
+
+	// WE'RE THROUGH!!:
+
+	//query = fmt.Sprintf("REPLACE INTO userdata (username,data) VALUES ('%s','%s')", username, data)
+	query = fmt.Sprintf("UPDATE userdata SET data = '%s' WHERE username = '%s'", data, username)
     if !h.papers.QueryFull(query) {
         fmt.Fprintf(rw, "false")
     } else {
