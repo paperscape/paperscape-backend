@@ -193,8 +193,8 @@ func (papers *PapersEnv) QuerySingleRow(query string) mysql.Row {
 
 func (papers *PapersEnv) QueryFull(query string) bool {
     if !papers.QueryBegin(query) {
-		// do we need an end here regardless??
-		//papers.QueryEnd()
+        // need to end the query because it unlocks the DB for another thread to use
+        papers.QueryEnd()
         return false
     }
     papers.QueryEnd()
