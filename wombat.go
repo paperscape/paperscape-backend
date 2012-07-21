@@ -743,9 +743,9 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, rw http.ResponseWri
     row := h.papers.QuerySingleRow(query)
     if row == nil {
         // unknown username
-        h.papers.QueryEnd()
 		fmt.Printf("ERROR: trying to authenticate username: '%s'\n", username)
-		fmt.Fprintf(rw, "{\"username\":\"\",\"challenge\":\"\"}")
+		fmt.Fprintf(rw, "{\"username\":,\"challenge\":}")
+        h.papers.QueryEnd()
 		return
 	}
 	h.papers.QueryEnd()
@@ -757,7 +757,7 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, rw http.ResponseWri
     query = fmt.Sprintf("UPDATE userdata SET challenge = '%d' WHERE username = '%s'", challenge, username)
     if !h.papers.QueryFull(query) {
 		fmt.Printf("ERROR: couldn't change user '%s' challenge\n", username)
-		fmt.Fprintf(rw, "{\"username\":\"\",\"challenge\":\"\"}")
+		fmt.Fprintf(rw, "{\"username\":,\"challenge\":}")
 		return
     }
 
