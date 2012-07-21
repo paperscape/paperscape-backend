@@ -18,6 +18,7 @@ import (
     "bytes"
     "time"
 	"math/rand"
+	"crypto/sha1"
     //"xiwi"
 )
 
@@ -573,7 +574,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 			h.ProfileAuthenticate(req.Form["profileAuth"][0], rw)
 		} else if req.Form["profileLogin"] != nil {
             // login request
-            h.ProfileLogin(req.Form["profileLogin"][0], req.Form["pashHash"][0], rw)
+            h.ProfileLogin(req.Form["profileLogin"][0], req.Form["passHash"][0], rw)
         } else if req.Form["profileSave"] != nil {
             // save request
             if req.Form["data"] != nil {
@@ -771,20 +772,59 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     //    return
     //}
 
-    // TODO security issue, make sure username is sanitised
-    query := fmt.Sprintf("SELECT data FROM userdata WHERE username = '%s'", username)
+	fmt.Printf("NOTE: logging in '%s'\n", username)
+
+	// Check for valid username and get the user challenge and hash
+	var challenge uint64
+    var userhash string = ""
+	query := fmt.Sprintf("SELECT challenge,userhash FROM userdata WHERE username = '%s'", username)
     row := h.papers.QuerySingleRow(query)
+    if row == nil {
+        // unknown username
+        //query = fmt.Sprintf("INSERT INTO userdata (username,data) VALUES ('%s','')", username)
+        //if !h.papers.QueryFull(query) {
+        //    fmt.Fprintf(rw, "false")
+        //    return
+        //}
+        h.papers.QueryEnd()
+		fmt.Printf("ERROR: logging in '%s' - no such user\n", username)
+		fmt.Fprintf(rw, "false")
+		return
+	} else {
+        var ok bool
+		proceed := true
+		if challenge, ok = row[0].(uint64); !ok { proceed = false }
+		if userhash, ok = row[1].(string); !ok { proceed = false }
+		h.papers.QueryEnd()
+		if !proceed || userhash == ""  {
+			fmt.Printf("ERROR: '%s', '%d'\n", userhash,challenge)
+			fmt.Printf("ERROR: logging in '%s' - challenge,hash error\n", username)
+			fmt.Fprintf(rw, "false")
+			return
+		}
+	}
+
+	// Check the passhash!
+	hash := sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s%d", userhash, challenge))
+	tryhash := fmt.Sprintf("%x",hash.Sum(nil))
+	if passhash != tryhash {
+		fmt.Printf("ERROR: logging in '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
+		fmt.Fprintf(rw, "false")
+		return
+	}
+
+	// WE'RE THROUGH!!:
+
+    // TODO security issue, make sure username is sanitised
+    query = fmt.Sprintf("SELECT data FROM userdata WHERE username = '%s'", username)
+    row = h.papers.QuerySingleRow(query)
 
     var data []byte
 
     if row == nil {
-        // unknown username; create new user (since we don't have an add user feature yet)
         h.papers.QueryEnd()
-        query = fmt.Sprintf("INSERT INTO userdata (username,data) VALUES ('%s','')", username)
-        if !h.papers.QueryFull(query) {
-            fmt.Fprintf(rw, "false")
-            return
-        }
+		return
     } else {
         var ok bool
         data, ok = row[0].([]byte)
