@@ -127,6 +127,13 @@ type Paper struct {
     newTags    []string // for loaded profile
 }
 
+type Tag struct {
+    name       string   // unique name
+	blobbed    bool		// whether tag is blobbed
+	blobCol	   int      // index of blob colour array
+	starred    bool		// whether tag is starred
+}
+
 type PapersEnv struct {
     db *mysql.Client
 }
@@ -839,10 +846,10 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	}
 
     // TODO security issue, make sure username is sanitised
-	query := fmt.Sprintf("SELECT data FROM userdata WHERE username = '%s'", username)
+	query := fmt.Sprintf("SELECT data,tags FROM userdata WHERE username = '%s'", username)
 	row := h.papers.QuerySingleRow(query)
 
-    var data []byte
+    var data,tags []byte
 
     if row == nil {
         h.papers.QueryEnd()
@@ -850,36 +857,38 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     } else {
         var ok bool
         data, ok = row[0].([]byte)
-        if !ok {
-            data = nil
-        }
+        if !ok { data = nil }
+        tags, ok = row[1].([]byte)
+        if !ok { tags = nil }
         h.papers.QueryEnd()
     }
 
-    fmt.Fprintf(rw, "{\"username\":\"%s\",\"data\":", username)
+	/* PAPERS */
+	/**********/
 
-    // build a list of papers and their metadata for this profile
+    // build a list of PAPERS and their metadata for this profile 
+
     var paperList []*Paper
     var s scanner.Scanner
     s.Init(bytes.NewReader(data))
     s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
     tok := s.Scan()
-	saveVersion := 0 // there is no zero version
+	papersVersion := 0 // there is no zero version
 
 	// Firstly discover format of saved data
 	if tok == '(' {
-		saveVersion = 1;
+		papersVersion = 1;
 	} else if tok == scanner.Ident && s.TokenText() == "v" {
 		if tok = s.Scan(); tok == ':' {
 			if tok = s.Scan(); tok == scanner.Int {
 				version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-				saveVersion = int(version)
+				papersVersion = int(version)
 				tok = s.Scan()
 			}
 		}
 	}
 
-	if saveVersion == 1 {
+	if papersVersion == 1 {
 		// VERSION 1 (deprecated)
 		for tok != scanner.EOF {
 			if tok != '(' { break }
@@ -914,8 +923,8 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 			tok = s.Scan()
 			paperList = append(paperList, paper)
 		}
-	} else if saveVersion == 2 {
-		// VERSION 2
+	} else if papersVersion == 2 {
+		// PAPERS VERSION 2
 		for tok != scanner.EOF {
 			if tok != '(' { break }
 			if tok = s.Scan(); tok != scanner.Int { break }
@@ -968,10 +977,11 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 
 
 	}
-    fmt.Printf("for user %s, read %d papers in format V%d\n", username, len(paperList), saveVersion)
+    fmt.Printf("for user %s, read %d papers in format V%d\n", username, len(paperList), papersVersion)
 
-    // output papers in json format
-    fmt.Fprintf(rw, "[")
+    fmt.Fprintf(rw, "{\"username\":\"%s\",\"data\":[", username)
+
+	// output papers in json format
     for i, paper := range paperList {
         if i > 0 {
             fmt.Fprintf(rw, ",")
@@ -1017,6 +1027,48 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
         }
         fmt.Fprintf(rw, "]}")
     }
+
+	/* TAGS */
+	/********/
+
+    // build a list of TAGS  this profile
+    var tagList []*Tag
+    s.Init(bytes.NewReader(tags)) // user scanner from above
+    s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
+    tok = s.Scan()
+	tagsVersion := 0 // there is no zero version
+
+	// Firstly discover format of saved data
+	if tok == scanner.Ident && s.TokenText() == "v" {
+		if tok = s.Scan(); tok == ':' {
+			if tok = s.Scan(); tok == scanner.Int {
+				version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+				tagsVersion = int(version)
+				tok = s.Scan()
+			}
+		}
+	}
+
+	if tagsVersion == 1 {
+		// TAGS VERSION 1
+		for tok != scanner.EOF {
+			// TODO implement this!!
+			break
+			tag := new(Tag)
+			//tag.name = name
+			//tag.blobbed = bool(blobbed)
+			//tag.starred = bool(starred)
+			//tag.blobCol = int(blobCol)
+			tok = s.Scan()
+			tagList = append(tagList, tag)
+		}
+	}
+
+
+    fmt.Fprintf(rw, "],\"tags\":[")
+
+	// TODO
+
     fmt.Fprintf(rw, "]}")
 }
 
