@@ -122,7 +122,9 @@ type Paper struct {
     numCites   uint     // number of times cited
     xPos       int      // for loaded profile
     notes      string   // for loaded profile
+    layers     []string // for loaded profile
     tags       []string // for loaded profile
+    newTags    []string // for loaded profile
 }
 
 type PapersEnv struct {
@@ -861,40 +863,113 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     s.Init(bytes.NewReader(data))
     s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
     tok := s.Scan()
+	saveVersion := 0 // there is no zero version
+
+	// Firstly discover format of saved data
     for tok != scanner.EOF {
-        if tok != '(' { break }
-        if tok = s.Scan(); tok != scanner.Int { break }
-        paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-        if tok = s.Scan(); tok != ',' { break }
-        tok = s.Scan()
-        negate := false;
-        if tok == '-' { negate = true; tok = s.Scan() }
-        if tok != scanner.Int { break }
-        xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-        if negate { xPos = -xPos }
-        if tok = s.Scan(); tok != ',' { break }
-        // pinned is obsolete, but we need to parse it for backwards compat
-        if tok = s.Scan(); tok == scanner.Ident && (s.TokenText() == "pinned" || s.TokenText() == "unpinned") {
-            if tok = s.Scan(); tok != ',' { break }
-            tok = s.Scan()
-        }
-        if tok != scanner.String { break }
-        notes := s.TokenText()
-        var tags []string
-        for tok = s.Scan(); tok == ','; tok = s.Scan() {
-            if tok = s.Scan(); tok != scanner.String { break }
-            tags = append(tags, s.TokenText())
-        }
-        if tok != ')' { break }
-        paper := h.papers.QueryPaper(uint(paperId), "")
-        h.papers.QueryRefs(paper, false)
-        paper.xPos = int(xPos)
-        paper.notes = notes
-        paper.tags = tags
-        tok = s.Scan()
-        paperList = append(paperList, paper)
-    }
-    fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
+		if tok == '(' {
+			saveVersion = 1;
+		} else if tok == 'v' {
+			if tok = s.Scan(); tok != scanner.Int { break }
+			version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			saveVersion = int(version)
+		} else {
+			break
+		}
+		tok = s.Scan()
+	}
+
+	if saveVersion == 1 {
+		// VERSION 1 (deprecated)
+		fmt.Printf("here")
+		for tok != scanner.EOF {
+			if tok != '(' { break }
+			if tok = s.Scan(); tok != scanner.Int { break }
+			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			if tok = s.Scan(); tok != ',' { break }
+			tok = s.Scan()
+			negate := false;
+			if tok == '-' { negate = true; tok = s.Scan() }
+			if tok != scanner.Int { break }
+			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
+			if negate { xPos = -xPos }
+			if tok = s.Scan(); tok != ',' { break }
+			// pinned is obsolete, but we need to parse it for backwards compat
+			if tok = s.Scan(); tok == scanner.Ident && (s.TokenText() == "pinned" || s.TokenText() == "unpinned") {
+				if tok = s.Scan(); tok != ',' { break }
+				tok = s.Scan()
+			}
+			if tok != scanner.String { break }
+			notes := s.TokenText()
+			var tags []string
+			for tok = s.Scan(); tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				tags = append(tags, s.TokenText())
+			}
+			if tok != ')' { break }
+			paper := h.papers.QueryPaper(uint(paperId), "")
+			h.papers.QueryRefs(paper, false)
+			paper.xPos = int(xPos)
+			paper.notes = notes
+			paper.tags = tags
+			tok = s.Scan()
+			paperList = append(paperList, paper)
+		}
+	} else if saveVersion == 2 {
+		// VERSION 2
+		for tok != scanner.EOF {
+			if tok != '(' { break }
+			if tok = s.Scan(); tok != scanner.Int { break }
+			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			if tok = s.Scan(); tok != ',' { break }
+			tok = s.Scan()
+			negate := false;
+			if tok == '-' { negate = true; tok = s.Scan() }
+			if tok != scanner.Int { break }
+			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
+			if negate { xPos = -xPos }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok != scanner.String { break }
+			notes := s.TokenText()
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok != 'l' { break }
+			var layers []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				layers = append(layers, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok != 't' { break }
+			var tags []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				tags = append(tags, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok != 't' { break }
+			var newTags []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				newTags = append(newTags, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ')' { break }
+			paper := h.papers.QueryPaper(uint(paperId), "")
+			h.papers.QueryRefs(paper, false)
+			paper.xPos = int(xPos)
+			paper.notes = notes
+			paper.tags = tags
+			paper.layers = layers
+			paper.newTags = newTags
+			tok = s.Scan()
+			paperList = append(paperList, paper)
+		}
+
+
+	}
+    fmt.Printf("for user %s, read %d papers in format V%d\n", username, len(paperList), saveVersion)
 
     // output papers in json format
     fmt.Fprintf(rw, "[")
@@ -903,12 +978,27 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
             fmt.Fprintf(rw, ",")
         }
         PrintJSONMetaInfo(rw, paper)
-        fmt.Fprintf(rw, ",\"xPos\":%d,\"notes\":%s,\"tags\":[", paper.xPos, paper.notes)
+        fmt.Fprintf(rw, ",\"xPos\":%d,\"notes\":%s,", paper.xPos, paper.notes)
+        fmt.Fprintf(rw, "\"layers\":[")
+        for j, layer := range paper.layers {
+            if j > 0 {
+                fmt.Fprintf(rw, ",")
+            }
+            fmt.Fprintf(rw, "%s", layer)
+        }
+        fmt.Fprintf(rw, "],\"tags\":[")
         for j, tag := range paper.tags {
             if j > 0 {
                 fmt.Fprintf(rw, ",")
             }
             fmt.Fprintf(rw, "%s", tag)
+        }
+        fmt.Fprintf(rw, "],\"newTags\":[")
+        for j, newTag := range paper.newTags {
+            if j > 0 {
+                fmt.Fprintf(rw, ",")
+            }
+            fmt.Fprintf(rw, "%s", newTag)
         }
         fmt.Fprintf(rw, "],\"allRefsCites\":false,\"refs\":[")
         first := true
