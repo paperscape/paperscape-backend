@@ -821,6 +821,7 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 	}
 
 	// we're THROUGH!!
+	fmt.Printf("Succesfully authenticated user '%s'\n",username)
 	success = true
 	return
 }
@@ -866,22 +867,20 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	saveVersion := 0 // there is no zero version
 
 	// Firstly discover format of saved data
-    for tok != scanner.EOF {
-		if tok == '(' {
-			saveVersion = 1;
-		} else if tok == 'v' {
-			if tok = s.Scan(); tok != scanner.Int { break }
-			version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-			saveVersion = int(version)
-		} else {
-			break
+	if tok == '(' {
+		saveVersion = 1;
+	} else if tok == scanner.Ident && s.TokenText() == "v" {
+		if tok = s.Scan(); tok == ':' {
+			if tok = s.Scan(); tok == scanner.Int {
+				version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+				saveVersion = int(version)
+				tok = s.Scan()
+			}
 		}
-		tok = s.Scan()
 	}
 
 	if saveVersion == 1 {
 		// VERSION 1 (deprecated)
-		fmt.Printf("here")
 		for tok != scanner.EOF {
 			if tok != '(' { break }
 			if tok = s.Scan(); tok != scanner.Int { break }
@@ -929,10 +928,10 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
 			if negate { xPos = -xPos }
 			if tok = s.Scan(); tok != ',' { break }
-			if tok != scanner.String { break }
+			if tok = s.Scan(); tok != scanner.String { break }
 			notes := s.TokenText()
 			if tok = s.Scan(); tok != ',' { break }
-			if tok = s.Scan(); tok != 'l' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "l" { break }
 			var layers []string
 			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
 				if tok = s.Scan(); tok != scanner.String { break }
@@ -940,7 +939,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 			}
 			if tok != ']' { break }
 			if tok = s.Scan(); tok != ',' { break }
-			if tok = s.Scan(); tok != 't' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "t" { break }
 			var tags []string
 			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
 				if tok = s.Scan(); tok != scanner.String { break }
@@ -948,7 +947,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 			}
 			if tok != ']' { break }
 			if tok = s.Scan(); tok != ',' { break }
-			if tok = s.Scan(); tok != 't' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "n" { break }
 			var newTags []string
 			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
 				if tok = s.Scan(); tok != scanner.String { break }
