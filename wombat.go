@@ -569,13 +569,17 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         resultBytesStart := rw.bytesWritten
 
 		if req.Form["profileAuth"] != nil {
-			// authenticate request
-			// send user a new "challenge"
-			h.ProfileAuthenticate(req.Form["profileAuth"][0], rw)
-		} else if req.Form["profileLogin"] != nil {
+			// authenticate request (send user a new "challenge")
+			giveSalt := false
+			// give user their salt once, so they can salt passwords in this session
+			if req.Form["giveSalt"] != nil {
+				giveSalt = true
+			}
+			h.ProfileAuthenticate(req.Form["profileAuth"][0], giveSalt, rw)
+		} else if req.Form["profileLogin"] != nil && req.Form["passHash"] != nil {
             // login request
             h.ProfileLogin(req.Form["profileLogin"][0], req.Form["passHash"][0], rw)
-        } else if req.Form["profileSave"] != nil {
+        } else if req.Form["profileSave"] != nil && req.Form["passHash"] != nil {
             // save request
             if req.Form["data"] != nil {
                 h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["data"][0], rw)
@@ -736,19 +740,29 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
     fmt.Fprintf(w, "]")
 }
 
-func (h *MyHTTPHandler) ProfileAuthenticate(username string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileAuthenticate(username string, giveSalt bool, rw http.ResponseWriter) {
 
-	// check username exists
-    query := fmt.Sprintf("SELECT username FROM userdata WHERE username = '%s'", username)
+	// check username exists and get the 'salt'
+	var salt uint64
+    query := fmt.Sprintf("SELECT salt FROM userdata WHERE username = '%s'", username)
     row := h.papers.QuerySingleRow(query)
+	h.papers.QueryEnd()
     if row == nil {
         // unknown username
 		fmt.Printf("ERROR: trying to authenticate username: '%s'\n", username)
-		fmt.Fprintf(rw, "{\"username\":\"\",\"challenge\":\"\"}")
-        h.papers.QueryEnd()
+		fmt.Fprintf(rw, "false")
+        //h.papers.QueryEnd()
 		return
+	} else if giveSalt {
+        var ok bool
+		if salt, ok = row[0].(uint64); !ok {
+			fmt.Printf("ERROR: logging in '%s' - salt\n", username)
+			fmt.Fprintf(rw, "false")
+			//h.papers.QueryEnd()
+			return
+		}
+		//h.papers.QueryEnd()
 	}
-	h.papers.QueryEnd()
 
 	// generate random "challenge" code
 	challenge := rand.Int63();
@@ -757,12 +771,16 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, rw http.ResponseWri
     query = fmt.Sprintf("UPDATE userdata SET challenge = '%d' WHERE username = '%s'", challenge, username)
     if !h.papers.QueryFull(query) {
 		fmt.Printf("ERROR: couldn't change user '%s' challenge\n", username)
-		fmt.Fprintf(rw, "{\"username\":\"\",\"challenge\":\"\"}")
+		fmt.Fprintf(rw, "false")
 		return
     }
 
 	// return challenge code
-    fmt.Fprintf(rw, "{\"username\":\"%s\",\"challenge\":\"%d\"}", username, challenge)
+	if giveSalt {
+		fmt.Fprintf(rw, "{\"username\":\"%s\",\"challenge\":\"%d\",\"salt\":\"%d\"}", username, challenge, salt)
+	} else {
+		fmt.Fprintf(rw, "{\"username\":\"%s\",\"challenge\":\"%d\"}", username, challenge)
+	}
 }
 
 func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.ResponseWriter) {
