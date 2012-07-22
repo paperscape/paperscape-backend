@@ -522,7 +522,8 @@ func serveFastCGI(listenAddr string, papers *PapersEnv) {
 
 func serveHTTP(listenAddr string, papers *PapersEnv) {
     h := &MyHTTPHandler{papers}
-    http.Handle("/pull", h)
+    //http.Handle("/pull", h)
+    http.Handle("/wombat", h)
 
     fmt.Println("listening with HTTP protocol on", listenAddr)
 
@@ -568,14 +569,14 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "%s({\"r\":", callback)
         resultBytesStart := rw.bytesWritten
 
-		if req.Form["profileAuth"] != nil {
+		if req.Form["profileChallenge"] != nil {
 			// authenticate request (send user a new "challenge")
 			giveSalt := false
 			// give user their salt once, so they can salt passwords in this session
 			if req.Form["giveSalt"] != nil {
 				giveSalt = true
 			}
-			h.ProfileAuthenticate(req.Form["profileAuth"][0], giveSalt, rw)
+			h.ProfileChallenge(req.Form["profileChallenge"][0], giveSalt, rw)
 		} else if req.Form["profileLogin"] != nil && req.Form["passHash"] != nil {
             // login request
             h.ProfileLogin(req.Form["profileLogin"][0], req.Form["passHash"][0], rw)
@@ -740,7 +741,7 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
     fmt.Fprintf(w, "]")
 }
 
-func (h *MyHTTPHandler) ProfileAuthenticate(username string, giveSalt bool, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http.ResponseWriter) {
 
 	// check username exists and get the 'salt'
 	var salt uint64
@@ -749,14 +750,14 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, giveSalt bool, rw h
 	h.papers.QueryEnd()
     if row == nil {
         // unknown username
-		fmt.Printf("ERROR: trying to authenticate username: '%s'\n", username)
+		fmt.Printf("ERROR: challenging '%s' - no such user\n", username)
 		fmt.Fprintf(rw, "false")
         //h.papers.QueryEnd()
 		return
 	} else if giveSalt {
         var ok bool
 		if salt, ok = row[0].(uint64); !ok {
-			fmt.Printf("ERROR: logging in '%s' - salt\n", username)
+			fmt.Printf("ERROR: challenging '%s' - salt\n", username)
 			fmt.Fprintf(rw, "false")
 			//h.papers.QueryEnd()
 			return
@@ -770,7 +771,7 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, giveSalt bool, rw h
 	// store new challenge code in user database entry
     query = fmt.Sprintf("UPDATE userdata SET challenge = '%d' WHERE username = '%s'", challenge, username)
     if !h.papers.QueryFull(query) {
-		fmt.Printf("ERROR: couldn't change user '%s' challenge\n", username)
+		fmt.Printf("ERROR: challenging '%s' - couldn't get salt\n", username)
 		fmt.Fprintf(rw, "false")
 		return
     }
@@ -783,12 +784,8 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, giveSalt bool, rw h
 	}
 }
 
-func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.ResponseWriter) {
-	// TODO find elsewhere to do this!
-    //if !h.papers.QueryFull("CREATE TABLE IF NOT EXISTS userdata (username VARCHAR(32) UNIQUE PRIMARY KEY, data TEXT CHARACTER SET utf8) ENGINE = MyISAM") {
-    //    fmt.Fprintf(rw, "false")
-    //    return
-    //}
+func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (success bool) {
+	success = false
 
 	// Check for valid username and get the user challenge and hash
 	var challenge uint64
@@ -796,15 +793,8 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	query := fmt.Sprintf("SELECT challenge,userhash FROM userdata WHERE username = '%s'", username)
     row := h.papers.QuerySingleRow(query)
     if row == nil {
-        // unknown username
-        //query = fmt.Sprintf("INSERT INTO userdata (username,data) VALUES ('%s','')", username)
-        //if !h.papers.QueryFull(query) {
-        //    fmt.Fprintf(rw, "false")
-        //    return
-        //}
         h.papers.QueryEnd()
-		fmt.Printf("ERROR: logging in '%s' - no such user\n", username)
-		fmt.Fprintf(rw, "false")
+		fmt.Printf("ERROR: authenticating '%s' - no such user\n", username)
 		return
 	} else {
         var ok bool
@@ -814,8 +804,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 		h.papers.QueryEnd()
 		if !proceed || userhash == ""  {
 			fmt.Printf("ERROR: '%s', '%d'\n", userhash,challenge)
-			fmt.Printf("ERROR: logging in '%s' - challenge,hash error\n", username)
-			fmt.Fprintf(rw, "false")
+			fmt.Printf("ERROR: authenticating '%s' - challenge,hash error\n", username)
 			return
 		}
 	}
@@ -825,16 +814,30 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	io.WriteString(hash, fmt.Sprintf("%s%d", userhash, challenge))
 	tryhash := fmt.Sprintf("%x",hash.Sum(nil))
 	if passhash != tryhash {
-		fmt.Printf("ERROR: logging in '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
-		fmt.Fprintf(rw, "false")
+		fmt.Printf("ERROR: authenticating '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
 		return
 	}
 
-	// WE'RE THROUGH!!:
+	// we're THROUGH!!
+	success = true
+	return
+}
+
+
+func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.ResponseWriter) {
+	// TODO find elsewhere to do this!
+    //if !h.papers.QueryFull("CREATE TABLE IF NOT EXISTS userdata (username VARCHAR(32) UNIQUE PRIMARY KEY, data TEXT CHARACTER SET utf8) ENGINE = MyISAM") {
+    //    fmt.Fprintf(rw, "false")
+    //    return
+    //}
+
+	if !h.ProfileAuthenticate(username,passhash) {
+		return
+	}
 
     // TODO security issue, make sure username is sanitised
-    query = fmt.Sprintf("SELECT data FROM userdata WHERE username = '%s'", username)
-    row = h.papers.QuerySingleRow(query)
+	query := fmt.Sprintf("SELECT data FROM userdata WHERE username = '%s'", username)
+	row := h.papers.QuerySingleRow(query)
 
     var data []byte
 
@@ -930,45 +933,12 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 
 func (h *MyHTTPHandler) ProfileSave(username string, passhash string, data string, rw http.ResponseWriter) {
 
-	// TODO move this to function so we dont repeat code
-	// Check for valid username and get the user challenge and hash
-	var challenge uint64
-    var userhash string = ""
-	query := fmt.Sprintf("SELECT challenge,userhash FROM userdata WHERE username = '%s'", username)
-    row := h.papers.QuerySingleRow(query)
-    if row == nil {
-        h.papers.QueryEnd()
-		fmt.Printf("ERROR: saving '%s' - no such user\n", username)
-		fmt.Fprintf(rw, "false")
-		return
-	} else {
-        var ok bool
-		proceed := true
-		if challenge, ok = row[0].(uint64); !ok { proceed = false }
-		if userhash, ok = row[1].(string); !ok { proceed = false }
-		h.papers.QueryEnd()
-		if !proceed || userhash == ""  {
-			fmt.Printf("ERROR: '%s', '%d'\n", userhash,challenge)
-			fmt.Printf("ERROR: saving '%s' - challenge,hash error\n", username)
-			fmt.Fprintf(rw, "false")
-			return
-		}
-	}
-
-	// Check the passhash!
-	hash := sha1.New()
-	io.WriteString(hash, fmt.Sprintf("%s%d", userhash, challenge))
-	tryhash := fmt.Sprintf("%x",hash.Sum(nil))
-	if passhash != tryhash {
-		fmt.Printf("ERROR: saving '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
-		fmt.Fprintf(rw, "false")
+	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
-
-	// WE'RE THROUGH!!:
 
 	//query = fmt.Sprintf("REPLACE INTO userdata (username,data) VALUES ('%s','%s')", username, data)
-	query = fmt.Sprintf("UPDATE userdata SET data = '%s' WHERE username = '%s'", data, username)
+	query := fmt.Sprintf("UPDATE userdata SET data = '%s' WHERE username = '%s'", data, username)
     if !h.papers.QueryFull(query) {
         fmt.Fprintf(rw, "false")
     } else {
