@@ -591,8 +591,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             h.ProfileLogin(req.Form["profileLogin"][0], req.Form["passHash"][0], rw)
         } else if req.Form["profileSave"] != nil && req.Form["passHash"] != nil {
             // save request
-            if req.Form["data"] != nil {
-                h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["data"][0], rw)
+            if req.Form["papers"] != nil && req.Form["tags"] != nil {
+                h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
             }
             /*
         } else if req.Form["lookupId"] != nil || req.Form["lookupArxiv"] != nil {
@@ -679,8 +679,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 
         if req.Form["profileSave"] != nil {
             // save request
-            if req.Form["data"] != nil {
-                h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["data"][0], rw)
+            // save request
+            if req.Form["papers"] != nil && req.Form["tags"] != nil {
+                h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
             }
         } else {
             // unknown ajax request
@@ -835,29 +836,24 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 
 
 func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.ResponseWriter) {
-	// TODO find elsewhere to do this!
-    //if !h.papers.QueryFull("CREATE TABLE IF NOT EXISTS userdata (username VARCHAR(32) UNIQUE PRIMARY KEY, data TEXT CHARACTER SET utf8) ENGINE = MyISAM") {
-    //    fmt.Fprintf(rw, "false")
-    //    return
-    //}
 
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
 
     // TODO security issue, make sure username is sanitised
-	query := fmt.Sprintf("SELECT data,tags FROM userdata WHERE username = '%s'", username)
+	query := fmt.Sprintf("SELECT papers,tags FROM userdata WHERE username = '%s'", username)
 	row := h.papers.QuerySingleRow(query)
 
-    var data,tags []byte
+    var papers,tags []byte
 
     if row == nil {
         h.papers.QueryEnd()
 		return
     } else {
         var ok bool
-        data, ok = row[0].([]byte)
-        if !ok { data = nil }
+        papers, ok = row[0].([]byte)
+        if !ok { papers = nil }
         tags, ok = row[1].([]byte)
         if !ok { tags = nil }
         h.papers.QueryEnd()
@@ -870,7 +866,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 
     var paperList []*Paper
     var s scanner.Scanner
-    s.Init(bytes.NewReader(data))
+    s.Init(bytes.NewReader(papers))
     s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
     tok := s.Scan()
 	papersVersion := 0 // there is no zero version
@@ -979,7 +975,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	}
     fmt.Printf("for user %s, read %d papers in format V%d\n", username, len(paperList), papersVersion)
 
-    fmt.Fprintf(rw, "{\"username\":\"%s\",\"data\":[", username)
+    fmt.Fprintf(rw, "{\"username\":\"%s\",\"papers\":[", username)
 
 	// output papers in json format
     for i, paper := range paperList {
@@ -1052,34 +1048,58 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	if tagsVersion == 1 {
 		// TAGS VERSION 1
 		for tok != scanner.EOF {
-			// TODO implement this!!
-			break
+			if tok != '(' { break }
 			tag := new(Tag)
-			//tag.name = name
-			//tag.blobbed = bool(blobbed)
-			//tag.starred = bool(starred)
+			// tag name
+			if tok = s.Scan(); tok != scanner.String { break }
+			tag.name = s.TokenText()
+			if tok = s.Scan(); tok != ',' { break }
+			// tag starred?
+			tag.starred = true
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "s" { break }
+			if tok = s.Scan(); tok == '!' {
+				tag.starred = false
+				tok = s.Scan()
+			}
+			if tok != ',' { break }
+			// tag blobbed?
+			tag.blobbed = true
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "b" { break }
+			if tok = s.Scan(); tok == '!' {
+				tag.blobbed = false
+				tok = s.Scan()
+			}
 			//tag.blobCol = int(blobCol)
+			if tok != ')' { break }
 			tok = s.Scan()
 			tagList = append(tagList, tag)
 		}
 	}
 
 
-    fmt.Fprintf(rw, "],\"tags\":[")
+    fmt.Printf("for user %s, read %d tags in format V%d\n", username, len(tagList), tagsVersion)
 
-	// TODO
+	fmt.Fprintf(rw, "],\"tags\":[")
+
+	// output tags in json format
+    for i, tag := range tagList {
+        if i > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+		fmt.Fprintf(rw, "{\"name\":%s,\"starred\":\"%t\",\"blobbed\":\"%t\"}", tag.name, tag.starred, tag.blobbed)
+    }
 
     fmt.Fprintf(rw, "]}")
 }
 
-func (h *MyHTTPHandler) ProfileSave(username string, passhash string, data string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileSave(username string, passhash string, papers string, tags string, rw http.ResponseWriter) {
 
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
 
 	//query = fmt.Sprintf("REPLACE INTO userdata (username,data) VALUES ('%s','%s')", username, data)
-	query := fmt.Sprintf("UPDATE userdata SET data = '%s' WHERE username = '%s'", data, username)
+	query := fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s' WHERE username = '%s'", papers, tags, username)
     if !h.papers.QueryFull(query) {
         fmt.Fprintf(rw, "false")
     } else {
