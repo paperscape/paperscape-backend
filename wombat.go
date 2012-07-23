@@ -594,6 +594,13 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             if req.Form["papers"] != nil && req.Form["tags"] != nil {
                 h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
             }
+        } else if req.Form["profileChangePassword"] != nil && req.Form["passHash"] != nil {
+            // change password request
+			// note the intentionally cryptic JSON names (protect against packet sniffing bots)
+            if req.Form["payload"] != nil && req.Form["sprinkle"] != nil {
+				fmt.Printf("here\n");
+                h.ProfileChangePassword(req.Form["profileChangePassword"][0], req.Form["passHash"][0], req.Form["payload"][0], req.Form["sprinkle"][0], rw)
+            }
             /*
         } else if req.Form["lookupId"] != nil || req.Form["lookupArxiv"] != nil {
             // lookup details of specific paper
@@ -1105,6 +1112,18 @@ func (h *MyHTTPHandler) ProfileSave(username string, passhash string, papers str
     } else {
         fmt.Fprintf(rw, "true")
     }
+}
+
+func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, rw http.ResponseWriter) {
+	if !h.ProfileAuthenticate(username,passhash) {
+		return
+	}
+	saltNum, err := strconv.ParseUint(salt, 10, 64)
+	if (err != nil) {
+		fmt.Printf("%s\n",err)
+	}
+	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, uint64(saltNum), username)
+	fmt.Fprintf(rw, "{\"success\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
 }
 
 func (h *MyHTTPHandler) GetMetaRefsCites(id uint, rw http.ResponseWriter) {
