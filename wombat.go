@@ -1115,7 +1115,7 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 		return
 	}
 
-	saltNum, _ := strconv.ParseUint(salt, 10, 0)
+	saltNum, _ := strconv.ParseUint(salt, 10, 64)
 
 	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, uint64(saltNum), username)
 	fmt.Fprintf(rw, "{\"success\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
