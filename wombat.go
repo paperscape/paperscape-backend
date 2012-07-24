@@ -596,9 +596,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
         } else if req.Form["profileChangePassword"] != nil && req.Form["passHash"] != nil {
             // change password request
-            if req.Form["payload"] != nil {
-				fmt.Printf("here\n");
-                h.ProfileChangePassword(req.Form["profileChangePassword"][0], req.Form["passHash"][0], req.Form["payload"][0], rw)
+			// deliberate use of cryptic JSON names to fool robotic packet sniffers...
+            if req.Form["payload"] != nil && req.Form["sprinkle"] != nil {
+                h.ProfileChangePassword(req.Form["profileChangePassword"][0], req.Form["passHash"][0], req.Form["payload"][0], req.Form["sprinkle"][0], rw)
             }
             /*
         } else if req.Form["lookupId"] != nil || req.Form["lookupArxiv"] != nil {
@@ -1110,23 +1110,15 @@ func (h *MyHTTPHandler) ProfileSave(username string, passhash string, papers str
     }
 }
 
-func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
-	// recycle last challenge as the new salt!
-	// TODO thus need to block calls to challenge while changing password
-	// (e.g prevent two computers with same account changing password simultaneously)
-    query := fmt.Sprintf("SELECT challenge FROM userdata WHERE username = '%s'", username)
-    row := h.papers.QuerySingleRow(query)
-	h.papers.QueryEnd()
 
-	var salt uint64
-	var ok bool
-	salt, ok = row[0].(uint64)
+	saltNum, _ := strconv.ParseUint(salt, 10, 0)
 
-	query = fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, salt, username)
-	fmt.Fprintf(rw, "{\"success\":\"%t\",\"salt\":\"%d\"}",ok && h.papers.QueryFull(query),salt)
+	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, uint64(saltNum), username)
+	fmt.Fprintf(rw, "{\"success\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
 }
 
 func (h *MyHTTPHandler) GetMetaRefsCites(id uint, rw http.ResponseWriter) {
