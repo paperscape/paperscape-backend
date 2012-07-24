@@ -596,10 +596,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
         } else if req.Form["profileChangePassword"] != nil && req.Form["passHash"] != nil {
             // change password request
-			// note the intentionally cryptic JSON names (protect against packet sniffing bots)
-            if req.Form["payload"] != nil && req.Form["sprinkle"] != nil {
+            if req.Form["payload"] != nil {
 				fmt.Printf("here\n");
-                h.ProfileChangePassword(req.Form["profileChangePassword"][0], req.Form["passHash"][0], req.Form["payload"][0], req.Form["sprinkle"][0], rw)
+                h.ProfileChangePassword(req.Form["profileChangePassword"][0], req.Form["passHash"][0], req.Form["payload"][0], rw)
             }
             /*
         } else if req.Form["lookupId"] != nil || req.Form["lookupArxiv"] != nil {
@@ -769,17 +768,14 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http
         // unknown username
 		fmt.Printf("ERROR: challenging '%s' - no such user\n", username)
 		fmt.Fprintf(rw, "false")
-        //h.papers.QueryEnd()
 		return
 	} else if giveSalt {
         var ok bool
 		if salt, ok = row[0].(uint64); !ok {
 			fmt.Printf("ERROR: challenging '%s' - salt\n", username)
 			fmt.Fprintf(rw, "false")
-			//h.papers.QueryEnd()
 			return
 		}
-		//h.papers.QueryEnd()
 	}
 
 	// generate random "challenge" code
@@ -1114,16 +1110,23 @@ func (h *MyHTTPHandler) ProfileSave(username string, passhash string, papers str
     }
 }
 
-func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
-	saltNum, err := strconv.ParseUint(salt, 10, 64)
-	if (err != nil) {
-		fmt.Printf("%s\n",err)
-	}
-	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, uint64(saltNum), username)
-	fmt.Fprintf(rw, "{\"success\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
+	// recycle last challenge as the new salt!
+	// TODO thus need to block calls to challenge while changing password
+	// (e.g prevent two computers with same account changing password simultaneously)
+    query := fmt.Sprintf("SELECT challenge FROM userdata WHERE username = '%s'", username)
+    row := h.papers.QuerySingleRow(query)
+	h.papers.QueryEnd()
+
+	var salt uint64
+	var ok bool
+	salt, ok = row[0].(uint64)
+
+	query = fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, salt, username)
+	fmt.Fprintf(rw, "{\"success\":\"%t\",\"salt\":\"%d\"}",ok && h.papers.QueryFull(query),salt)
 }
 
 func (h *MyHTTPHandler) GetMetaRefsCites(id uint, rw http.ResponseWriter) {
