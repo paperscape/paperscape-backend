@@ -508,7 +508,7 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 /****************************************************************/
 
 // Returns a list of papers stored in userdata string field
-func paperListFromDatabase (papers []byte) []*Paper {
+func (h *MyHTTPHandler) paperListFromDatabase (papers []byte) []*Paper {
 
     var paperList []*Paper
     var s scanner.Scanner
@@ -624,7 +624,7 @@ func paperListFromDatabase (papers []byte) []*Paper {
 }
 
 // Returns a list of tags stored in userdata string field
-func tagListFromDatabase (tags []byte) []*Tag {
+func (h *MyHTTPHandler) tagListFromDatabase (tags []byte) []*Tag {
 
     var tagList []*Tag
     var s scanner.Scanner
@@ -677,6 +677,8 @@ func tagListFromDatabase (tags []byte) []*Tag {
 
 	return tagList
 }
+
+
 
 /****************************************************************/
 
@@ -898,6 +900,52 @@ func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, 
     }
 }
 
+func PrintJSONContextInfo(w io.Writer, paper *Paper) {
+	fmt.Fprintf(w, ",\"xPos\":%d,\"notes\":%s,", paper.xPos, paper.notes)
+	fmt.Fprintf(w, "\"layers\":[")
+	for j, layer := range paper.layers {
+		if j > 0 {
+			fmt.Fprintf(w, ",")
+		}
+		fmt.Fprintf(w, "%s", layer)
+	}
+	fmt.Fprintf(w, "],\"tags\":[")
+	for j, tag := range paper.tags {
+		if j > 0 {
+			fmt.Fprintf(w, ",")
+		}
+		fmt.Fprintf(w, "%s", tag)
+	}
+	fmt.Fprintf(w, "],\"newTags\":[")
+	for j, newTag := range paper.newTags {
+		if j > 0 {
+			fmt.Fprintf(w, ",")
+		}
+		fmt.Fprintf(w, "%s", newTag)
+	}
+	fmt.Fprintf(w, "]")
+}
+
+func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
+	fmt.Fprintf(w, ",\"allRefsCites\":false,\"refs\":[")
+	first := true
+	for _, link := range paper.refs {
+		// only return links that point to other papers in this profile
+		for _, paper2 := range paperList {
+			if link.pastId == paper2.id {
+				if first {
+					first = false
+				} else {
+					fmt.Fprintf(w, ",")
+				}
+				PrintJSONLinkPastInfo(w, link)
+				break
+			}
+		}
+	}
+	fmt.Fprintf(w, "]")
+}
+
 func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
     fmt.Fprintf(w, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
 }
@@ -1017,10 +1065,10 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	}
 
     // TODO security issue, make sure username is sanitised
-	query := fmt.Sprintf("SELECT papers,tags FROM userdata WHERE username = '%s'", username)
+	query := fmt.Sprintf("SELECT papers,tags,newpapers FROM userdata WHERE username = '%s'", username)
 	row := h.papers.QuerySingleRow(query)
 
-    var papers,tags []byte
+    var papers,tags,newpapers []byte
 
     if row == nil {
         h.papers.QueryEnd()
@@ -1031,6 +1079,8 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
         if !ok { papers = nil }
         tags, ok = row[1].([]byte)
         if !ok { tags = nil }
+        newpapers, ok = row[0].([]byte)
+        if !ok { papers = nil }
         h.papers.QueryEnd()
     }
 
@@ -1038,9 +1088,15 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	/**********/
 
     // build a list of PAPERS and their metadata for this profile 
-	paperList := paperListFromDatabase(papers)
+	paperList := h.paperListFromDatabase(papers)
 
-    fmt.Printf("for user %s, read %d papers in format V%d\n", username, len(paperList), papersVersion)
+	// and check for new papers that we don't already have
+	newPaperList := h.paperListFromDatabase(newpapers)
+
+	// TODO make one super list of unique papers
+	// and output this to user
+
+    fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
 
 	// output papers in json format
     fmt.Fprintf(rw, "{\"username\":\"%s\",\"papers\":[", username)
@@ -1050,53 +1106,17 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
             fmt.Fprintf(rw, ",")
         }
         PrintJSONMetaInfo(rw, paper)
-        fmt.Fprintf(rw, ",\"xPos\":%d,\"notes\":%s,", paper.xPos, paper.notes)
-        fmt.Fprintf(rw, "\"layers\":[")
-        for j, layer := range paper.layers {
-            if j > 0 {
-                fmt.Fprintf(rw, ",")
-            }
-            fmt.Fprintf(rw, "%s", layer)
-        }
-        fmt.Fprintf(rw, "],\"tags\":[")
-        for j, tag := range paper.tags {
-            if j > 0 {
-                fmt.Fprintf(rw, ",")
-            }
-            fmt.Fprintf(rw, "%s", tag)
-        }
-        fmt.Fprintf(rw, "],\"newTags\":[")
-        for j, newTag := range paper.newTags {
-            if j > 0 {
-                fmt.Fprintf(rw, ",")
-            }
-            fmt.Fprintf(rw, "%s", newTag)
-        }
-        fmt.Fprintf(rw, "],\"allRefsCites\":false,\"refs\":[")
-        first := true
-        for _, link := range paper.refs {
-            // only return links that point to other papers in this profile
-            for _, paper2 := range paperList {
-                if link.pastId == paper2.id {
-                    if first {
-                        first = false
-                    } else {
-                        fmt.Fprintf(rw, ",")
-                    }
-                    PrintJSONLinkPastInfo(rw, link)
-                    break
-                }
-            }
-        }
-        fmt.Fprintf(rw, "]}")
+		PrintJSONContextInfo(rw, paper)
+		PrintJSONRelevantRefs(rw, paper, paperList)
+        fmt.Fprintf(rw, "}")
     }
 
 	/* TAGS */
 	/********/
     // build a list of TAGS  this profile
-	tagList := tagListFromDatabase(tags)
+	tagList := h.tagListFromDatabase(tags)
 
-    fmt.Printf("for user %s, read %d tags in format V%d\n", username, len(tagList), tagsVersion)
+    fmt.Printf("for user %s, read %d tags\n", username, len(tagList))
 
 	fmt.Fprintf(rw, "],\"tags\":[")
 
@@ -1116,6 +1136,11 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
+
+
+	// TODO parse given string and merge with newPapers
+	// then save this back again
+	// give user a JSON string of the new papers added during the sync
 
 	//query = fmt.Sprintf("REPLACE INTO userdata (username,data) VALUES ('%s','%s')", username, data)
 	query := fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s' WHERE username = '%s'", papers, tags, username)
