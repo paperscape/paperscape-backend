@@ -507,6 +507,179 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 
 /****************************************************************/
 
+// Returns a list of papers stored in userdata string field
+func paperListFromDatabase (papers []byte) []*Paper {
+
+    var paperList []*Paper
+    var s scanner.Scanner
+    s.Init(bytes.NewReader(papers))
+    s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
+    tok := s.Scan()
+	papersVersion := 0 // there is no zero version
+
+	// Firstly discover format of saved data
+	if tok == '(' {
+		papersVersion = 1;
+	} else if tok == scanner.Ident && s.TokenText() == "v" {
+		if tok = s.Scan(); tok == ':' {
+			if tok = s.Scan(); tok == scanner.Int {
+				version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+				papersVersion = int(version)
+				tok = s.Scan()
+			}
+		}
+	}
+
+	if papersVersion == 1 {
+		// VERSION 1 (deprecated)
+		for tok != scanner.EOF {
+			if tok != '(' { break }
+			if tok = s.Scan(); tok != scanner.Int { break }
+			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			if tok = s.Scan(); tok != ',' { break }
+			tok = s.Scan()
+			negate := false;
+			if tok == '-' { negate = true; tok = s.Scan() }
+			if tok != scanner.Int { break }
+			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
+			if negate { xPos = -xPos }
+			if tok = s.Scan(); tok != ',' { break }
+			// pinned is obsolete, but we need to parse it for backwards compat
+			if tok = s.Scan(); tok == scanner.Ident && (s.TokenText() == "pinned" || s.TokenText() == "unpinned") {
+				if tok = s.Scan(); tok != ',' { break }
+				tok = s.Scan()
+			}
+			if tok != scanner.String { break }
+			notes := s.TokenText()
+			var tags []string
+			for tok = s.Scan(); tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				tags = append(tags, s.TokenText())
+			}
+			if tok != ')' { break }
+			paper := h.papers.QueryPaper(uint(paperId), "")
+			h.papers.QueryRefs(paper, false)
+			paper.xPos = int(xPos)
+			paper.notes = notes
+			paper.tags = tags
+			tok = s.Scan()
+			paperList = append(paperList, paper)
+		}
+	} else if papersVersion == 2 {
+		// PAPERS VERSION 2
+		for tok != scanner.EOF {
+			if tok != '(' { break }
+			if tok = s.Scan(); tok != scanner.Int { break }
+			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			if tok = s.Scan(); tok != ',' { break }
+			tok = s.Scan()
+			negate := false;
+			if tok == '-' { negate = true; tok = s.Scan() }
+			if tok != scanner.Int { break }
+			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
+			if negate { xPos = -xPos }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok != scanner.String { break }
+			notes := s.TokenText()
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "l" { break }
+			var layers []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				layers = append(layers, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "t" { break }
+			var tags []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				tags = append(tags, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "n" { break }
+			var newTags []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				newTags = append(newTags, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ')' { break }
+			paper := h.papers.QueryPaper(uint(paperId), "")
+			h.papers.QueryRefs(paper, false)
+			paper.xPos = int(xPos)
+			paper.notes = notes
+			paper.tags = tags
+			paper.layers = layers
+			paper.newTags = newTags
+			tok = s.Scan()
+			paperList = append(paperList, paper)
+		}
+
+
+	}
+
+	return paperList
+}
+
+// Returns a list of tags stored in userdata string field
+func tagListFromDatabase (tags []byte) []*Tag {
+
+    var tagList []*Tag
+    var s scanner.Scanner
+    s.Init(bytes.NewReader(tags)) // user scanner from above
+    s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
+	tok := s.Scan()
+	tagsVersion := 0 // there is no zero version
+
+	// Firstly discover format of saved data
+	if tok == scanner.Ident && s.TokenText() == "v" {
+		if tok = s.Scan(); tok == ':' {
+			if tok = s.Scan(); tok == scanner.Int {
+				version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+				tagsVersion = int(version)
+				tok = s.Scan()
+			}
+		}
+	}
+
+	if tagsVersion == 1 {
+		// TAGS VERSION 1
+		for tok != scanner.EOF {
+			if tok != '(' { break }
+			tag := new(Tag)
+			// tag name
+			if tok = s.Scan(); tok != scanner.String { break }
+			tag.name = s.TokenText()
+			if tok = s.Scan(); tok != ',' { break }
+			// tag starred?
+			tag.starred = true
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "s" { break }
+			if tok = s.Scan(); tok == '!' {
+				tag.starred = false
+				tok = s.Scan()
+			}
+			if tok != ',' { break }
+			// tag blobbed?
+			tag.blobbed = true
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "b" { break }
+			if tok = s.Scan(); tok == '!' {
+				tag.blobbed = false
+				tok = s.Scan()
+			}
+			//tag.blobCol = int(blobCol)
+			if tok != ')' { break }
+			tok = s.Scan()
+			tagList = append(tagList, tag)
+		}
+	}
+
+	return tagList
+}
+
+/****************************************************************/
+
 func serveFastCGI(listenAddr string, papers *PapersEnv) {
     laddr, er := net.ResolveTCPAddr("tcp", listenAddr)
     if er != nil {
@@ -589,10 +762,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 		} else if req.Form["profileLogin"] != nil && req.Form["passHash"] != nil {
             // login request
             h.ProfileLogin(req.Form["profileLogin"][0], req.Form["passHash"][0], rw)
-        } else if req.Form["profileSave"] != nil && req.Form["passHash"] != nil {
-            // save request
+        } else if req.Form["profileSync"] != nil && req.Form["passHash"] != nil {
+            // sync request
             if req.Form["papers"] != nil && req.Form["tags"] != nil {
-                h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
+                h.ProfileSync(req.Form["profileSync"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
             }
         } else if req.Form["profileChangePassword"] != nil && req.Form["passHash"] != nil {
             // change password request
@@ -683,11 +856,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "{\"r\":")
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["profileSave"] != nil {
-            // save request
-            // save request
+        if req.Form["profileSync"] != nil {
+            // sync request
             if req.Form["papers"] != nil && req.Form["tags"] != nil {
-                h.ProfileSave(req.Form["profileSave"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
+                h.ProfileSync(req.Form["profileSync"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
             }
         } else {
             // unknown ajax request
@@ -866,121 +1038,13 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	/**********/
 
     // build a list of PAPERS and their metadata for this profile 
+	paperList := paperListFromDatabase(papers)
 
-    var paperList []*Paper
-    var s scanner.Scanner
-    s.Init(bytes.NewReader(papers))
-    s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
-    tok := s.Scan()
-	papersVersion := 0 // there is no zero version
-
-	// Firstly discover format of saved data
-	if tok == '(' {
-		papersVersion = 1;
-	} else if tok == scanner.Ident && s.TokenText() == "v" {
-		if tok = s.Scan(); tok == ':' {
-			if tok = s.Scan(); tok == scanner.Int {
-				version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-				papersVersion = int(version)
-				tok = s.Scan()
-			}
-		}
-	}
-
-	if papersVersion == 1 {
-		// VERSION 1 (deprecated)
-		for tok != scanner.EOF {
-			if tok != '(' { break }
-			if tok = s.Scan(); tok != scanner.Int { break }
-			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-			if tok = s.Scan(); tok != ',' { break }
-			tok = s.Scan()
-			negate := false;
-			if tok == '-' { negate = true; tok = s.Scan() }
-			if tok != scanner.Int { break }
-			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-			if negate { xPos = -xPos }
-			if tok = s.Scan(); tok != ',' { break }
-			// pinned is obsolete, but we need to parse it for backwards compat
-			if tok = s.Scan(); tok == scanner.Ident && (s.TokenText() == "pinned" || s.TokenText() == "unpinned") {
-				if tok = s.Scan(); tok != ',' { break }
-				tok = s.Scan()
-			}
-			if tok != scanner.String { break }
-			notes := s.TokenText()
-			var tags []string
-			for tok = s.Scan(); tok == ','; tok = s.Scan() {
-				if tok = s.Scan(); tok != scanner.String { break }
-				tags = append(tags, s.TokenText())
-			}
-			if tok != ')' { break }
-			paper := h.papers.QueryPaper(uint(paperId), "")
-			h.papers.QueryRefs(paper, false)
-			paper.xPos = int(xPos)
-			paper.notes = notes
-			paper.tags = tags
-			tok = s.Scan()
-			paperList = append(paperList, paper)
-		}
-	} else if papersVersion == 2 {
-		// PAPERS VERSION 2
-		for tok != scanner.EOF {
-			if tok != '(' { break }
-			if tok = s.Scan(); tok != scanner.Int { break }
-			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-			if tok = s.Scan(); tok != ',' { break }
-			tok = s.Scan()
-			negate := false;
-			if tok == '-' { negate = true; tok = s.Scan() }
-			if tok != scanner.Int { break }
-			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-			if negate { xPos = -xPos }
-			if tok = s.Scan(); tok != ',' { break }
-			if tok = s.Scan(); tok != scanner.String { break }
-			notes := s.TokenText()
-			if tok = s.Scan(); tok != ',' { break }
-			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "l" { break }
-			var layers []string
-			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-				if tok = s.Scan(); tok != scanner.String { break }
-				layers = append(layers, s.TokenText())
-			}
-			if tok != ']' { break }
-			if tok = s.Scan(); tok != ',' { break }
-			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "t" { break }
-			var tags []string
-			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-				if tok = s.Scan(); tok != scanner.String { break }
-				tags = append(tags, s.TokenText())
-			}
-			if tok != ']' { break }
-			if tok = s.Scan(); tok != ',' { break }
-			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "n" { break }
-			var newTags []string
-			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-				if tok = s.Scan(); tok != scanner.String { break }
-				newTags = append(newTags, s.TokenText())
-			}
-			if tok != ']' { break }
-			if tok = s.Scan(); tok != ')' { break }
-			paper := h.papers.QueryPaper(uint(paperId), "")
-			h.papers.QueryRefs(paper, false)
-			paper.xPos = int(xPos)
-			paper.notes = notes
-			paper.tags = tags
-			paper.layers = layers
-			paper.newTags = newTags
-			tok = s.Scan()
-			paperList = append(paperList, paper)
-		}
-
-
-	}
     fmt.Printf("for user %s, read %d papers in format V%d\n", username, len(paperList), papersVersion)
 
+	// output papers in json format
     fmt.Fprintf(rw, "{\"username\":\"%s\",\"papers\":[", username)
 
-	// output papers in json format
     for i, paper := range paperList {
         if i > 0 {
             fmt.Fprintf(rw, ",")
@@ -1029,56 +1093,8 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 
 	/* TAGS */
 	/********/
-
     // build a list of TAGS  this profile
-    var tagList []*Tag
-    s.Init(bytes.NewReader(tags)) // user scanner from above
-    s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
-    tok = s.Scan()
-	tagsVersion := 0 // there is no zero version
-
-	// Firstly discover format of saved data
-	if tok == scanner.Ident && s.TokenText() == "v" {
-		if tok = s.Scan(); tok == ':' {
-			if tok = s.Scan(); tok == scanner.Int {
-				version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-				tagsVersion = int(version)
-				tok = s.Scan()
-			}
-		}
-	}
-
-	if tagsVersion == 1 {
-		// TAGS VERSION 1
-		for tok != scanner.EOF {
-			if tok != '(' { break }
-			tag := new(Tag)
-			// tag name
-			if tok = s.Scan(); tok != scanner.String { break }
-			tag.name = s.TokenText()
-			if tok = s.Scan(); tok != ',' { break }
-			// tag starred?
-			tag.starred = true
-			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "s" { break }
-			if tok = s.Scan(); tok == '!' {
-				tag.starred = false
-				tok = s.Scan()
-			}
-			if tok != ',' { break }
-			// tag blobbed?
-			tag.blobbed = true
-			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "b" { break }
-			if tok = s.Scan(); tok == '!' {
-				tag.blobbed = false
-				tok = s.Scan()
-			}
-			//tag.blobCol = int(blobCol)
-			if tok != ')' { break }
-			tok = s.Scan()
-			tagList = append(tagList, tag)
-		}
-	}
-
+	tagList := tagListFromDatabase(tags)
 
     fmt.Printf("for user %s, read %d tags in format V%d\n", username, len(tagList), tagsVersion)
 
@@ -1095,7 +1111,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     fmt.Fprintf(rw, "]}")
 }
 
-func (h *MyHTTPHandler) ProfileSave(username string, passhash string, papers string, tags string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers string, tags string, rw http.ResponseWriter) {
 
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
