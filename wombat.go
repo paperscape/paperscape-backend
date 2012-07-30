@@ -507,6 +507,40 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 
 /****************************************************************/
 
+// Converts papers list into string and stores this in userdata table's 'papers' field
+func (h *MyHTTPHandler) paperListToDatabase (username string, paperList []*Paper) bool {
+
+	// This SHOULD be identical to JS code in kea i.e. it should be parseable
+	// by the paperListFromDatabase code below
+	w := new(bytes.Buffer)
+	fmt.Fprintf(w,"v:2"); // PAPERS VERSION 2
+	for _, paper := range paperList {
+		fmt.Fprintf(w,"(%d,%d,%s,l[",paper.id,paper.xPos,paper.notes);
+		for i, layer := range paper.layers {
+			if i > 0 { fmt.Fprintf(w,","); }
+			fmt.Fprintf(w,"%s",layer);
+		}
+		fmt.Fprintf(w,"],t[");
+		for i, tag := range paper.tags {
+			if i > 0 { fmt.Fprintf(w,","); }
+			fmt.Fprintf(w,"%s",tag);
+		}
+		fmt.Fprintf(w,"],n[");
+		for i, newTag := range paper.newTags {
+			if i > 0 { fmt.Fprintf(w,","); }
+			fmt.Fprintf(w,"%s",newTag);
+		}
+		fmt.Fprintf(w,"])");
+	}
+
+	query := fmt.Sprintf("UPDATE userdata SET papers = '%s' WHERE username = '%s'", w.String(), username)
+    if h.papers.QueryFull(query) {
+		return true;
+	}
+	return false
+}
+
+
 // Returns a list of papers stored in userdata string field
 func (h *MyHTTPHandler) paperListFromDatabase (papers []byte) []*Paper {
 
@@ -1079,8 +1113,8 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
         if !ok { papers = nil }
         tags, ok = row[1].([]byte)
         if !ok { tags = nil }
-        newpapers, ok = row[0].([]byte)
-        if !ok { papers = nil }
+        newpapers, ok = row[2].([]byte)
+        if !ok { newpapers = nil }
         h.papers.QueryEnd()
     }
 
@@ -1089,14 +1123,40 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 
     // build a list of PAPERS and their metadata for this profile 
 	paperList := h.paperListFromDatabase(papers)
+    fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
 
 	// and check for new papers that we don't already have
 	newPaperList := h.paperListFromDatabase(newpapers)
+    fmt.Printf("for user %s, read %d new papers\n", username, len(newPaperList))
 
-	// TODO make one super list of unique papers
-	// and output this to user
+	// make one super list of unique papers
+	// if newPaperList has duplicates (it shouldn't), takes the first
+	listModified := false
+	for _, newPaper := range newPaperList {
+		exists := false
+		for _, paper := range paperList {
+			if newPaper.id == paper.id {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			listModified = true
+			paperList = append(paperList,newPaper)
+		}
+	}
 
-    fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
+	h.paperListToDatabase(username,paperList)
+	// if we added new papers, save the new string and clear new papers field in db
+	if listModified {
+		if h.paperListToDatabase(username,paperList) {
+			// clear newPapers db field
+			query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
+			if h.papers.QueryFull(query) {
+				fmt.Printf("for user %s, migrated newpapers to papers in database\n", username)
+			}
+		}
+	}
 
 	// output papers in json format
     fmt.Fprintf(rw, "{\"username\":\"%s\",\"papers\":[", username)
