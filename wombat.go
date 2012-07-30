@@ -782,63 +782,38 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "%s({\"r\":", callback)
         resultBytesStart := rw.bytesWritten
 
-		if req.Form["profileChallenge"] != nil {
-			// authenticate request (send user a new "challenge")
+		if req.Form["pchal"] != nil {
+			// profile-challenge: authenticate request (send user a new "challenge")
 			giveSalt := false
 			// give user their salt once, so they can salt passwords in this session
-			if req.Form["giveSalt"] != nil {
+			if req.Form["s"] != nil {
+                // client requested salt
 				giveSalt = true
 			}
-			h.ProfileChallenge(req.Form["profileChallenge"][0], giveSalt, rw)
-		} else if req.Form["profileLogin"] != nil && req.Form["passHash"] != nil {
-            // login request
-            h.ProfileLogin(req.Form["profileLogin"][0], req.Form["passHash"][0], rw)
-        } else if req.Form["profileSync"] != nil && req.Form["passHash"] != nil {
-            // sync request
-            if req.Form["papers"] != nil && req.Form["tags"] != nil {
-                h.ProfileSync(req.Form["profileSync"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
-            }
-		} else if req.Form["profileCull"] != nil && req.Form["passHash"] != nil {
-			// clear newpapers db field request
-			h.ProfileCullNewPapers(req.Form["profileCull"][0], req.Form["passHash"][0], rw)
-		} else if req.Form["profileChangePassword"] != nil && req.Form["passHash"] != nil {
-            // change password request
-			// deliberate use of cryptic JSON names to fool robotic packet sniffers...
-            if req.Form["payload"] != nil && req.Form["sprinkle"] != nil {
-                h.ProfileChangePassword(req.Form["profileChangePassword"][0], req.Form["passHash"][0], req.Form["payload"][0], req.Form["sprinkle"][0], rw)
-            }
-            /*
-        } else if req.Form["lookupId"] != nil || req.Form["lookupArxiv"] != nil {
-            // lookup details of specific paper
-
-            // parse the request parameters
+			h.ProfileChallenge(req.Form["pchal"][0], giveSalt, rw)
+		} else if req.Form["plogin"] != nil && req.Form["h"] != nil {
+            // profile-login: login request
+            // h = passHash
+            h.ProfileLogin(req.Form["plogin"][0], req.Form["h"][0], rw)
+		} else if req.Form["pcull"] != nil && req.Form["h"] != nil {
+            // profile-cull: clear newpapers db field request
+            // h = passHash
+			h.ProfileCullNewPapers(req.Form["pcull"][0], req.Form["h"][0], rw)
+		} else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil {
+            // profile-change-password: change password request
+            // h = passHash, p = payload, s = sprinkle (salt)
+            h.ProfileChangePassword(req.Form["pchpw"][0], req.Form["h"][0], req.Form["p"][0], req.Form["s"][0], rw)
+        } else if req.Form["gmrc"] != nil {
+            // get-meta-refs-cites: get the meta data, refs and cites for the given paper id
             var id uint = 0
-            if req.Form["lookupId"] != nil {
-                if idNum, er := strconv.ParseUint(req.Form["lookupId"][0], 10, 0); er == nil {
-                    id = uint(idNum)
-                }
-            }
-            var arxiv string = ""
-            if req.Form["lookupArxiv"] != nil {
-                arxiv = req.Form["lookupArxiv"][0]
-            }
-            refsOnly := req.Form["refsOnly"] != nil
-
-            // do the lookup
-            h.LookupPaper(id, arxiv, refsOnly, rw)
-
-            */
-        } else if req.Form["getMetaRefsCites"] != nil {
-            // get the meta data, refs and citse for the given paper id
-            var id uint = 0
-            if idNum, er := strconv.ParseUint(req.Form["getMetaRefsCites"][0], 10, 0); er == nil {
+            if idNum, er := strconv.ParseUint(req.Form["gmrc"][0], 10, 0); er == nil {
                 id = uint(idNum)
             }
             h.GetMetaRefsCites(id, rw)
-        } else if req.Form["getMetas[]"] != nil {
-            // get the meta data for given list of paper ids
+        } else if req.Form["gm[]"] != nil {
+            // get-metas: get the meta data for given list of paper ids
             var ids []uint
-            for _, strId := range req.Form["getMetas[]"] {
+            for _, strId := range req.Form["gm[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
                     ids = append(ids, uint(preId))
                 } else {
@@ -846,30 +821,30 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetMetas(ids, rw)
-        } else if req.Form["getRefsCites"] != nil {
-            // get the references and citations for a given paper id
+        } else if req.Form["grc"] != nil {
+            // get-refs-cites: get the references and citations for a given paper id
             var id uint = 0
-            if preId, er := strconv.ParseUint(req.Form["getRefsCites"][0], 10, 0); er == nil {
+            if preId, er := strconv.ParseUint(req.Form["grc"][0], 10, 0); er == nil {
                 id = uint(preId)
             }
             h.GetRefsCites(id, rw)
-        } else if req.Form["searchArxiv"] != nil {
-            // search papers for arxiv number
-            h.SearchArxiv(req.Form["searchArxiv"][0], rw)
-        } else if req.Form["getAbstract"] != nil {
-            // get the abstract for a paper
+        } else if req.Form["ga"] != nil {
+            // get-abstract: get the abstract for a paper
             var id uint = 0
-            if idNum, er := strconv.ParseUint(req.Form["getAbstract"][0], 10, 0); er == nil {
+            if idNum, er := strconv.ParseUint(req.Form["ga"][0], 10, 0); er == nil {
                 id = uint(idNum)
             }
             abs, _ := json.Marshal(h.papers.GetAbstract(id))
             fmt.Fprintf(rw, "%s", abs)
-        } else if req.Form["searchAuthor"] != nil {
-            // search papers for authors
-            h.SearchPaperV2("authors", req.Form["searchAuthor"][0], rw)
-        } else if req.Form["searchKeyword"] != nil {
-            // search papers for keywords
-            h.SearchPaperV2("title", req.Form["searchKeyword"][0], rw)
+        } else if req.Form["sax"] != nil {
+            // search-arxiv: search papers for arxiv number
+            h.SearchArxiv(req.Form["sax"][0], rw)
+        } else if req.Form["sau"] != nil {
+            // search-author: search papers for authors
+            h.SearchPaper("authors", req.Form["sau"][0], rw)
+        } else if req.Form["skw"] != nil {
+            // search-keyword: search papers for keywords (just a title search at the moment)
+            h.SearchPaper("title", req.Form["skw"][0], rw)
         } else {
             // unknown ajax request
         }
@@ -890,11 +865,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "{\"r\":")
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["profileSync"] != nil {
-            // sync request
-            if req.Form["papers"] != nil && req.Form["tags"] != nil {
-                h.ProfileSync(req.Form["profileSync"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
-            }
+        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["t"] != nil {
+            // profile-sync: sync request
+            // h = passHash, p = papers, t = tags
+            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], rw)
         } else {
             // unknown ajax request
         }
@@ -923,9 +897,9 @@ func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
 func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, title string, numCites uint, journal string, doiJSON string) {
     authorsJSON, _ := json.Marshal(authors)
     titleJSON, _ := json.Marshal(title)
-    fmt.Fprintf(w, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d", id, arxiv, authorsJSON, titleJSON, numCites)
+    fmt.Fprintf(w, "{\"id\":%d,\"arxv\":\"%s\",\"auth\":%s,\"titl\":%s,\"nc\":%d", id, arxiv, authorsJSON, titleJSON, numCites)
     if len(journal) > 0 {
-        fmt.Fprintf(w, ",\"journal\":\"%s\"", journal)
+        fmt.Fprintf(w, ",\"jour\":\"%s\"", journal)
     }
     if len(doiJSON) > 0 {
         fmt.Fprintf(w, ",\"doi\":%s", doiJSON)
@@ -933,22 +907,22 @@ func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, 
 }
 
 func PrintJSONContextInfo(w io.Writer, paper *Paper) {
-	fmt.Fprintf(w, ",\"xPos\":%d,\"notes\":%s,", paper.xPos, paper.notes)
-	fmt.Fprintf(w, "\"layers\":[")
+	fmt.Fprintf(w, ",\"x\":%d,\"note\":%s,", paper.xPos, paper.notes)
+	fmt.Fprintf(w, "\"layr\":[")
 	for j, layer := range paper.layers {
 		if j > 0 {
 			fmt.Fprintf(w, ",")
 		}
 		fmt.Fprintf(w, "%s", layer)
 	}
-	fmt.Fprintf(w, "],\"tags\":[")
+	fmt.Fprintf(w, "],\"tag\":[")
 	for j, tag := range paper.tags {
 		if j > 0 {
 			fmt.Fprintf(w, ",")
 		}
 		fmt.Fprintf(w, "%s", tag)
 	}
-	fmt.Fprintf(w, "],\"newTags\":[")
+	fmt.Fprintf(w, "],\"ntag\":[")
 	for j, newTag := range paper.newTags {
 		if j > 0 {
 			fmt.Fprintf(w, ",")
@@ -959,7 +933,7 @@ func PrintJSONContextInfo(w io.Writer, paper *Paper) {
 }
 
 func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
-	fmt.Fprintf(w, ",\"allRefsCites\":false,\"refs\":[")
+	fmt.Fprintf(w, ",\"allrc\":false,\"refs\":[")
 	first := true
 	for _, link := range paper.refs {
 		// only return links that point to other papers in this profile
@@ -979,15 +953,15 @@ func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
 }
 
 func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
-    fmt.Fprintf(w, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
+    fmt.Fprintf(w, "{\"id\":%d,\"rord\":%d,\"rfrq\":%d,\"nc\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
 }
 
 func PrintJSONLinkFutureInfo(w io.Writer, link *Link) {
-    fmt.Fprintf(w, "{\"id\":%d,\"refOrder\":%d,\"refFreq\":%d,\"numCites\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
+    fmt.Fprintf(w, "{\"id\":%d,\"rord\":%d,\"rfrq\":%d,\"nc\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
 }
 
 func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
-    fmt.Fprintf(w, "\"allRefsCites\":true,\"refs\":[")
+    fmt.Fprintf(w, "\"allrc\":true,\"ref\":[")
 
     // output the refs (future -> past)
     for i, link := range paper.refs {
@@ -998,7 +972,7 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
     }
 
     // output the cites (past -> future)
-    fmt.Fprintf(w, "],\"cites\":[")
+    fmt.Fprintf(w, "],\"cite\":[")
     for i, link := range paper.cites {
         if i > 0 {
             fmt.Fprintf(w, ",")
@@ -1047,9 +1021,9 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http
 
 	// return challenge code
 	if giveSalt {
-		fmt.Fprintf(rw, "{\"username\":\"%s\",\"challenge\":\"%d\",\"salt\":\"%d\"}", username, challenge, salt)
+		fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"salt\":\"%d\"}", username, challenge, salt)
 	} else {
-		fmt.Fprintf(rw, "{\"username\":\"%s\",\"challenge\":\"%d\"}", username, challenge)
+		fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"}", username, challenge)
 	}
 }
 
@@ -1166,7 +1140,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 	}
 
 	// output papers in json format
-    fmt.Fprintf(rw, "{\"username\":\"%s\",\"papers\":[", username)
+    fmt.Fprintf(rw, "{\"name\":\"%s\",\"papr\":[", username)
 
     for i, paper := range paperList {
         if i > 0 {
@@ -1185,14 +1159,14 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 
     fmt.Printf("for user %s, read %d tags\n", username, len(tagList))
 
-	fmt.Fprintf(rw, "],\"tags\":[")
+	fmt.Fprintf(rw, "],\"tag\":[")
 
 	// output tags in json format
     for i, tag := range tagList {
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
-		fmt.Fprintf(rw, "{\"name\":%s,\"starred\":\"%t\",\"blobbed\":\"%t\"}", tag.name, tag.starred, tag.blobbed)
+		fmt.Fprintf(rw, "{\"name\":%s,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.starred, tag.blobbed)
     }
 
     fmt.Fprintf(rw, "]}")
@@ -1251,13 +1225,13 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 
 	query = fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s' WHERE username = '%s'", papersStr, tags, username)
     if !h.papers.QueryFull(query) {
-		fmt.Fprintf(rw, "{\"success\":\"false\"}")
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
     } else if len(newPapersAdded) > 0 {
 		// generate random "challenge", as we expect user to reply
 		// with a cull order of the newpapers field in db
 		challenge := h.SetChallenge(username)
 		// output new papers in json format
-		fmt.Fprintf(rw, "{\"username\":\"%s\",\"success\":\"true\",\"challenge\":\"%d\",\"papers\":[", username,challenge)
+		fmt.Fprintf(rw, "{\"name\":\"%s\",\"succ\":\"true\",\"chal\":\"%d\",\"papr\":[", username,challenge)
 
 		for i, paper := range newPapersAdded {
 			if i > 0 {
@@ -1271,7 +1245,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 		fmt.Fprintf(rw, "]}")
 		fmt.Printf("for user %s, sent %d new papers for sync\n", username, len(newPapersAdded))
 	} else {
-		fmt.Fprintf(rw, "{\"success\":\"true\"}")
+		fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 	}
 }
 
@@ -1283,19 +1257,19 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 	saltNum, _ := strconv.ParseUint(salt, 10, 64)
 
 	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, uint64(saltNum), username)
-	fmt.Fprintf(rw, "{\"success\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
+	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
 }
 
 
 func (h *MyHTTPHandler) ProfileCullNewPapers(username string, passhash string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(username,passhash) {
-		fmt.Fprintf(rw, "{\"success\":\"false\"}")
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
 
 	// clear newPapers db field:
 	query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
-	fmt.Fprintf(rw, "{\"success\":\"%t\"}",h.papers.QueryFull(query))
+	fmt.Fprintf(rw, "{\"succ\":\"%t\"}",h.papers.QueryFull(query))
 }
 
 func (h *MyHTTPHandler) GetMetaRefsCites(id uint, rw http.ResponseWriter) {
@@ -1357,57 +1331,6 @@ func (h *MyHTTPHandler) GetRefsCites(id uint, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "}")
 }
 
-/* obsolete
-func (h *MyHTTPHandler) LookupPaper(id uint, arxiv string, refsOnly bool, rw http.ResponseWriter) {
-    paper := h.papers.QueryPaper(id, arxiv)
-    h.papers.QueryRefs(paper, true)
-    h.papers.QueryCites(paper, true)
-
-    if paper == nil {
-        fmt.Fprintf(rw, "{}")
-        return
-    }
-
-    if !refsOnly {
-        authors, _ := json.Marshal(paper.authors)
-        title, _ := json.Marshal(paper.title)
-        fmt.Fprintf(rw, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numRefs\":%d,\"numCites\":%d,\"allRefsCites\":true,\"refs\":[", paper.id, paper.arxiv, authors, title, len(paper.refs), paper.numCites)
-    } else {
-        fmt.Fprintf(rw, "{\"id\":%d,\"allRefsCites\":true,\"refs\":[", paper.id)
-    }
-    // Refs (future-> past)
-    first := true
-    for _, link := range paper.refs {
-        if link.pastPaper != nil {
-            if first {
-                first = false
-            } else {
-                fmt.Fprintf(rw, ", ")
-            }
-            authors, _ := json.Marshal(link.pastPaper.authors)
-            title, _ := json.Marshal(link.pastPaper.title)
-            fmt.Fprintf(rw, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d,\"refFreq\":%d,\"tred\":%.4g}", link.pastPaper.id, link.pastPaper.arxiv, authors, title, link.pastPaper.numCites, link.refFreq, link.tredWeightNorm)
-        }
-    }
-    // Cites (past -> future)
-    fmt.Fprintf(rw, "], \"cites\":[")
-    first = true
-    for _, link := range paper.cites {
-        if link.futurePaper != nil {
-            if first {
-                first = false
-            } else {
-                fmt.Fprintf(rw, ", ")
-            }
-            authors, _ := json.Marshal(link.futurePaper.authors)
-            title, _ := json.Marshal(link.futurePaper.title)
-            fmt.Fprintf(rw, "{\"id\":%d,\"arxiv\":\"%s\",\"authors\":%s,\"title\":%s,\"numCites\":%d,\"refFreq\":%d,\"tred\":%.4g}", link.futurePaper.id, link.futurePaper.arxiv, authors, title, link.futurePaper.numCites, link.refFreq, link.tredWeightNorm)
-        }
-    }
-    fmt.Fprintf(rw, "]}")
-}
-*/
-
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
     // query the paper and its refs and cites
     paper := h.papers.QueryPaper(0, arxivString)
@@ -1427,61 +1350,8 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     fmt.Fprintf(rw, "}")
 }
 
-func (h *MyHTTPHandler) SearchPaper(searchWhat string, searchString string, rw http.ResponseWriter) {
-    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.arxiv,meta_data.authors,meta_data.title," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE MATCH (" + searchWhat + ") AGAINST ('" + searchString + "' IN BOOLEAN MODE) AND meta_data.id = " + *flagPciteTable + ".id") {
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-
-    defer h.papers.QueryEnd()
-
-    // get result set  
-    result, err := h.papers.db.UseResult()
-    if err != nil {
-        fmt.Println("MySQL use result error;", err)
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-
-    // get each row from the result and create the JSON object
-    fmt.Fprintf(rw, "[")
-    numResults := 0
-    for numResults < 20 {
-        row := result.FetchRow()
-        if row == nil {
-            break
-        }
-
-        var ok bool
-        var id uint64
-        var arxiv string
-        var authors string
-        var title string
-        var numCites uint64
-        if id, ok = row[0].(uint64); !ok { continue }
-        if arxiv, ok = row[1].(string); !ok { continue }
-        if au, ok := row[2].([]byte); !ok {
-            continue
-        } else {
-            authors = string(au)
-        }
-        if title, ok = row[3].(string); !ok { continue }
-        if numCites, ok = row[4].(uint64); !ok {
-            numCites = 0
-        }
-
-        if numResults > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        PrintJSONMetaInfoUsing(rw, uint(id), arxiv, authors, title, uint(numCites), "", "")
-        fmt.Fprintf(rw, ",\"allRefsCites\":false}")
-        numResults += 1
-    }
-    fmt.Fprintf(rw, "]")
-}
-
 // this version just returns id and numCites for up to 500 results
-func (h *MyHTTPHandler) SearchPaperV2(searchWhat string, searchString string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) SearchPaper(searchWhat string, searchString string, rw http.ResponseWriter) {
     if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE MATCH (" + searchWhat + ") AGAINST ('" + searchString + "' IN BOOLEAN MODE) AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
         fmt.Fprintf(rw, "[]")
         return
@@ -1517,7 +1387,7 @@ func (h *MyHTTPHandler) SearchPaperV2(searchWhat string, searchString string, rw
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
-        fmt.Fprintf(rw, "{\"id\":%d,\"numCites\":%d}", id, numCites)
+        fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d}", id, numCites)
         numResults += 1
     }
     fmt.Fprintf(rw, "]")
