@@ -933,7 +933,7 @@ func PrintJSONContextInfo(w io.Writer, paper *Paper) {
 }
 
 func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
-	fmt.Fprintf(w, ",\"allrc\":false,\"refs\":[")
+	fmt.Fprintf(w, ",\"allrc\":false,\"ref\":[")
 	first := true
 	for _, link := range paper.refs {
 		// only return links that point to other papers in this profile
