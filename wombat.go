@@ -508,10 +508,10 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 /****************************************************************/
 
 // Converts papers list into string and stores this in userdata table's 'papers' field
-func (h *MyHTTPHandler) paperListToDatabase (username string, paperList []*Paper) bool {
+func (h *MyHTTPHandler) PaperListToDBString (username string, paperList []*Paper) string {
 
 	// This SHOULD be identical to JS code in kea i.e. it should be parseable
-	// by the paperListFromDatabase code below
+	// by the paperListFromDBString code below
 	w := new(bytes.Buffer)
 	fmt.Fprintf(w,"v:2"); // PAPERS VERSION 2
 	for _, paper := range paperList {
@@ -532,17 +532,12 @@ func (h *MyHTTPHandler) paperListToDatabase (username string, paperList []*Paper
 		}
 		fmt.Fprintf(w,"])");
 	}
-
-	query := fmt.Sprintf("UPDATE userdata SET papers = '%s' WHERE username = '%s'", w.String(), username)
-    if h.papers.QueryFull(query) {
-		return true;
-	}
-	return false
+	return w.String()
 }
 
 
 // Returns a list of papers stored in userdata string field
-func (h *MyHTTPHandler) paperListFromDatabase (papers []byte) []*Paper {
+func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 
     var paperList []*Paper
     var s scanner.Scanner
@@ -803,7 +798,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             if req.Form["papers"] != nil && req.Form["tags"] != nil {
                 h.ProfileSync(req.Form["profileSync"][0], req.Form["passHash"][0], req.Form["papers"][0], req.Form["tags"][0], rw)
             }
-        } else if req.Form["profileChangePassword"] != nil && req.Form["passHash"] != nil {
+		} else if req.Form["profileCull"] != nil && req.Form["passHash"] != nil {
+			// clear newpapers db field request
+			h.ProfileCullNewPapers(req.Form["profileCull"][0], req.Form["passHash"][0], rw)
+		} else if req.Form["profileChangePassword"] != nil && req.Form["passHash"] != nil {
             // change password request
 			// deliberate use of cryptic JSON names to fool robotic packet sniffers...
             if req.Form["payload"] != nil && req.Form["sprinkle"] != nil {
@@ -1011,6 +1009,18 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
     fmt.Fprintf(w, "]")
 }
 
+func (h *MyHTTPHandler) SetChallenge(username string) int64 {
+	// generate random "challenge" code
+	challenge := rand.Int63();
+
+	// store new challenge code in user database entry
+	query := fmt.Sprintf("UPDATE userdata SET challenge = '%d' WHERE username = '%s'", challenge, username)
+    if !h.papers.QueryFull(query) {
+		fmt.Printf("ERROR: failed to set new challenge\n", username)
+    }
+	return challenge
+}
+
 func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http.ResponseWriter) {
 
 	// check username exists and get the 'salt'
@@ -1033,15 +1043,7 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http
 	}
 
 	// generate random "challenge" code
-	challenge := rand.Int63();
-
-	// store new challenge code in user database entry
-    query = fmt.Sprintf("UPDATE userdata SET challenge = '%d' WHERE username = '%s'", challenge, username)
-    if !h.papers.QueryFull(query) {
-		fmt.Printf("ERROR: challenging '%s' - couldn't get salt\n", username)
-		fmt.Fprintf(rw, "false")
-		return
-    }
+	challenge := h.SetChallenge(username)
 
 	// return challenge code
 	if giveSalt {
@@ -1101,13 +1103,13 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     // TODO security issue, make sure username is sanitised
 	query := fmt.Sprintf("SELECT papers,tags,newpapers FROM userdata WHERE username = '%s'", username)
 	row := h.papers.QuerySingleRow(query)
+	h.papers.QueryEnd()
 
     var papers,tags,newpapers []byte
 
     if row == nil {
-        h.papers.QueryEnd()
 		return
-    } else {
+	} else {
         var ok bool
         papers, ok = row[0].([]byte)
         if !ok { papers = nil }
@@ -1115,23 +1117,22 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
         if !ok { tags = nil }
         newpapers, ok = row[2].([]byte)
         if !ok { newpapers = nil }
-        h.papers.QueryEnd()
     }
 
 	/* PAPERS */
 	/**********/
 
     // build a list of PAPERS and their metadata for this profile 
-	paperList := h.paperListFromDatabase(papers)
+	paperList := h.PaperListFromDBString(papers)
     fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
 
 	// and check for new papers that we don't already have
-	newPaperList := h.paperListFromDatabase(newpapers)
+	newPaperList := h.PaperListFromDBString(newpapers)
     fmt.Printf("for user %s, read %d new papers\n", username, len(newPaperList))
 
 	// make one super list of unique papers
 	// if newPaperList has duplicates (it shouldn't), takes the first
-	listModified := false
+	newPapersAdded := 0
 	for _, newPaper := range newPaperList {
 		exists := false
 		for _, paper := range paperList {
@@ -1141,21 +1142,27 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 			}
 		}
 		if !exists {
-			listModified = true
 			paperList = append(paperList,newPaper)
+			newPapersAdded += 1
 		}
 	}
 
-	h.paperListToDatabase(username,paperList)
 	// if we added new papers, save the new string and clear new papers field in db
-	if listModified {
-		if h.paperListToDatabase(username,paperList) {
-			// clear newPapers db field
-			query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
+	if len(newPaperList) > 0 {
+		if newPapersAdded > 0 {
+			papersStr := h.PaperListToDBString(username,paperList)
+			query := fmt.Sprintf("UPDATE userdata SET papers = '%s' WHERE username = '%s'", papersStr, username)
 			if h.papers.QueryFull(query) {
-				fmt.Printf("for user %s, migrated newpapers to papers in database\n", username)
+				fmt.Printf("for user %s, migrated %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
+			} else {
+				fmt.Printf("for user %s, error migrating %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
 			}
+		} else {
+			fmt.Printf("for user %s, migrated none of %d newpapers to papers in database\n", username, len(newPaperList))
 		}
+		// clear newPapers db field:
+		query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
+		h.papers.QueryFull(query)
 	}
 
 	// output papers in json format
@@ -1197,18 +1204,75 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 		return
 	}
 
+	papersStr := papers
 
-	// TODO parse given string and merge with newPapers
-	// then save this back again
-	// give user a JSON string of the new papers added during the sync
+	// Check if there are new papers we need to sync with
+	query := fmt.Sprintf("SELECT newpapers FROM userdata WHERE username = '%s'", username)
+	row := h.papers.QuerySingleRow(query)
+    h.papers.QueryEnd()
 
-	//query = fmt.Sprintf("REPLACE INTO userdata (username,data) VALUES ('%s','%s')", username, data)
-	query := fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s' WHERE username = '%s'", papers, tags, username)
-    if !h.papers.QueryFull(query) {
-        fmt.Fprintf(rw, "false")
-    } else {
-        fmt.Fprintf(rw, "true")
+    var newpapers []byte
+    if row != nil {
+        var ok bool
+        newpapers, ok = row[0].([]byte)
+        if !ok { newpapers = nil }
     }
+
+	// if new papers, we may need to alter saved string
+	var newPapersAdded,paperList []*Paper
+	if newpapers != nil {
+		paperList = h.PaperListFromDBString([]byte(papers))
+		fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
+
+		newPaperList := h.PaperListFromDBString(newpapers)
+		fmt.Printf("for user %s, read %d new papers\n", username, len(newPaperList))
+
+		// make one super list of unique papers
+		for _, newPaper := range newPaperList {
+			exists := false
+			for _, paper := range paperList {
+				if newPaper.id == paper.id {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				paperList = append(paperList,newPaper)
+				newPapersAdded = append(newPapersAdded,newPaper)
+			}
+		}
+
+		// if we added new papers, save the new string
+		if len(newPapersAdded) > 0 {
+			papersStr = h.PaperListToDBString(username,paperList)
+		}
+
+	}
+
+	query = fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s' WHERE username = '%s'", papersStr, tags, username)
+    if !h.papers.QueryFull(query) {
+		fmt.Fprintf(rw, "{\"success\":\"false\"}")
+    } else if len(newPapersAdded) > 0 {
+		// generate random "challenge", as we expect user to reply
+		// with a cull order of the newpapers field in db
+		challenge := h.SetChallenge(username)
+		// output new papers in json format
+		fmt.Fprintf(rw, "{\"username\":\"%s\",\"success\":\"true\",\"challenge\":\"%d\",\"papers\":[", username,challenge)
+
+		for i, paper := range newPapersAdded {
+			if i > 0 {
+				fmt.Fprintf(rw, ",")
+			}
+			PrintJSONMetaInfo(rw, paper)
+			PrintJSONContextInfo(rw, paper)
+			PrintJSONRelevantRefs(rw, paper, paperList)
+			fmt.Fprintf(rw, "}")
+		}
+		fmt.Fprintf(rw, "]}")
+		fmt.Printf("for user %s, sent %d new papers for sync\n", username, len(newPapersAdded))
+	} else {
+		fmt.Fprintf(rw, "{\"success\":\"true\"}")
+	}
 }
 
 func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, rw http.ResponseWriter) {
@@ -1220,6 +1284,18 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 
 	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, uint64(saltNum), username)
 	fmt.Fprintf(rw, "{\"success\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
+}
+
+
+func (h *MyHTTPHandler) ProfileCullNewPapers(username string, passhash string, rw http.ResponseWriter) {
+	if !h.ProfileAuthenticate(username,passhash) {
+		fmt.Fprintf(rw, "{\"success\":\"false\"}")
+		return
+	}
+
+	// clear newPapers db field:
+	query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
+	fmt.Fprintf(rw, "{\"success\":\"%t\"}",h.papers.QueryFull(query))
 }
 
 func (h *MyHTTPHandler) GetMetaRefsCites(id uint, rw http.ResponseWriter) {
