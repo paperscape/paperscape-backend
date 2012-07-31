@@ -1085,6 +1085,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     var papers,tags,newpapers []byte
 
     if row == nil {
+		fmt.Printf("ERROR: user %s - MySQL fail\n")
 		return
 	} else {
         var ok bool
@@ -1173,6 +1174,10 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     }
 
     fmt.Fprintf(rw, "]}")
+
+	// record this login
+	query = fmt.Sprintf("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE username = '%s'", username)
+	h.papers.QueryFull(query)
 }
 
 func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers string, tags string, rw http.ResponseWriter) {
@@ -1229,6 +1234,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 	query = fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s' WHERE username = '%s'", papersStr, tags, username)
     if !h.papers.QueryFull(query) {
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+		return
     } else if len(newPapersAdded) > 0 {
 		// generate random "challenge", as we expect user to reply
 		// with a cull order of the newpapers field in db
@@ -1250,6 +1256,9 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 	} else {
 		fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 	}
+	// record this sync
+	query = fmt.Sprintf("UPDATE userdata SET numsync = numsync + 1, lastsync = NOW() WHERE username = '%s'", username)
+	h.papers.QueryFull(query)
 }
 
 func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, rw http.ResponseWriter) {
