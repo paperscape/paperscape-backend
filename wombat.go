@@ -803,6 +803,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt)
             h.ProfileChangePassword(req.Form["pchpw"][0], req.Form["h"][0], req.Form["p"][0], req.Form["s"][0], rw)
+        } else if req.Form["gdb"] != nil {
+            // get-date-boundaries
+            h.GetDateBoundaries(rw)
         } else if req.Form["gmrc"] != nil {
             // get-meta-refs-cites: get the meta data, refs and cites for the given paper id
             var id uint = 0
@@ -1270,6 +1273,50 @@ func (h *MyHTTPHandler) ProfileCullNewPapers(username string, passhash string, r
 	// clear newPapers db field:
 	query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
 	fmt.Fprintf(rw, "{\"succ\":\"%t\"}",h.papers.QueryFull(query))
+}
+
+func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
+    // perform query
+    if !h.papers.QueryBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5") {
+        return
+    }
+
+    defer h.papers.QueryEnd()
+
+    // get result set  
+    result, err := h.papers.db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        return
+    }
+
+    // get each row from the result and create the JSON object
+    fmt.Fprintf(rw, "{")
+    numResults := 0
+    for {
+        // get the row
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        // parse the row
+        var ok bool
+        var daysAgo uint64
+        var id uint64
+        if daysAgo, ok = row[0].(uint64); !ok { continue }
+        if id, ok = row[1].(uint64); !ok {
+            id = 0
+        }
+
+        // print the result
+        if numResults > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        fmt.Fprintf(rw, "\"d%d\":%d", daysAgo, id)
+        numResults += 1
+    }
+    fmt.Fprintf(rw, "}")
 }
 
 func (h *MyHTTPHandler) GetMetaRefsCites(id uint, rw http.ResponseWriter) {
