@@ -844,10 +844,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             h.SearchArxiv(req.Form["sax"][0], rw)
         } else if req.Form["sau"] != nil {
             // search-author: search papers for authors
-            h.SearchPaper("authors", req.Form["sau"][0], rw)
-        } else if req.Form["skw"] != nil {
-            // search-keyword: search papers for keywords (just a title search at the moment)
-            h.SearchPaper("title", req.Form["skw"][0], rw)
+            h.SearchAuthor(req.Form["sau"][0], rw)
+        } else if req.Form["sti"] != nil {
+            // search-title: search papers for words in title
+            h.SearchTitle(req.Form["sti"][0], rw)
         } else {
             // unknown ajax request
         }
@@ -1379,6 +1379,14 @@ func (h *MyHTTPHandler) GetRefsCites(id uint, rw http.ResponseWriter) {
 }
 
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
+    // check for valid characters in arxiv string
+    for _, r := range arxivString {
+        if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
+            // invalid character
+            return
+        }
+    }
+
     // query the paper and its refs and cites
     paper := h.papers.QueryPaper(0, arxivString)
     h.papers.QueryRefs(paper, false)
@@ -1386,7 +1394,6 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
 
     // check the paper exists
     if paper == nil {
-        fmt.Fprintf(rw, "null")
         return
     }
 
@@ -1397,8 +1404,59 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     fmt.Fprintf(rw, "}")
 }
 
-// this version just returns id and numCites for up to 500 results
-func (h *MyHTTPHandler) SearchPaper(searchWhat string, searchString string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
+    // turn authors into boolean search terms
+    // add surrounding double quotes for each author in case they have initials with them
+    newWord := true
+    var searchString bytes.Buffer
+    for _, r := range authors {
+        if unicode.IsSpace(r) || r == '\'' || r == '+' || r == '\\' {
+            // this characted is a word separator
+            // "illegal" characters are considered word separators
+            if !newWord {
+                searchString.WriteRune('"')
+            }
+            newWord = true;
+        } else {
+            if newWord {
+                searchString.WriteString(" +\"")
+                newWord = false
+            }
+            searchString.WriteRune(r)
+        }
+    }
+    if !newWord {
+        searchString.WriteRune('"')
+    }
+
+    // do the boolean search
+    h.SearchPaperBoolean("authors", searchString.String(), rw)
+}
+
+func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
+    // turn title words into boolean search terms
+    newWord := true
+    var searchString bytes.Buffer
+    for _, r := range titleWords {
+        if unicode.IsSpace(r) || r == '\'' || r == '+' || r == '\\' {
+            // this characted is a word separator
+            // "illegal" characters are considered word separators
+            newWord = true;
+        } else {
+            if newWord {
+                searchString.WriteString(" +")
+                newWord = false
+            }
+            searchString.WriteRune(r)
+        }
+    }
+
+    // do the boolean search
+    h.SearchPaperBoolean("title", searchString.String(), rw)
+}
+
+// returns id and numCites for up to 500 results
+func (h *MyHTTPHandler) SearchPaperBoolean(searchWhat string, searchString string, rw http.ResponseWriter) {
     if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE MATCH (" + searchWhat + ") AGAINST ('" + searchString + "' IN BOOLEAN MODE) AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
         fmt.Fprintf(rw, "[]")
         return
