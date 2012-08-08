@@ -1,9 +1,10 @@
 #!/bin/bash
 
 TIMESTAMP=`date +"%F-%T"`
+XIWI_PROG=$HOME/xiwi
 XIWI_DATA=/opt/pscp
 XIWI_LOG=$XIWI_DATA/logs
 LOG=$XIWI_LOG/wombat-${TIMESTAMP}.log
 
-./wombat -fcgi :9100 > $LOG &
+$XIWI_PROG/wombat/wombat -fcgi :9100 > $LOG &
 disown
