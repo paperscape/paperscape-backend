@@ -43,7 +43,7 @@ func main() {
 
     if len(*flagMetaBaseDir) == 0 {
         if ondpg {
-            *flagMetaBaseDir = "/opt/pscp/meta"
+            *flagMetaBaseDir = "/opt/pscp/data/meta"
         } else {
             *flagMetaBaseDir = "/opt/pscp/arXiv/meta"
         }
