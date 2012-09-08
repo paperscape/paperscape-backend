@@ -121,6 +121,7 @@ type Paper struct {
     cites      []*Link  // cited by 
     numCites   uint     // number of times cited
     xPos       int      // for loaded profile
+    rMod       uint     // for loaded profile
     notes      string   // for loaded profile
     layers     []string // for loaded profile
     tags       []string // for loaded profile
@@ -511,11 +512,11 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 func (h *MyHTTPHandler) PaperListToDBString (username string, paperList []*Paper) string {
 
 	// This SHOULD be identical to JS code in kea i.e. it should be parseable
-	// by the paperListFromDBString code below
+	// by the PaperListFromDBString code below
 	w := new(bytes.Buffer)
-	fmt.Fprintf(w,"v:2"); // PAPERS VERSION 2
+	fmt.Fprintf(w,"v:3"); // PAPERS VERSION 3
 	for _, paper := range paperList {
-		fmt.Fprintf(w,"(%d,%d,%s,l[",paper.id,paper.xPos,paper.notes);
+		fmt.Fprintf(w,"(%d,%d,%d,%s,l[",paper.id,paper.xPos,paper.rMod,paper.notes);
 		for i, layer := range paper.layers {
 			if i > 0 { fmt.Fprintf(w,","); }
 			fmt.Fprintf(w,"%s",layer);
@@ -589,13 +590,14 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			paper := h.papers.QueryPaper(uint(paperId), "")
 			h.papers.QueryRefs(paper, false)
 			paper.xPos = int(xPos)
+			paper.rMod = 0
 			paper.notes = notes
 			paper.tags = tags
 			tok = s.Scan()
 			paperList = append(paperList, paper)
 		}
 	} else if papersVersion == 2 {
-		// PAPERS VERSION 2
+		// PAPERS VERSION 2 (deprecated)
 		for tok != scanner.EOF {
 			if tok != '(' { break }
 			if tok = s.Scan(); tok != scanner.Int { break }
@@ -638,6 +640,62 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			paper := h.papers.QueryPaper(uint(paperId), "")
 			h.papers.QueryRefs(paper, false)
 			paper.xPos = int(xPos)
+			paper.rMod = 0
+			paper.notes = notes
+			paper.tags = tags
+			paper.layers = layers
+			paper.newTags = newTags
+			tok = s.Scan()
+			paperList = append(paperList, paper)
+		}
+	} else if papersVersion == 3 {
+		// PAPERS VERSION 3
+		for tok != scanner.EOF {
+			if tok != '(' { break }
+			if tok = s.Scan(); tok != scanner.Int { break }
+			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			if tok = s.Scan(); tok != ',' { break }
+			tok = s.Scan()
+			negate := false;
+			if tok == '-' { negate = true; tok = s.Scan() }
+			if tok != scanner.Int { break }
+			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
+			if negate { xPos = -xPos }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok != scanner.Int { break }
+			rMod, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok != scanner.String { break }
+			notes := s.TokenText()
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "l" { break }
+			var layers []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				layers = append(layers, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "t" { break }
+			var tags []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				tags = append(tags, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "n" { break }
+			var newTags []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				newTags = append(newTags, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ')' { break }
+			paper := h.papers.QueryPaper(uint(paperId), "")
+			h.papers.QueryRefs(paper, false)
+			paper.xPos = int(xPos)
+			paper.rMod = uint(rMod)
 			paper.notes = notes
 			paper.tags = tags
 			paper.layers = layers
@@ -910,7 +968,7 @@ func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, 
 }
 
 func PrintJSONContextInfo(w io.Writer, paper *Paper) {
-	fmt.Fprintf(w, ",\"x\":%d,\"note\":%s,", paper.xPos, paper.notes)
+	fmt.Fprintf(w, ",\"x\":%d,\"rad\":%d,\"note\":%s,", paper.xPos, paper.rMod, paper.notes)
 	fmt.Fprintf(w, "\"layr\":[")
 	for j, layer := range paper.layers {
 		if j > 0 {
