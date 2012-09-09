@@ -121,7 +121,7 @@ type Paper struct {
     cites      []*Link  // cited by 
     numCites   uint     // number of times cited
     xPos       int      // for loaded profile
-    rMod       uint     // for loaded profile
+    rMod       int      // for loaded profile
     notes      string   // for loaded profile
     layers     []string // for loaded profile
     tags       []string // for loaded profile
@@ -663,7 +663,7 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			if negate { xPos = -xPos }
 			if tok = s.Scan(); tok != ',' { break }
 			if tok = s.Scan(); tok != scanner.Int { break }
-			rMod, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			rMod, _ := strconv.ParseInt(s.TokenText(), 10, 0)
 			if tok = s.Scan(); tok != ',' { break }
 			if tok = s.Scan(); tok != scanner.String { break }
 			notes := s.TokenText()
@@ -695,7 +695,7 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			paper := h.papers.QueryPaper(uint(paperId), "")
 			h.papers.QueryRefs(paper, false)
 			paper.xPos = int(xPos)
-			paper.rMod = uint(rMod)
+			paper.rMod = int(rMod)
 			paper.notes = notes
 			paper.tags = tags
 			paper.layers = layers
