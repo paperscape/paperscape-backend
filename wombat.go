@@ -656,14 +656,18 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
 			if tok = s.Scan(); tok != ',' { break }
 			tok = s.Scan()
-			negate := false;
+			negate := false
 			if tok == '-' { negate = true; tok = s.Scan() }
 			if tok != scanner.Int { break }
 			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
 			if negate { xPos = -xPos }
 			if tok = s.Scan(); tok != ',' { break }
-			if tok = s.Scan(); tok != scanner.Int { break }
+			tok = s.Scan()
+			negate = false
+			if tok == '-' { negate = true; tok = s.Scan() }
+			if tok != scanner.Int { break }
 			rMod, _ := strconv.ParseInt(s.TokenText(), 10, 0)
+			if negate { rMod = -rMod }
 			if tok = s.Scan(); tok != ',' { break }
 			if tok = s.Scan(); tok != scanner.String { break }
 			notes := s.TokenText()
