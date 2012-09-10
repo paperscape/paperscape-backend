@@ -707,9 +707,11 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			tok = s.Scan()
 			paperList = append(paperList, paper)
 		}
-
-
 	}
+
+    if tok != scanner.EOF {
+        fmt.Printf("PaperListFromDBString scan error, unexpected token '%v'\n", tok)
+    }
 
 	return paperList
 }
