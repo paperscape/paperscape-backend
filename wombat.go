@@ -1596,13 +1596,32 @@ func sanityCheckId(id string) bool {
 // searches for all papers within the id range, with main category as given
 // returns id and numCites for up to 500 results
 func (h *MyHTTPHandler) SearchCategory(category string, idFrom string, idTo string, rw http.ResponseWriter) {
-    // sanity check of category
+    // sanity check of category, and build query
+    // comma is used to separate multiple categories, which means "or"
+    var catQuery bytes.Buffer
+    catQuery.WriteString("(meta_data.maincat='")
+    catChars := 0
     for _, r := range category {
-        if !(unicode.IsLower(r) || r == '-') {
+        if r == ',' {
+            if catChars < 2 {
+                // bad category
+                return
+            }
+            catQuery.WriteString("' OR meta_data.maincat='")
+            catChars = 0
+        } else if unicode.IsLower(r) || r == '-' {
+            catQuery.WriteRune(r)
+            catChars += 1
+        } else {
             // illegal character
             return
         }
     }
+    if catChars < 2 {
+        // bad category
+        return
+    }
+    catQuery.WriteString("')")
 
     // sanity check of id numbers
     if !sanityCheckId(idFrom) {
@@ -1617,7 +1636,7 @@ func (h *MyHTTPHandler) SearchCategory(category string, idFrom string, idTo stri
         idTo = "4000000000";
     }
 
-    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.maincat = '" + category + "' AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND " + catQuery.String() + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
         fmt.Fprintf(rw, "[]")
         return
     }
