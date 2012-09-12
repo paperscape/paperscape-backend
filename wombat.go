@@ -912,6 +912,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["sti"] != nil {
             // search-title: search papers for words in title
             h.SearchTitle(req.Form["sti"][0], rw)
+        } else if req.Form["sca"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
+            // search-category: search papers between given id range, in given category
+            // f = from, t = to
+            h.SearchCategory(req.Form["sca"][0], req.Form["f"][0], req.Form["t"][0], rw)
         } else {
             // unknown ajax request
         }
@@ -1531,6 +1535,89 @@ func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
 // returns id and numCites for up to 500 results
 func (h *MyHTTPHandler) SearchPaperBoolean(searchWhat string, searchString string, rw http.ResponseWriter) {
     if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE MATCH (" + searchWhat + ") AGAINST ('" + searchString + "' IN BOOLEAN MODE) AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+
+    defer h.papers.QueryEnd()
+
+    // get result set  
+    result, err := h.papers.db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+
+    // get each row from the result and create the JSON object
+    fmt.Fprintf(rw, "[")
+    numResults := 0
+    for {
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        var ok bool
+        var id uint64
+        var numCites uint64
+        if id, ok = row[0].(uint64); !ok { continue }
+        if numCites, ok = row[1].(uint64); !ok {
+            numCites = 0
+        }
+
+        if numResults > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d}", id, numCites)
+        numResults += 1
+    }
+    fmt.Fprintf(rw, "]")
+}
+
+func sanityCheckId(id string) bool {
+    if len(id) == 1 && id[0] == '0' {
+        // just '0' is okay
+        return true
+    }
+    if len(id) != 10 {
+        // not correct length
+        return false
+    }
+    for _, r := range id {
+        if !unicode.IsDigit(r) {
+            // illegal character
+            return false
+        }
+    }
+    return true
+}
+
+// searches for all papers within the id range, with main category as given
+// returns id and numCites for up to 500 results
+func (h *MyHTTPHandler) SearchCategory(category string, idFrom string, idTo string, rw http.ResponseWriter) {
+    // sanity check of category
+    for _, r := range category {
+        if !(unicode.IsLower(r) || r == '-') {
+            // illegal character
+            return
+        }
+    }
+
+    // sanity check of id numbers
+    if !sanityCheckId(idFrom) {
+        return
+    }
+    if !sanityCheckId(idTo) {
+        return
+    }
+
+    // a top of 0 means infinitely far into the future
+    if idTo == "0" {
+        idTo = "4000000000";
+    }
+
+    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.maincat = '" + category + "' AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
         fmt.Fprintf(rw, "[]")
         return
     }
