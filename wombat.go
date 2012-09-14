@@ -120,6 +120,8 @@ type Paper struct {
     refs       []*Link  // makes references to
     cites      []*Link  // cited by 
     numCites   uint     // number of times cited
+    dNumCites1 uint     // change in numCites in past day
+    dNumCites5 uint     // change in numCites in past 5 days
     xPos       int      // for loaded profile
     rMod       int      // for loaded profile
     notes      string   // for loaded profile
@@ -274,15 +276,19 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         paper.doiJSON = string(doi)
     }
 
-    //// Get number of times cited
-    query = fmt.Sprintf("SELECT numCites FROM %s WHERE id = %d", *flagPciteTable, paper.id)
+    //// Get number of times cited, and change in number of cites
+    query = fmt.Sprintf("SELECT numCites,dNumCites1,dNumCites5 FROM %s WHERE id = %d", *flagPciteTable, paper.id)
     row2 := papers.QuerySingleRow(query)
 
     if row2 != nil {
-        if numCites, ok := row2[0].(uint64); !ok {
-            paper.numCites = 0
-        } else {
+        if numCites, ok := row2[0].(uint64); ok {
             paper.numCites = uint(numCites)
+        }
+        if dNumCites1, ok := row2[1].(int64); ok {
+            paper.dNumCites1 = uint(dNumCites1)
+        }
+        if dNumCites5, ok := row2[2].(int64); ok {
+            paper.dNumCites5 = uint(dNumCites5)
         }
     }
 
@@ -962,13 +968,13 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 }
 
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
-    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.authors, paper.title, paper.numCites, paper.journal, paper.doiJSON)
+    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.authors, paper.title, paper.numCites, paper.dNumCites1, paper.dNumCites5, paper.journal, paper.doiJSON)
 }
 
-func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, title string, numCites uint, journal string, doiJSON string) {
+func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, title string, numCites uint, dNumCites1 uint, dNumCites5 uint, journal string, doiJSON string) {
     authorsJSON, _ := json.Marshal(authors)
     titleJSON, _ := json.Marshal(title)
-    fmt.Fprintf(w, "{\"id\":%d,\"arxv\":\"%s\",\"auth\":%s,\"titl\":%s,\"nc\":%d", id, arxiv, authorsJSON, titleJSON, numCites)
+    fmt.Fprintf(w, "{\"id\":%d,\"arxv\":\"%s\",\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", id, arxiv, authorsJSON, titleJSON, numCites, dNumCites1, dNumCites5)
     if len(journal) > 0 {
         fmt.Fprintf(w, ",\"jour\":\"%s\"", journal)
     }
