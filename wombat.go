@@ -17,6 +17,7 @@ import (
     "runtime"
     "bytes"
     "time"
+    "strings"
 	"math/rand"
 	"crypto/sha1"
     //"xiwi"
@@ -924,6 +925,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // search-category: search papers between given id range, in given category
             // x = include cross lists, f = from, t = to
             h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", req.Form["f"][0], req.Form["t"][0], rw)
+        } else if req.Form["str"] != nil {
+            // search-trending: search papers that are "trending"
+            h.SearchTrending(rw)
         } else {
             // unknown ajax request
         }
@@ -1701,4 +1705,34 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
         numResults += 1
     }
     fmt.Fprintf(rw, "]")
+}
+
+// searches for trending papers
+// returns list of id and numCites
+func (h *MyHTTPHandler) SearchTrending(rw http.ResponseWriter) {
+    row := h.papers.QuerySingleRow("SELECT value FROM misc WHERE field='trending'")
+    if row == nil {
+        h.papers.QueryEnd()
+        fmt.Fprintf(rw, "[]")
+		return
+	}
+
+    if value, ok := row[0].(string); !ok {
+		h.papers.QueryEnd()
+        fmt.Fprintf(rw, "[]")
+		return
+    } else {
+        // create the JSON object
+		h.papers.QueryEnd()
+        ids := strings.Split(value, ",")
+        fmt.Fprintf(rw, "[")
+        for i, id := range ids {
+            if i > 0 {
+                fmt.Fprintf(rw, ",")
+            }
+            // TODO make numCites field proper
+            fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%d}", id, 0)
+        }
+        fmt.Fprintf(rw, "]")
+    }
 }
