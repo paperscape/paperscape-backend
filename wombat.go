@@ -113,6 +113,7 @@ type Paper struct {
     id         uint     // unique id
     arxiv      string   // arxiv id, simplified
     maincat    string   // main arxiv category
+    allcats    string   // all arxiv categories (as a comma-separated string)
     authors    string   // authors
     title      string   // title
     journal    string   // journal string
@@ -217,10 +218,10 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     // perform query
     var query string
     if id != 0 {
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,authors,title,jname,jyear,jvol,jpage,doi FROM meta_data WHERE id = %d", id)
+        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,authors,title,jname,jyear,jvol,jpage,doi FROM meta_data WHERE id = %d", id)
     } else if len(arxiv) > 0 {
         // security issue: should make sure arxiv string is sanitised
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,authors,title,jname,jyear,jvol,jpage,doi FROM meta_data WHERE arxiv = '%s'", arxiv)
+        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,authors,title,jname,jyear,jvol,jpage,doi FROM meta_data WHERE arxiv = '%s'", arxiv)
     } else {
         return nil
     }
@@ -240,37 +241,38 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     var ok bool
     if paper.arxiv, ok = row[1].(string); !ok { return nil }
     if paper.maincat, ok = row[2].(string); !ok { return nil }
-    if row[3] == nil {
+    if paper.allcats, ok = row[3].(string); !ok { paper.allcats = "" }
+    if row[4] == nil {
         paper.authors = "(unknown authors)"
-    } else if au, ok := row[3].([]byte); !ok {
-        fmt.Printf("ERROR: cannot get authors for id=%d; %v\n", paper.id, row[3])
+    } else if au, ok := row[4].([]byte); !ok {
+        fmt.Printf("ERROR: cannot get authors for id=%d; %v\n", paper.id, row[4])
         return nil
     } else {
         paper.authors = string(au)
     }
-    if row[4] == nil {
+    if row[5] == nil {
         paper.authors = "(unknown title)"
-    } else if title, ok := row[4].(string); !ok {
-        fmt.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[4])
+    } else if title, ok := row[5].(string); !ok {
+        fmt.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[5])
         return nil
     } else {
         paper.title = title
     }
-    if row[5] == nil {
+    if row[6] == nil {
     } else {
-        if year, ok := row[6].(int64); ok && year != 0 {
-            if row[7] == nil {
-                paper.journal = fmt.Sprintf("%v/%d//", row[5], year)
-            } else if row[8] == nil {
-                paper.journal = fmt.Sprintf("%v/%d/%v/", row[5], year, row[7])
+        if year, ok := row[7].(int64); ok && year != 0 {
+            if row[8] == nil {
+                paper.journal = fmt.Sprintf("%v/%d//", row[6], year)
+            } else if row[9] == nil {
+                paper.journal = fmt.Sprintf("%v/%d/%v/", row[6], year, row[8])
             } else {
-                paper.journal = fmt.Sprintf("%v/%d/%v/%v", row[5], year, row[7], row[8])
+                paper.journal = fmt.Sprintf("%v/%d/%v/%v", row[6], year, row[8], row[9])
             }
         }
     }
-    if row[9] == nil {
-    } else if doi, ok := row[9].(string); !ok {
-        fmt.Printf("ERROR: cannot get doi for id=%d; %v\n", paper.id, row[9])
+    if row[10] == nil {
+    } else if doi, ok := row[10].(string); !ok {
+        fmt.Printf("ERROR: cannot get doi for id=%d; %v\n", paper.id, row[10])
     } else {
         doi, _ := json.Marshal(doi)
         paper.doiJSON = string(doi)
@@ -920,8 +922,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             h.SearchTitle(req.Form["sti"][0], rw)
         } else if req.Form["sca"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
             // search-category: search papers between given id range, in given category
-            // f = from, t = to
-            h.SearchCategory(req.Form["sca"][0], req.Form["f"][0], req.Form["t"][0], rw)
+            // x = include cross lists, f = from, t = to
+            h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", req.Form["f"][0], req.Form["t"][0], rw)
         } else {
             // unknown ajax request
         }
@@ -968,13 +970,13 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 }
 
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
-    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.authors, paper.title, paper.numCites, paper.dNumCites1, paper.dNumCites5, paper.journal, paper.doiJSON)
+    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.allcats, paper.authors, paper.title, paper.numCites, paper.dNumCites1, paper.dNumCites5, paper.journal, paper.doiJSON)
 }
 
-func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, authors string, title string, numCites uint, dNumCites1 uint, dNumCites5 uint, journal string, doiJSON string) {
+func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, authors string, title string, numCites uint, dNumCites1 uint, dNumCites5 uint, journal string, doiJSON string) {
     authorsJSON, _ := json.Marshal(authors)
     titleJSON, _ := json.Marshal(title)
-    fmt.Fprintf(w, "{\"id\":%d,\"arxv\":\"%s\",\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", id, arxiv, authorsJSON, titleJSON, numCites, dNumCites1, dNumCites5)
+    fmt.Fprintf(w, "{\"id\":%d,\"arxv\":\"%s\",\"cats\":\"%s\",\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", id, arxiv, allcats, authorsJSON, titleJSON, numCites, dNumCites1, dNumCites5)
     if len(journal) > 0 {
         fmt.Fprintf(w, ",\"jour\":\"%s\"", journal)
     }
@@ -1601,11 +1603,26 @@ func sanityCheckId(id string) bool {
 
 // searches for all papers within the id range, with main category as given
 // returns id and numCites for up to 500 results
-func (h *MyHTTPHandler) SearchCategory(category string, idFrom string, idTo string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, idFrom string, idTo string, rw http.ResponseWriter) {
     // sanity check of category, and build query
     // comma is used to separate multiple categories, which means "or"
+
+    // choose the type of MySQL query based on whether we want cross-lists or not
+    var catQueryStart string
+    var catQueryEnd string
+    if includeCrossLists {
+        // include cross lists; check "allcats" column for any occurrence of the wanted category string
+        catQueryStart = "meta_data.allcats LIKE '%%"
+        catQueryEnd = "%%'"
+    } else {
+        // no cross lists; "maincat" column must match the wanted category exactly
+        catQueryStart = "meta_data.maincat='"
+        catQueryEnd = "'"
+    }
+
     var catQuery bytes.Buffer
-    catQuery.WriteString("(meta_data.maincat='")
+    catQuery.WriteString("(")
+    catQuery.WriteString(catQueryStart)
     catChars := 0
     for _, r := range category {
         if r == ',' {
@@ -1613,7 +1630,9 @@ func (h *MyHTTPHandler) SearchCategory(category string, idFrom string, idTo stri
                 // bad category
                 return
             }
-            catQuery.WriteString("' OR meta_data.maincat='")
+            catQuery.WriteString(catQueryEnd)
+            catQuery.WriteString(" OR ")
+            catQuery.WriteString(catQueryStart)
             catChars = 0
         } else if unicode.IsLower(r) || r == '-' {
             catQuery.WriteRune(r)
@@ -1627,7 +1646,8 @@ func (h *MyHTTPHandler) SearchCategory(category string, idFrom string, idTo stri
         // bad category
         return
     }
-    catQuery.WriteString("')")
+    catQuery.WriteString(catQueryEnd)
+    catQuery.WriteString(")")
 
     // sanity check of id numbers
     if !sanityCheckId(idFrom) {
