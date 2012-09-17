@@ -1714,24 +1714,23 @@ func (h *MyHTTPHandler) SearchTrending(rw http.ResponseWriter) {
     if row == nil {
         h.papers.QueryEnd()
         fmt.Fprintf(rw, "[]")
-		return
-	}
+        return
+    }
 
     if value, ok := row[0].(string); !ok {
-		h.papers.QueryEnd()
+        h.papers.QueryEnd()
         fmt.Fprintf(rw, "[]")
-		return
+        return
     } else {
         // create the JSON object
-		h.papers.QueryEnd()
+        h.papers.QueryEnd()
         ids := strings.Split(value, ",")
         fmt.Fprintf(rw, "[")
-        for i, id := range ids {
+        for i := 0; i + 1 < len(ids); i += 2 {
             if i > 0 {
                 fmt.Fprintf(rw, ",")
             }
-            // TODO make numCites field proper
-            fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%d}", id, 0)
+            fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%s}", ids[i], ids[i + 1])
         }
         fmt.Fprintf(rw, "]")
     }
