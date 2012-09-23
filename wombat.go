@@ -864,10 +864,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 				giveSalt = true
 			}
 			h.ProfileChallenge(req.Form["pchal"][0], giveSalt, rw)
-		} else if req.Form["plogin"] != nil && req.Form["h"] != nil {
-            // profile-login: login request
-            // h = passHash
-            h.ProfileLogin(req.Form["plogin"][0], req.Form["h"][0], rw)
+		} else if req.Form["pload"] != nil && req.Form["h"] != nil && req.Form["ph"] != nil && req.Form["th"] != nil {
+            // profile-load: either login request or load request from an autosave
+            // h = passHash, ph = papersHash, th = tagsHash
+            h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], req.Form["ph"][0], req.Form["th"][0], rw)
 		} else if req.Form["pcull"] != nil && req.Form["h"] != nil {
             // profile-cull: clear newpapers db field request
             // h = passHash
@@ -1067,18 +1067,21 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
 }
 
 func (h *MyHTTPHandler) SetChallenge(username string) int64 {
+    // TODO security issue, make sure username is sanitised
+
 	// generate random "challenge" code
 	challenge := rand.Int63();
 
 	// store new challenge code in user database entry
 	query := fmt.Sprintf("UPDATE userdata SET challenge = '%d' WHERE username = '%s'", challenge, username)
     if !h.papers.QueryFull(query) {
-		fmt.Printf("ERROR: failed to set new challenge\n", username)
+		fmt.Printf("ERROR: failed to set new challenge for user %s\n", username)
     }
 	return challenge
 }
 
 func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http.ResponseWriter) {
+    // TODO security issue, make sure username is sanitised
 
 	// check username exists and get the 'salt'
 	var salt uint64
@@ -1112,6 +1115,8 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http
 
 func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (success bool) {
 	success = false
+
+    // TODO security issue, make sure username is sanitised
 
 	// Check for valid username and get the user challenge and hash
 	var challenge uint64
@@ -1150,19 +1155,57 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 	return
 }
 
-
-func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.ResponseWriter) {
+/* If given papers/tags hashes don't match with db, send user all their papers and tags.
+   Login also uses this function by providing empty hashes. */
+func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash string, tagshash string, rw http.ResponseWriter) {
 
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
 
+	var query string
+	var row mysql.Row
+
     // TODO security issue, make sure username is sanitised
-	query := fmt.Sprintf("SELECT papers,tags,newpapers FROM userdata WHERE username = '%s'", username)
-	row := h.papers.QuerySingleRow(query)
+
+	/* Check if papers/tags hashes up to date if given (else assume this is a login) */
+	if papershash != "" && tagshash != "" {
+		query = fmt.Sprintf("SELECT papershash,tagshash FROM userdata WHERE username = '%s'", username)
+		row = h.papers.QuerySingleRow(query)
+		h.papers.QueryEnd()
+
+		var papershashDb,tagshashDb string
+
+		if row == nil {
+			fmt.Printf("ERROR: user %s - MySQL fail\n")
+			return
+		} else {
+			var ok bool
+			papershashDb, ok = row[0].(string)
+			if !ok { papershashDb = "" }
+			tagshashDb, ok = row[1].(string)
+			if !ok { tagshashDb = "" }
+		}
+		if (papershashDb == papershash && tagshashDb == tagshash) {
+			// hashes match, 
+			fmt.Fprintf(rw, "{\"name\":\"%s\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",username,papershashDb,tagshashDb)
+			return
+		}
+	} else {
+		// as no useful papers/tags hashes given, record this load as a LOGIN
+		query = fmt.Sprintf("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE username = '%s'", username)
+		h.papers.QueryFull(query)
+	}
+
+	/* Proceed with loading data for user */
+
+	query = fmt.Sprintf("SELECT papers,tags FROM userdata WHERE username = '%s'", username)
+	//query := fmt.Sprintf("SELECT papers,tags,newpapers FROM userdata WHERE username = '%s'", username)
+	row = h.papers.QuerySingleRow(query)
 	h.papers.QueryEnd()
 
-    var papers,tags,newpapers []byte
+    var papers,tags []byte
+    //var papers,tags,newpapers []byte
 
     if row == nil {
 		fmt.Printf("ERROR: user %s - MySQL fail\n")
@@ -1173,8 +1216,8 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
         if !ok { papers = nil }
         tags, ok = row[1].([]byte)
         if !ok { tags = nil }
-        newpapers, ok = row[2].([]byte)
-        if !ok { newpapers = nil }
+        //newpapers, ok = row[2].([]byte)
+        //if !ok { newpapers = nil }
     }
 
 	/* PAPERS */
@@ -1185,43 +1228,43 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
     fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
 
 	// and check for new papers that we don't already have
-	newPaperList := h.PaperListFromDBString(newpapers)
-    fmt.Printf("for user %s, read %d new papers\n", username, len(newPaperList))
+	//newPaperList := h.PaperListFromDBString(newpapers)
+    //fmt.Printf("for user %s, read %d new papers\n", username, len(newPaperList))
 
 	// make one super list of unique papers
 	// if newPaperList has duplicates (it shouldn't), takes the first
-	newPapersAdded := 0
-	for _, newPaper := range newPaperList {
-		exists := false
-		for _, paper := range paperList {
-			if newPaper.id == paper.id {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			paperList = append(paperList,newPaper)
-			newPapersAdded += 1
-		}
-	}
+	//newPapersAdded := 0
+	//for _, newPaper := range newPaperList {
+	//	exists := false
+	//	for _, paper := range paperList {
+	//		if newPaper.id == paper.id {
+	//			exists = true
+	//			break
+	//		}
+	//	}
+	//	if !exists {
+	//		paperList = append(paperList,newPaper)
+	//		newPapersAdded += 1
+	//	}
+	//}
 
 	// if we added new papers, save the new string and clear new papers field in db
-	if len(newPaperList) > 0 {
-		if newPapersAdded > 0 {
-			papersStr := h.PaperListToDBString(username,paperList)
-			query := fmt.Sprintf("UPDATE userdata SET papers = '%s' WHERE username = '%s'", papersStr, username)
-			if h.papers.QueryFull(query) {
-				fmt.Printf("for user %s, migrated %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
-			} else {
-				fmt.Printf("for user %s, error migrating %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
-			}
-		} else {
-			fmt.Printf("for user %s, migrated none of %d newpapers to papers in database\n", username, len(newPaperList))
-		}
-		// clear newPapers db field:
-		query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
-		h.papers.QueryFull(query)
-	}
+	//if len(newPaperList) > 0 {
+	//	if newPapersAdded > 0 {
+	//		papersStr := h.PaperListToDBString(username,paperList)
+	//		query := fmt.Sprintf("UPDATE userdata SET papers = '%s' WHERE username = '%s'", papersStr, username)
+	//		if h.papers.QueryFull(query) {
+	//			fmt.Printf("for user %s, migrated %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
+	//		} else {
+	//			fmt.Printf("for user %s, error migrating %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
+	//		}
+	//	} else {
+	//		fmt.Printf("for user %s, migrated none of %d newpapers to papers in database\n", username, len(newPaperList))
+	//	}
+	//	// clear newPapers db field:
+	//	query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
+	//	h.papers.QueryFull(query)
+	//}
 
 	// output papers in json format
     fmt.Fprintf(rw, "{\"name\":\"%s\",\"papr\":[", username)
@@ -1236,6 +1279,17 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
         fmt.Fprintf(rw, "}")
     }
 
+	// create papershash, and also store this in db
+	hash := sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s", string(papers)))
+	papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
+
+	query = fmt.Sprintf("UPDATE userdata SET papershash = '%s' WHERE username = '%s'", papershashDb, username)
+    if !h.papers.QueryFull(query) {
+		fmt.Printf("ERROR: failed to set new papershash for user %s\n", username)
+    }
+	fmt.Fprintf(rw, "],\"ph\":\"%s\"",papershashDb)
+
 	/* TAGS */
 	/********/
     // build a list of TAGS  this profile
@@ -1243,7 +1297,7 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 
     fmt.Printf("for user %s, read %d tags\n", username, len(tagList))
 
-	fmt.Fprintf(rw, "],\"tag\":[")
+	fmt.Fprintf(rw, ",\"tag\":[")
 
 	// output tags in json format
     for i, tag := range tagList {
@@ -1253,11 +1307,16 @@ func (h *MyHTTPHandler) ProfileLogin(username string, passhash string, rw http.R
 		fmt.Fprintf(rw, "{\"name\":%s,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.starred, tag.blobbed)
     }
 
-    fmt.Fprintf(rw, "]}")
+	// create tagshash, and also store this in db
+	hash = sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s", string(tags)))
+	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
-	// record this login
-	query = fmt.Sprintf("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE username = '%s'", username)
-	h.papers.QueryFull(query)
+	query = fmt.Sprintf("UPDATE userdata SET tagshash = '%s' WHERE username = '%s'", tagshashDb, username)
+    if !h.papers.QueryFull(query) {
+		fmt.Printf("ERROR: failed to set new tagshash for user %s\n", username)
+    }
+	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
 
 func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers string, tags string, rw http.ResponseWriter) {
