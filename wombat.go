@@ -1168,6 +1168,10 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
     // TODO security issue, make sure username is sanitised
 
+	// generate random "challenge", as we expect user to reply
+	// with a sync request if this is an autosave
+	challenge := h.SetChallenge(username)
+
 	/* Check if papers/tags hashes up to date if given (else assume this is a login) */
 	if papershash != "" && tagshash != "" {
 		query = fmt.Sprintf("SELECT papershash,tagshash FROM userdata WHERE username = '%s'", username)
@@ -1188,7 +1192,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 		}
 		if (papershashDb == papershash && tagshashDb == tagshash) {
 			// hashes match, 
-			fmt.Fprintf(rw, "{\"name\":\"%s\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",username,papershashDb,tagshashDb)
+			fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",username,challenge,papershashDb,tagshashDb)
 			return
 		}
 	} else {
@@ -1267,7 +1271,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	//}
 
 	// output papers in json format
-    fmt.Fprintf(rw, "{\"name\":\"%s\",\"papr\":[", username)
+	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", username,challenge)
 
     for i, paper := range paperList {
         if i > 0 {
@@ -1393,6 +1397,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 		fmt.Fprintf(rw, "]}")
 		fmt.Printf("for user %s, sent %d new papers for sync\n", username, len(newPapersAdded))
 	} else {
+		// TODO return papers/tags hashes
 		fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 	}
 	// record this sync
