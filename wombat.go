@@ -130,6 +130,7 @@ type Paper struct {
     layers     []string // for loaded profile
     tags       []string // for loaded profile
     newTags    []string // for loaded profile
+	remove     bool     // for loaded profile, mark to remove from db
 }
 
 type Tag struct {
@@ -663,7 +664,17 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			if tok != '(' { break }
 			if tok = s.Scan(); tok != scanner.Int { break }
 			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-			if tok = s.Scan(); tok != ',' { break }
+			tok = s.Scan()
+			if tok == ')' {
+				// this paper was marked for deletion
+				// so fill it with empty data 
+				// and mark it as so
+				paper := h.papers.QueryPaper(uint(paperId), "")
+				paper.remove = true
+				paperList = append(paperList, paper)
+				tok = s.Scan()
+				continue
+			} else if tok != ',' { break }
 			tok = s.Scan()
 			negate := false
 			if tok == '-' { negate = true; tok = s.Scan() }
@@ -713,6 +724,7 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			paper.tags = tags
 			paper.layers = layers
 			paper.newTags = newTags
+			paper.remove = false
 			tok = s.Scan()
 			paperList = append(paperList, paper)
 		}
@@ -868,10 +880,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-load: either login request or load request from an autosave
             // h = passHash, ph = papersHash, th = tagsHash
             h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], req.Form["ph"][0], req.Form["th"][0], rw)
-		} else if req.Form["pcull"] != nil && req.Form["h"] != nil {
+		/*} else if req.Form["pcull"] != nil && req.Form["h"] != nil {
             // profile-cull: clear newpapers db field request
             // h = passHash
-			h.ProfileCullNewPapers(req.Form["pcull"][0], req.Form["h"][0], rw)
+			h.ProfileCullNewPapers(req.Form["pcull"][0], req.Form["h"][0], rw)*/
 		} else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt)
@@ -948,10 +960,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "{\"r\":")
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["t"] != nil {
+        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["t"] != nil && req.Form["ph"] != nil && req.Form["th"] != nil {
             // profile-sync: sync request
-            // h = passHash, p = papers, t = tags
-            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], rw)
+            // h = passHash, p = papersdiff, t = tagsdiff
+            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], req.Form["ph"][0], req.Form["th"][0], rw)
         } else {
             // unknown ajax request
         }
@@ -1116,7 +1128,7 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http
 func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (success bool) {
 	success = false
 
-    // TODO security issue, make sure username is sanitised
+    // TODO security issue, make sure username is sanitised!!
 
 	// Check for valid username and get the user challenge and hash
 	var challenge uint64
@@ -1158,7 +1170,6 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 /* If given papers/tags hashes don't match with db, send user all their papers and tags.
    Login also uses this function by providing empty hashes. */
 func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash string, tagshash string, rw http.ResponseWriter) {
-
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
@@ -1166,7 +1177,6 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	var query string
 	var row mysql.Row
 
-    // TODO security issue, make sure username is sanitised
 
 	// generate random "challenge", as we expect user to reply
 	// with a sync request if this is an autosave
@@ -1323,17 +1333,66 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
 
-func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers string, tags string, rw http.ResponseWriter) {
-
+func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers string, difftags string, papershash string, tagshash string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
 
-	papersStr := papers
+	var query string
+	var row mysql.Row
 
+	query = fmt.Sprintf("SELECT papers,tags FROM userdata WHERE username = '%s'", username)
+	row = h.papers.QuerySingleRow(query)
+    h.papers.QueryEnd()
+
+	//var papers,tags []byte
+	var papers []byte
+    if row != nil {
+        var ok bool
+        papers, ok = row[0].([]byte)
+        if !ok { papers = nil }
+        //tags, ok = row[0].([]byte)
+        //if !ok { tags = nil }
+    }
+
+	oldpapersList := h.PaperListFromDBString(papers)
+	fmt.Printf("for user %s, read %d papers from db\n", username, len(oldpapersList))
+
+	// papers without details e.g. (id) are flagged with a "remove" 
+	newpapersList := h.PaperListFromDBString([]byte(diffpapers))
+	fmt.Printf("for user %s, read %d diff papers from internets\n", username, len(newpapersList))
+
+	// make one super list of unique papers (diffpapers override oldpapers)
+	for _, oldpaper := range oldpapersList {
+		exists := false
+		for _, diffpaper := range newpapersList {
+			if diffpaper.id == oldpaper.id {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			newpapersList = append(newpapersList,oldpaper)
+		}
+	}
+
+	var papersList []*Paper
+	// remove papers marked with "remove"
+	for _, paper := range newpapersList {
+		if !paper.remove {
+			papersList = append(papersList,paper)
+		}
+	}
+
+	papersStr := h.PaperListToDBString(username,papersList)
+
+	// TODO do same for tags (construct list of tags etc)
+	tagsStr := difftags
+
+	/*
 	// Check if there are new papers we need to sync with
-	query := fmt.Sprintf("SELECT newpapers FROM userdata WHERE username = '%s'", username)
-	row := h.papers.QuerySingleRow(query)
+	query = fmt.Sprintf("SELECT newpapers FROM userdata WHERE username = '%s'", username)
+	row = h.papers.QuerySingleRow(query)
     h.papers.QueryEnd()
 
     var newpapers []byte
@@ -1342,9 +1401,10 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
         newpapers, ok = row[0].([]byte)
         if !ok { newpapers = nil }
     }
+	*/
 
 	// if new papers, we may need to alter saved string
-	var newPapersAdded,paperList []*Paper
+	/*var newPapersAdded,paperList []*Paper
 	if newpapers != nil {
 		paperList = h.PaperListFromDBString([]byte(papers))
 		fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
@@ -1372,13 +1432,30 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 			papersStr = h.PaperListToDBString(username,paperList)
 		}
 
+	}*/
+
+
+	// create new hashes 
+	hash := sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
+	papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
+
+	hash = sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
+	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
+
+	// compare with hashes we were sent (should match!!)
+	if papershash != papershashDb || tagshash != tagshashDb {
+		fmt.Printf("Error: for user %s, new sync hashes don't match those sent from client\n", username)
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+		return
 	}
 
-	query = fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s' WHERE username = '%s'", papersStr, tags, username)
+	query = fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s', papershash = '%s', tagshash = '%s' WHERE username = '%s'", papersStr, tagsStr, papershashDb, tagshashDb, username)
     if !h.papers.QueryFull(query) {
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
-    } else if len(newPapersAdded) > 0 {
+    /*} else if len(newPapersAdded) > 0 {
 		// generate random "challenge", as we expect user to reply
 		// with a cull order of the newpapers field in db
 		challenge := h.SetChallenge(username)
@@ -1395,10 +1472,10 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, papers str
 			fmt.Fprintf(rw, "}")
 		}
 		fmt.Fprintf(rw, "]}")
-		fmt.Printf("for user %s, sent %d new papers for sync\n", username, len(newPapersAdded))
+		fmt.Printf("for user %s, sent %d new papers for sync\n", username, len(newPapersAdded))*/
 	} else {
 		// TODO return papers/tags hashes
-		fmt.Fprintf(rw, "{\"succ\":\"true\"}")
+		fmt.Fprintf(rw, "{\"succ\":\"true\",\"ph\":\"%s\",\"th\":\"%s\"}",papershashDb,tagshashDb)
 	}
 	// record this sync
 	query = fmt.Sprintf("UPDATE userdata SET numsync = numsync + 1, lastsync = NOW() WHERE username = '%s'", username)
@@ -1416,7 +1493,7 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
 }
 
-
+/*
 func (h *MyHTTPHandler) ProfileCullNewPapers(username string, passhash string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(username,passhash) {
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
@@ -1427,6 +1504,7 @@ func (h *MyHTTPHandler) ProfileCullNewPapers(username string, passhash string, r
 	query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
 	fmt.Fprintf(rw, "{\"succ\":\"%t\"}",h.papers.QueryFull(query))
 }
+*/
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
     // perform query
