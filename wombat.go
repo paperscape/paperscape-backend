@@ -129,7 +129,7 @@ type Paper struct {
     notes      string   // for loaded profile
     layers     []string // for loaded profile
     tags       []string // for loaded profile
-    newTags    []string // for loaded profile
+    newTags    []string // for loaded profile *obsolete*
 	remove     bool     // for loaded profile, mark to remove from db
 }
 
@@ -524,7 +524,7 @@ func (h *MyHTTPHandler) PaperListToDBString (username string, paperList []*Paper
 	// This SHOULD be identical to JS code in kea i.e. it should be parseable
 	// by the PaperListFromDBString code below
 	w := new(bytes.Buffer)
-	fmt.Fprintf(w,"v:3"); // PAPERS VERSION 3
+	fmt.Fprintf(w,"v:4"); // PAPERS VERSION 4
 	for _, paper := range paperList {
 		fmt.Fprintf(w,"(%d,%d,%d,%s,l[",paper.id,paper.xPos,paper.rMod,paper.notes);
 		for i, layer := range paper.layers {
@@ -536,11 +536,11 @@ func (h *MyHTTPHandler) PaperListToDBString (username string, paperList []*Paper
 			if i > 0 { fmt.Fprintf(w,","); }
 			fmt.Fprintf(w,"%s",tag);
 		}
-		fmt.Fprintf(w,"],n[");
-		for i, newTag := range paper.newTags {
-			if i > 0 { fmt.Fprintf(w,","); }
-			fmt.Fprintf(w,"%s",newTag);
-		}
+		//fmt.Fprintf(w,"],n[");
+		//for i, newTag := range paper.newTags {
+		//	if i > 0 { fmt.Fprintf(w,","); }
+		//	fmt.Fprintf(w,"%s",newTag);
+		//}
 		fmt.Fprintf(w,"])");
 	}
 	return w.String()
@@ -659,7 +659,7 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			paperList = append(paperList, paper)
 		}
 	} else if papersVersion == 3 {
-		// PAPERS VERSION 3
+		// PAPERS VERSION 3 (deprecated)
 		for tok != scanner.EOF {
 			if tok != '(' { break }
 			if tok = s.Scan(); tok != scanner.Int { break }
@@ -724,6 +724,68 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 			paper.tags = tags
 			paper.layers = layers
 			paper.newTags = newTags
+			paper.remove = false
+			tok = s.Scan()
+			paperList = append(paperList, paper)
+		}
+	} else if papersVersion == 4 {
+		// PAPERS VERSION 4
+		// this version removes "new" tags from version 3
+		for tok != scanner.EOF {
+			if tok != '(' { break }
+			if tok = s.Scan(); tok != scanner.Int { break }
+			paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			tok = s.Scan()
+			if tok == ')' {
+				// this paper was marked for deletion
+				// so fill it with empty data 
+				// and mark it as so
+				paper := h.papers.QueryPaper(uint(paperId), "")
+				paper.remove = true
+				paperList = append(paperList, paper)
+				tok = s.Scan()
+				continue
+			} else if tok != ',' { break }
+			tok = s.Scan()
+			negate := false
+			if tok == '-' { negate = true; tok = s.Scan() }
+			if tok != scanner.Int { break }
+			xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
+			if negate { xPos = -xPos }
+			if tok = s.Scan(); tok != ',' { break }
+			tok = s.Scan()
+			negate = false
+			if tok == '-' { negate = true; tok = s.Scan() }
+			if tok != scanner.Int { break }
+			rMod, _ := strconv.ParseInt(s.TokenText(), 10, 0)
+			if negate { rMod = -rMod }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok != scanner.String { break }
+			notes := s.TokenText()
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "l" { break }
+			var layers []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				layers = append(layers, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ',' { break }
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "t" { break }
+			var tags []string
+			for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
+				if tok = s.Scan(); tok != scanner.String { break }
+				tags = append(tags, s.TokenText())
+			}
+			if tok != ']' { break }
+			if tok = s.Scan(); tok != ')' { break }
+			paper := h.papers.QueryPaper(uint(paperId), "")
+			h.papers.QueryRefs(paper, false)
+			paper.xPos = int(xPos)
+			paper.rMod = int(rMod)
+			paper.notes = notes
+			paper.tags = tags
+			paper.layers = layers
 			paper.remove = false
 			tok = s.Scan()
 			paperList = append(paperList, paper)
@@ -1017,13 +1079,14 @@ func PrintJSONContextInfo(w io.Writer, paper *Paper) {
 		}
 		fmt.Fprintf(w, "%s", tag)
 	}
-	fmt.Fprintf(w, "],\"ntag\":[")
-	for j, newTag := range paper.newTags {
-		if j > 0 {
-			fmt.Fprintf(w, ",")
-		}
-		fmt.Fprintf(w, "%s", newTag)
-	}
+	// new tags are *obsolete*
+	//fmt.Fprintf(w, "],\"ntag\":[")
+	//for j, newTag := range paper.newTags {
+	//	if j > 0 {
+	//		fmt.Fprintf(w, ",")
+	//	}
+	//	fmt.Fprintf(w, "%s", newTag)
+	//}
 	fmt.Fprintf(w, "]")
 }
 
@@ -1377,9 +1440,9 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	}
 
 	var papersList []*Paper
-	// remove papers marked with "remove"
+	// remove papers marked with "remove" or those with empty layers and tags!
 	for _, paper := range newpapersList {
-		if !paper.remove {
+		if !paper.remove && (len(paper.layers) > 0 || len(paper.tags) > 0) {
 			papersList = append(papersList,paper)
 		}
 	}
