@@ -1428,7 +1428,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
         var ok bool
         papers, ok = row[0].([]byte)
         if !ok { papers = nil }
-        tags, ok = row[0].([]byte)
+        tags, ok = row[1].([]byte)
         if !ok { tags = nil }
     }
 
@@ -1488,7 +1488,6 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 
 	// tags without details e.g. (name) are flagged with a "remove" 
 	newtagsList := h.TagListFromDBString([]byte(difftags))
-	fmt.Printf("for user %s, read %s diff tags string\n", username, difftags)
 	fmt.Printf("for user %s, read %d diff tags from internets\n", username, len(newtagsList))
 
 	// make one super list of unique tags (difftags override oldtags)
