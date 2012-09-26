@@ -527,7 +527,7 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 /****************************************************************/
 
 // Converts papers list into string and stores this in userdata table's 'papers' field
-func (h *MyHTTPHandler) PaperListToDBString (username string, paperList []*Paper) string {
+func (h *MyHTTPHandler) PaperListToDBString (paperList []*Paper) string {
 
 	// This SHOULD be identical to JS code in kea i.e. it should be parseable
 	// by the PaperListFromDBString code below
@@ -1312,45 +1312,6 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	paperList := h.PaperListFromDBString(papers)
     fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
 
-	// and check for new papers that we don't already have
-	//newPaperList := h.PaperListFromDBString(newpapers)
-    //fmt.Printf("for user %s, read %d new papers\n", username, len(newPaperList))
-
-	// make one super list of unique papers
-	// if newPaperList has duplicates (it shouldn't), takes the first
-	//newPapersAdded := 0
-	//for _, newPaper := range newPaperList {
-	//	exists := false
-	//	for _, paper := range paperList {
-	//		if newPaper.id == paper.id {
-	//			exists = true
-	//			break
-	//		}
-	//	}
-	//	if !exists {
-	//		paperList = append(paperList,newPaper)
-	//		newPapersAdded += 1
-	//	}
-	//}
-
-	// if we added new papers, save the new string and clear new papers field in db
-	//if len(newPaperList) > 0 {
-	//	if newPapersAdded > 0 {
-	//		papersStr := h.PaperListToDBString(username,paperList)
-	//		query := fmt.Sprintf("UPDATE userdata SET papers = '%s' WHERE username = '%s'", papersStr, username)
-	//		if h.papers.QueryFull(query) {
-	//			fmt.Printf("for user %s, migrated %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
-	//		} else {
-	//			fmt.Printf("for user %s, error migrating %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
-	//		}
-	//	} else {
-	//		fmt.Printf("for user %s, migrated none of %d newpapers to papers in database\n", username, len(newPaperList))
-	//	}
-	//	// clear newPapers db field:
-	//	query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
-	//	h.papers.QueryFull(query)
-	//}
-
 	// output papers in json format
 	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", username,challenge)
 
@@ -1422,9 +1383,12 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
         var ok bool
         papers, ok = row[0].([]byte)
         if !ok { papers = nil }
-        //tags, ok = row[0].([]byte)
-        //if !ok { tags = nil }
+        tags, ok = row[0].([]byte)
+        if !ok { tags = nil }
     }
+
+	/* PAPERS */
+	/**********/
 
 	oldpapersList := h.PaperListFromDBString(papers)
 	fmt.Printf("for user %s, read %d papers from db\n", username, len(oldpapersList))
@@ -1457,27 +1421,69 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 
 	// sort this list
     sort.Sort(PaperSliceSortId(papersList))
-
-	papersStr := h.PaperListToDBString(username,papersList)
-
-	// TODO do same for tags (construct list of tags etc)
-	tagsStr := difftags
+	papersStr := h.PaperListToDBString(papersList)
 
 	// create new hashes 
 	hash := sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
 	papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
+	// compare with hashes we were sent (should match!!)
+	if papershash != papershashDb {
+		fmt.Printf("Error: for user %s, new sync paper hashes don't match those sent from client: %s vs %s\n", username,papershash,papershashDb)
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+		return
+	}
+
+	/* TAGS */
+	/********/
+
+	oldtagsList := h.TagListFromDBString(tags) // TODO
+	fmt.Printf("for user %s, read %d tags from db\n", username, len(oldtagsList))
+
+	// tags without details e.g. (name) are flagged with a "remove" 
+	newtagsList := h.TagListFromDBString([]byte(difftags))
+	fmt.Printf("for user %s, read %d diff tags from internets\n", username, len(newtagsList))
+
+	// make one super list of unique papers (diffpapers override oldpapers)
+	for _, oldtag := range oldtagsList {
+		exists := false
+		for _, difftag := range newtagsList {
+			if difftag.name == oldtag.name {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			newtagsList = append(newtagsList,oldtag)
+		}
+	}
+
+	var tagsList []*Tag //TODO
+	// remove tags marked with "remove" 
+	for _, tag := range newtagsList {
+		if !tag.remove {
+			tagsList = append(tagsList,tag)
+		}
+	}
+
+	// sort this list
+    sort.Sort(TagSliceSortId(papersList)) // TODO
+	tagsStr := h.TagListToDBString(tagsList) // TODO
+
 	hash = sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
 	// compare with hashes we were sent (should match!!)
-	if papershash != papershashDb || tagshash != tagshashDb {
-		fmt.Printf("Error: for user %s, new sync hashes don't match those sent from client: papers %s vs %s\n", username,papershash,papershashDb)
+	if tagshash != tagshashDb {
+		fmt.Printf("Error: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", username,tagshash,tagshashDb)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
+
+	/* MYSQL */
+	/*********/
 
 	query = fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s', papershash = '%s', tagshash = '%s' WHERE username = '%s'", papersStr, tagsStr, papershashDb, tagshashDb, username)
     if !h.papers.QueryFull(query) {
