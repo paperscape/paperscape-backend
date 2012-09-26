@@ -871,6 +871,7 @@ func (h *MyHTTPHandler) TagListFromDBString (tags []byte) []*Tag {
 			tag := new(Tag)
 			tag.starred = true
 			tag.blobbed = true
+			tag.remove = false
 			// tag name
 			if tok = s.Scan(); tok != scanner.String { break }
 			tag.name = s.TokenText()
