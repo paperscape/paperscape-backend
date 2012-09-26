@@ -1363,7 +1363,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
 	// create papershash, and also store this in db
 	hash := sha1.New()
-	io.WriteString(hash, fmt.Sprintf("%s", string(papers)))
+	io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
 	papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
 	// compare hash with what was in db, if different update
@@ -1402,9 +1402,13 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
+	fmt.Printf("for user %s, read oldtagsStr %s, %s\n", username, string(tags),tagshashOld)
+	fmt.Printf("for user %s, read tagsStr %s, %s\n", username, tagsStr,tagshashDb)
+
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
 	if tagshashDb != tagshashOld {
+		fmt.Printf("for user %s, tag string updated\n", username)
 		query = fmt.Sprintf("UPDATE userdata SET tagshash = '%s', tags = '%s' WHERE username = '%s'", tagshashDb, tagsStr, username)
 		if !h.papers.QueryFull(query) {
 			fmt.Printf("ERROR: failed to set new tags field and hash for user %s\n", username)
@@ -1531,6 +1535,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
+	fmt.Printf("for user %s, read oldtagsStr %s, %s\n", username, string(tags),tagshash)
 	fmt.Printf("for user %s, read tagsStr %s, %s\n", username, tagsStr,tagshashDb)
 
 	// compare with hashes we were sent (should match!!)
