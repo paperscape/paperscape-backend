@@ -1463,52 +1463,6 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	// TODO do same for tags (construct list of tags etc)
 	tagsStr := difftags
 
-	/*
-	// Check if there are new papers we need to sync with
-	query = fmt.Sprintf("SELECT newpapers FROM userdata WHERE username = '%s'", username)
-	row = h.papers.QuerySingleRow(query)
-    h.papers.QueryEnd()
-
-    var newpapers []byte
-    if row != nil {
-        var ok bool
-        newpapers, ok = row[0].([]byte)
-        if !ok { newpapers = nil }
-    }
-	*/
-
-	// if new papers, we may need to alter saved string
-	/*var newPapersAdded,paperList []*Paper
-	if newpapers != nil {
-		paperList = h.PaperListFromDBString([]byte(papers))
-		fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
-
-		newPaperList := h.PaperListFromDBString(newpapers)
-		fmt.Printf("for user %s, read %d new papers\n", username, len(newPaperList))
-
-		// make one super list of unique papers
-		for _, newPaper := range newPaperList {
-			exists := false
-			for _, paper := range paperList {
-				if newPaper.id == paper.id {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				paperList = append(paperList,newPaper)
-				newPapersAdded = append(newPapersAdded,newPaper)
-			}
-		}
-
-		// if we added new papers, save the new string
-		if len(newPapersAdded) > 0 {
-			papersStr = h.PaperListToDBString(username,paperList)
-		}
-
-	}*/
-
-
 	// create new hashes 
 	hash := sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
@@ -1521,7 +1475,6 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	// compare with hashes we were sent (should match!!)
 	if papershash != papershashDb || tagshash != tagshashDb {
 		fmt.Printf("Error: for user %s, new sync hashes don't match those sent from client: papers %s vs %s\n", username,papershash,papershashDb)
-		fmt.Printf("Papers str %s, Difpapers str %s\n", papersStr,diffpapers)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
@@ -1530,26 +1483,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
     if !h.papers.QueryFull(query) {
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
-    /*} else if len(newPapersAdded) > 0 {
-		// generate random "challenge", as we expect user to reply
-		// with a cull order of the newpapers field in db
-		challenge := h.SetChallenge(username)
-		// output new papers in json format
-		fmt.Fprintf(rw, "{\"name\":\"%s\",\"succ\":\"true\",\"chal\":\"%d\",\"papr\":[", username,challenge)
-
-		for i, paper := range newPapersAdded {
-			if i > 0 {
-				fmt.Fprintf(rw, ",")
-			}
-			PrintJSONMetaInfo(rw, paper)
-			PrintJSONContextInfo(rw, paper)
-			PrintJSONRelevantRefs(rw, paper, paperList)
-			fmt.Fprintf(rw, "}")
-		}
-		fmt.Fprintf(rw, "]}")
-		fmt.Printf("for user %s, sent %d new papers for sync\n", username, len(newPapersAdded))*/
 	} else {
-		// TODO return papers/tags hashes
 		fmt.Fprintf(rw, "{\"succ\":\"true\",\"ph\":\"%s\",\"th\":\"%s\"}",papershashDb,tagshashDb)
 	}
 	// record this sync
