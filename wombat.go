@@ -1399,11 +1399,11 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
 	// create tagshash
 	hash = sha1.New()
-	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
+	io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
-	fmt.Printf("for user %s, read oldtagsStr %s, %s\n", username, string(tags),tagshashOld)
-	fmt.Printf("for user %s, read tagsStr %s, %s\n", username, tagsStr,tagshashDb)
+	//fmt.Printf("for user %s, read oldtagsStr %s, %s\n", username, string(tags),tagshashOld)
+	//fmt.Printf("for user %s, read tagsStr %s, %s\n", username, tagsStr,tagshashDb)
 
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
@@ -1532,10 +1532,14 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	tagsStr := h.TagListToDBString(tagsList)
 
 	hash = sha1.New()
-	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
+	io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
-	fmt.Printf("for user %s, read oldtagsStr %s, %s\n", username, string(tags),tagshash)
+	hash = sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s", string(tags)))
+	tagshashOld := fmt.Sprintf("%x",hash.Sum(nil))
+
+	fmt.Printf("for user %s, read oldtagsStr %s, %s\n", username, string(tags),tagshashOld)
 	fmt.Printf("for user %s, read tagsStr %s, %s\n", username, tagsStr,tagshashDb)
 
 	// compare with hashes we were sent (should match!!)
