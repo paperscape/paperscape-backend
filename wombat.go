@@ -1515,6 +1515,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	// sort this list
     sort.Sort(TagSliceSortName(tagsList))
 	tagsStr := h.TagListToDBString(tagsList)
+	fmt.Printf("for user %s, read tagsStr\n", username, tagsStr)
 
 	hash = sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
