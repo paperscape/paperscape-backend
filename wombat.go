@@ -1330,12 +1330,13 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
 	/* Proceed with loading data for user */
 
-	query = fmt.Sprintf("SELECT papers,tags FROM userdata WHERE username = '%s'", username)
+	query = fmt.Sprintf("SELECT papers,tags,papershash,tagshash FROM userdata WHERE username = '%s'", username)
 	//query := fmt.Sprintf("SELECT papers,tags,newpapers FROM userdata WHERE username = '%s'", username)
 	row = h.papers.QuerySingleRow(query)
 	h.papers.QueryEnd()
 
     var papers,tags []byte
+    var papershash,tagshash string
     //var papers,tags,newpapers []byte
 
     if row == nil {
@@ -1347,66 +1348,78 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
         if !ok { papers = nil }
         tags, ok = row[1].([]byte)
         if !ok { tags = nil }
-        //newpapers, ok = row[2].([]byte)
-        //if !ok { newpapers = nil }
+        papershash, ok = row[2].(string)
+        if !ok { papershash = "" }
+        tagshash, ok = row[3].(string)
+        if !ok { tagshash = "" }
     }
 
 	/* PAPERS */
 	/**********/
 
     // build a list of PAPERS and their metadata for this profile 
-	paperList := h.PaperListFromDBString(papers)
-    fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
-
-	// output papers in json format
-	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", username,challenge)
-
-    for i, paper := range paperList {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        PrintJSONMetaInfo(rw, paper)
-		PrintJSONContextInfo(rw, paper)
-		PrintJSONRelevantRefs(rw, paper, paperList)
-        fmt.Fprintf(rw, "}")
-    }
+	papersList := h.PaperListFromDBString(papers)
+    fmt.Printf("for user %s, read %d papers\n", username, len(papersList))
+    sort.Sort(PaperSliceSortId(papersList))
+	papersStr := h.PaperListToDBString(papersList)
 
 	// create papershash, and also store this in db
 	hash := sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", string(papers)))
 	papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
-	query = fmt.Sprintf("UPDATE userdata SET papershash = '%s' WHERE username = '%s'", papershashDb, username)
-    if !h.papers.QueryFull(query) {
-		fmt.Printf("ERROR: failed to set new papershash for user %s\n", username)
+	// compare hash with what was in db, if different update
+	// this is important for users without profile!
+	if papershashDb != papershash {
+		query = fmt.Sprintf("UPDATE userdata SET papershash = '%s', papers = '%s' WHERE username = '%s'", papershashDb, papersStr, username)
+		if !h.papers.QueryFull(query) {
+			fmt.Printf("ERROR: failed to set new papers field and hash for user %s\n", username)
+		}
+	}
+
+	// output papers in json format
+	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", username,challenge)
+    for i, paper := range papersList {
+        if i > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        PrintJSONMetaInfo(rw, paper)
+		PrintJSONContextInfo(rw, paper)
+		PrintJSONRelevantRefs(rw, paper, papersList)
+        fmt.Fprintf(rw, "}")
     }
 	fmt.Fprintf(rw, "],\"ph\":\"%s\"",papershashDb)
 
 	/* TAGS */
 	/********/
+
     // build a list of TAGS  this profile
-	tagList := h.TagListFromDBString(tags)
+	tagsList := h.TagListFromDBString(tags)
+    fmt.Printf("for user %s, read %d tags\n", username, len(tagsList))
+    sort.Sort(TagSliceSortName(tagsList))
+	tagsStr := h.TagListToDBString(tagsList)
 
-    fmt.Printf("for user %s, read %d tags\n", username, len(tagList))
+	// create tagshash
+	hash = sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
+	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
-	fmt.Fprintf(rw, ",\"tag\":[")
+	// compare hash with what was in db, if different update
+	// this is important for users without profile!
+	if tagshashDb != tagshash {
+		query = fmt.Sprintf("UPDATE userdata SET tagshash = '%s', tags = '%s' WHERE username = '%s'", tagshashDb, tagsStr, username)
+		if !h.papers.QueryFull(query) {
+			fmt.Printf("ERROR: failed to set new tags field and hash for user %s\n", username)
+		}
+	}
 
 	// output tags in json format
-    for i, tag := range tagList {
+	fmt.Fprintf(rw, ",\"tag\":[")
+    for i, tag := range tagsList {
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
 		fmt.Fprintf(rw, "{\"name\":%s,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.starred, tag.blobbed)
-    }
-
-	// create tagshash, and also store this in db
-	hash = sha1.New()
-	io.WriteString(hash, fmt.Sprintf("%s", string(tags)))
-	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
-
-	query = fmt.Sprintf("UPDATE userdata SET tagshash = '%s' WHERE username = '%s'", tagshashDb, username)
-    if !h.papers.QueryFull(query) {
-		fmt.Printf("ERROR: failed to set new tagshash for user %s\n", username)
     }
 	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
