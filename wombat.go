@@ -1331,13 +1331,11 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	/* Proceed with loading data for user */
 
 	query = fmt.Sprintf("SELECT papers,tags,papershash,tagshash FROM userdata WHERE username = '%s'", username)
-	//query := fmt.Sprintf("SELECT papers,tags,newpapers FROM userdata WHERE username = '%s'", username)
 	row = h.papers.QuerySingleRow(query)
 	h.papers.QueryEnd()
 
     var papers,tags []byte
-    var papershash,tagshash string
-    //var papers,tags,newpapers []byte
+    var papershashOld,tagshashOld string
 
     if row == nil {
 		fmt.Printf("ERROR: user %s - MySQL fail\n")
@@ -1348,10 +1346,10 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
         if !ok { papers = nil }
         tags, ok = row[1].([]byte)
         if !ok { tags = nil }
-        papershash, ok = row[2].(string)
-        if !ok { papershash = "" }
-        tagshash, ok = row[3].(string)
-        if !ok { tagshash = "" }
+        papershashOld, ok = row[2].(string)
+        if !ok { papershashOld = "" }
+        tagshashOld, ok = row[3].(string)
+        if !ok { tagshashOld = "" }
     }
 
 	/* PAPERS */
@@ -1370,7 +1368,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
-	if papershashDb != papershash {
+	if papershashDb != papershashOld {
 		query = fmt.Sprintf("UPDATE userdata SET papershash = '%s', papers = '%s' WHERE username = '%s'", papershashDb, papersStr, username)
 		if !h.papers.QueryFull(query) {
 			fmt.Printf("ERROR: failed to set new papers field and hash for user %s\n", username)
@@ -1406,7 +1404,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
-	if tagshashDb != tagshash {
+	if tagshashDb != tagshashOld {
 		query = fmt.Sprintf("UPDATE userdata SET tagshash = '%s', tags = '%s' WHERE username = '%s'", tagshashDb, tagsStr, username)
 		if !h.papers.QueryFull(query) {
 			fmt.Printf("ERROR: failed to set new tags field and hash for user %s\n", username)
