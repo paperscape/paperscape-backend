@@ -20,6 +20,7 @@ import (
     "strings"
 	"math/rand"
 	"crypto/sha1"
+    "sort"
     //"xiwi"
 )
 
@@ -139,6 +140,13 @@ type Tag struct {
 	blobCol	   int      // index of blob colour array
 	starred    bool		// whether tag is starred
 }
+
+// first is one with smallest id
+type PaperSliceSortId []*Paper
+
+func (ps PaperSliceSortId) Len() int           { return len(ps) }
+func (ps PaperSliceSortId) Less(i, j int) bool { return ps[i].id < ps[j].id }
+func (ps PaperSliceSortId) Swap(i, j int)      { ps[i], ps[j] = ps[j], ps[i] }
 
 type PapersEnv struct {
     db *mysql.Client
@@ -1446,6 +1454,9 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 			papersList = append(papersList,paper)
 		}
 	}
+
+	// sort this list
+    sort.Sort(PaperSliceSortId(papersList))
 
 	papersStr := h.PaperListToDBString(username,papersList)
 
