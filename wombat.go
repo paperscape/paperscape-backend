@@ -139,6 +139,7 @@ type Tag struct {
 	blobbed    bool		// whether tag is blobbed
 	blobCol	   int      // index of blob colour array
 	starred    bool		// whether tag is starred
+	remove     bool     // for loaded profile, mark to remove from db
 }
 
 // first is one with smallest id
@@ -147,6 +148,20 @@ type PaperSliceSortId []*Paper
 func (ps PaperSliceSortId) Len() int           { return len(ps) }
 func (ps PaperSliceSortId) Less(i, j int) bool { return ps[i].id < ps[j].id }
 func (ps PaperSliceSortId) Swap(i, j int)      { ps[i], ps[j] = ps[j], ps[i] }
+
+// sort alphabetically 
+type TagSliceSortName []*Tag
+
+func (ts TagSliceSortName) Len() int           { return len(ts) }
+func (ts TagSliceSortName) Less(i, j int) bool {
+	return ts[i].name < ts[j].name
+	//var strComp []string
+	//strComp = append(strComp, ts[i].name, ts[j].name)
+	//sort.Strings(strComp)
+	//return strComp[0] == ts[i].name
+}
+func (ts TagSliceSortName) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
+
 
 type PapersEnv struct {
     db *mysql.Client
@@ -527,7 +542,7 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 /****************************************************************/
 
 // Converts papers list into string and stores this in userdata table's 'papers' field
-func (h *MyHTTPHandler) PaperListToDBString (username string, paperList []*Paper) string {
+func (h *MyHTTPHandler) PaperListToDBString (paperList []*Paper) string {
 
 	// This SHOULD be identical to JS code in kea i.e. it should be parseable
 	// by the PaperListFromDBString code below
@@ -807,8 +822,29 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 	return paperList
 }
 
+// Converts tag list into database string
+func (h *MyHTTPHandler) TagListToDBString (tagList []*Tag) string {
+
+	// This SHOULD be identical to JS code in kea i.e. it should be parseable
+	// by the TagListFromDBString code below
+	w := new(bytes.Buffer)
+	fmt.Fprintf(w,"v:1"); // TAGS VERSION 1
+	for _, tag := range tagList {
+		fmt.Fprintf(w,"(%s,s",tag.name);
+		if !tag.starred {
+			fmt.Fprintf(w,"!");
+		}
+		fmt.Fprintf(w,",b");
+		if !tag.blobbed {
+			fmt.Fprintf(w,"!");
+		}
+		fmt.Fprintf(w,")");
+	}
+	return w.String()
+}
+
 // Returns a list of tags stored in userdata string field
-func (h *MyHTTPHandler) tagListFromDatabase (tags []byte) []*Tag {
+func (h *MyHTTPHandler) TagListFromDBString (tags []byte) []*Tag {
 
     var tagList []*Tag
     var s scanner.Scanner
@@ -833,12 +869,22 @@ func (h *MyHTTPHandler) tagListFromDatabase (tags []byte) []*Tag {
 		for tok != scanner.EOF {
 			if tok != '(' { break }
 			tag := new(Tag)
+			tag.starred = true
+			tag.blobbed = true
 			// tag name
 			if tok = s.Scan(); tok != scanner.String { break }
 			tag.name = s.TokenText()
-			if tok = s.Scan(); tok != ',' { break }
+			tok = s.Scan()
+			if tok == ')' {
+				// this tag was marked for deletion
+				// so fill it with empty data 
+				// and mark it as so
+				tag.remove = true
+				tagList = append(tagList, tag)
+				tok = s.Scan()
+				continue
+			} else if tok != ',' { break }
 			// tag starred?
-			tag.starred = true
 			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "s" { break }
 			if tok = s.Scan(); tok == '!' {
 				tag.starred = false
@@ -846,7 +892,6 @@ func (h *MyHTTPHandler) tagListFromDatabase (tags []byte) []*Tag {
 			}
 			if tok != ',' { break }
 			// tag blobbed?
-			tag.blobbed = true
 			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "b" { break }
 			if tok = s.Scan(); tok == '!' {
 				tag.blobbed = false
@@ -1312,45 +1357,6 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	paperList := h.PaperListFromDBString(papers)
     fmt.Printf("for user %s, read %d papers\n", username, len(paperList))
 
-	// and check for new papers that we don't already have
-	//newPaperList := h.PaperListFromDBString(newpapers)
-    //fmt.Printf("for user %s, read %d new papers\n", username, len(newPaperList))
-
-	// make one super list of unique papers
-	// if newPaperList has duplicates (it shouldn't), takes the first
-	//newPapersAdded := 0
-	//for _, newPaper := range newPaperList {
-	//	exists := false
-	//	for _, paper := range paperList {
-	//		if newPaper.id == paper.id {
-	//			exists = true
-	//			break
-	//		}
-	//	}
-	//	if !exists {
-	//		paperList = append(paperList,newPaper)
-	//		newPapersAdded += 1
-	//	}
-	//}
-
-	// if we added new papers, save the new string and clear new papers field in db
-	//if len(newPaperList) > 0 {
-	//	if newPapersAdded > 0 {
-	//		papersStr := h.PaperListToDBString(username,paperList)
-	//		query := fmt.Sprintf("UPDATE userdata SET papers = '%s' WHERE username = '%s'", papersStr, username)
-	//		if h.papers.QueryFull(query) {
-	//			fmt.Printf("for user %s, migrated %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
-	//		} else {
-	//			fmt.Printf("for user %s, error migrating %d of %d newpapers to papers in database\n", username, newPapersAdded, len(newPaperList))
-	//		}
-	//	} else {
-	//		fmt.Printf("for user %s, migrated none of %d newpapers to papers in database\n", username, len(newPaperList))
-	//	}
-	//	// clear newPapers db field:
-	//	query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
-	//	h.papers.QueryFull(query)
-	//}
-
 	// output papers in json format
 	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", username,challenge)
 
@@ -1378,7 +1384,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	/* TAGS */
 	/********/
     // build a list of TAGS  this profile
-	tagList := h.tagListFromDatabase(tags)
+	tagList := h.TagListFromDBString(tags)
 
     fmt.Printf("for user %s, read %d tags\n", username, len(tagList))
 
@@ -1416,15 +1422,17 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	row = h.papers.QuerySingleRow(query)
     h.papers.QueryEnd()
 
-	//var papers,tags []byte
-	var papers []byte
+	var papers,tags []byte
     if row != nil {
         var ok bool
         papers, ok = row[0].([]byte)
         if !ok { papers = nil }
-        //tags, ok = row[0].([]byte)
-        //if !ok { tags = nil }
+        tags, ok = row[0].([]byte)
+        if !ok { tags = nil }
     }
+
+	/* PAPERS */
+	/**********/
 
 	oldpapersList := h.PaperListFromDBString(papers)
 	fmt.Printf("for user %s, read %d papers from db\n", username, len(oldpapersList))
@@ -1457,27 +1465,69 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 
 	// sort this list
     sort.Sort(PaperSliceSortId(papersList))
-
-	papersStr := h.PaperListToDBString(username,papersList)
-
-	// TODO do same for tags (construct list of tags etc)
-	tagsStr := difftags
+	papersStr := h.PaperListToDBString(papersList)
 
 	// create new hashes 
 	hash := sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
 	papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
+	// compare with hashes we were sent (should match!!)
+	if papershash != papershashDb {
+		fmt.Printf("Error: for user %s, new sync paper hashes don't match those sent from client: %s vs %s\n", username,papershash,papershashDb)
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+		return
+	}
+
+	/* TAGS */
+	/********/
+
+	oldtagsList := h.TagListFromDBString(tags);
+	fmt.Printf("for user %s, read %d tags from db\n", username, len(oldtagsList))
+
+	// tags without details e.g. (name) are flagged with a "remove" 
+	newtagsList := h.TagListFromDBString([]byte(difftags))
+	fmt.Printf("for user %s, read %d diff tags from internets\n", username, len(newtagsList))
+
+	// make one super list of unique tags (difftags override oldtags)
+	for _, oldtag := range oldtagsList {
+		exists := false
+		for _, difftag := range newtagsList {
+			if difftag.name == oldtag.name {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			newtagsList = append(newtagsList,oldtag)
+		}
+	}
+
+	var tagsList []*Tag
+	// remove tags marked with "remove" 
+	for _, tag := range newtagsList {
+		if !tag.remove {
+			tagsList = append(tagsList,tag)
+		}
+	}
+
+	// sort this list
+    sort.Sort(TagSliceSortName(tagsList))
+	tagsStr := h.TagListToDBString(tagsList)
+
 	hash = sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", string(tagsStr)))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
 	// compare with hashes we were sent (should match!!)
-	if papershash != papershashDb || tagshash != tagshashDb {
-		fmt.Printf("Error: for user %s, new sync hashes don't match those sent from client: papers %s vs %s\n", username,papershash,papershashDb)
+	if tagshash != tagshashDb {
+		fmt.Printf("Error: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", username,tagshash,tagshashDb)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
+
+	/* MYSQL */
+	/*********/
 
 	query = fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s', papershash = '%s', tagshash = '%s' WHERE username = '%s'", papersStr, tagsStr, papershashDb, tagshashDb, username)
     if !h.papers.QueryFull(query) {
