@@ -1520,7 +1520,8 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 
 	// compare with hashes we were sent (should match!!)
 	if papershash != papershashDb || tagshash != tagshashDb {
-		fmt.Printf("Error: for user %s, new sync hashes don't match those sent from client\n", username)
+		fmt.Printf("Error: for user %s, new sync hashes don't match those sent from client: papers %s vs %s\n", username,papershash,papershashDb)
+		fmt.Printf("Papers str %s, Difpapers str %s\n", papersStr,diffpapers)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
