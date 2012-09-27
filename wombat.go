@@ -154,11 +154,8 @@ type TagSliceSortName []*Tag
 
 func (ts TagSliceSortName) Len() int           { return len(ts) }
 func (ts TagSliceSortName) Less(i, j int) bool {
-	return ts[i].name < ts[j].name
-	//var strComp []string
-	//strComp = append(strComp, ts[i].name, ts[j].name)
-	//sort.Strings(strComp)
-	//return strComp[0] == ts[i].name
+	// tag names are wrapped with "", so remove these first before sorting
+	return ts[i].name[1:len(ts[i].name)-1] < ts[j].name[1:len(ts[j].name)-1]
 }
 func (ts TagSliceSortName) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
 
@@ -1402,9 +1399,6 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
 
-	//fmt.Printf("for user %s, read oldtagsStr %s, %s\n", username, string(tags),tagshashOld)
-	//fmt.Printf("for user %s, read tagsStr %s, %s\n", username, tagsStr,tagshashDb)
-
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
 	if tagshashDb != tagshashOld {
@@ -1534,13 +1528,6 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	hash = sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
-
-	hash = sha1.New()
-	io.WriteString(hash, fmt.Sprintf("%s", string(tags)))
-	tagshashOld := fmt.Sprintf("%x",hash.Sum(nil))
-
-	fmt.Printf("for user %s, read oldtagsStr %s, %s\n", username, string(tags),tagshashOld)
-	fmt.Printf("for user %s, read tagsStr %s, %s\n", username, tagsStr,tagshashDb)
 
 	// compare with hashes we were sent (should match!!)
 	if tagshash != tagshashDb {
