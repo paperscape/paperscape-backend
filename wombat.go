@@ -984,12 +984,18 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 		if req.Form["pchal"] != nil {
 			// profile-challenge: authenticate request (send user a new "challenge")
 			giveSalt := false
+			giveVersion := false
 			// give user their salt once, so they can salt passwords in this session
 			if req.Form["s"] != nil {
                 // client requested salt
 				giveSalt = true
 			}
-			h.ProfileChallenge(req.Form["pchal"][0], giveSalt, rw)
+			if req.Form["pv"] != nil {
+                // client requested password version (useful if we want to
+				// strengthen in future)
+				giveVersion = true
+			}
+			h.ProfileChallenge(req.Form["pchal"][0], giveSalt, giveVersion, rw)
 		} else if req.Form["pload"] != nil && req.Form["h"] != nil && req.Form["ph"] != nil && req.Form["th"] != nil {
             // profile-load: either login request or load request from an autosave
             // h = passHash, ph = papersHash, th = tagsHash
@@ -998,10 +1004,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-cull: clear newpapers db field request
             // h = passHash
 			h.ProfileCullNewPapers(req.Form["pcull"][0], req.Form["h"][0], rw)*/
-		} else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil {
+		} else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
-            // h = passHash, p = payload, s = sprinkle (salt)
-            h.ProfileChangePassword(req.Form["pchpw"][0], req.Form["h"][0], req.Form["p"][0], req.Form["s"][0], rw)
+            // h = passHash, p = payload, s = sprinkle (salt), pv = password version
+            h.ProfileChangePassword(req.Form["pchpw"][0], req.Form["h"][0], req.Form["p"][0], req.Form["s"][0], req.Form["pv"][0], rw)
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
@@ -1207,12 +1213,15 @@ func (h *MyHTTPHandler) SetChallenge(username string) int64 {
 	return challenge
 }
 
-func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVersion bool, rw http.ResponseWriter) {
     // TODO security issue, make sure username is sanitised
 
 	// check username exists and get the 'salt'
 	var salt uint64
-    query := fmt.Sprintf("SELECT salt FROM userdata WHERE username = '%s'", username)
+	var pwdversion uint32;
+	var ok bool
+
+    query := fmt.Sprintf("SELECT salt, pwdversion FROM userdata WHERE username = '%s'", username)
     row := h.papers.QuerySingleRow(query)
 	h.papers.QueryEnd()
     if row == nil {
@@ -1220,10 +1229,17 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http
 		fmt.Printf("ERROR: challenging '%s' - no such user\n", username)
 		fmt.Fprintf(rw, "false")
 		return
-	} else if giveSalt {
-        var ok bool
+	}
+	if giveSalt {
 		if salt, ok = row[0].(uint64); !ok {
 			fmt.Printf("ERROR: challenging '%s' - salt\n", username)
+			fmt.Fprintf(rw, "false")
+			return
+		}
+	}
+	if giveVersion {
+		if pwdversion, ok = row[1].(uint32); !ok {
+			fmt.Printf("ERROR: challenging '%s' - pwdversion\n", username)
 			fmt.Fprintf(rw, "false")
 			return
 		}
@@ -1233,11 +1249,14 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, rw http
 	challenge := h.SetChallenge(username)
 
 	// return challenge code
+	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"",username, challenge);
 	if giveSalt {
-		fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"salt\":\"%d\"}", username, challenge, salt)
-	} else {
-		fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"}", username, challenge)
+		fmt.Fprintf(rw, ",\"salt\":\"%d\"", salt)
 	}
+	if giveVersion {
+		fmt.Fprintf(rw, ",\"pwdv\":\"%d\"", pwdversion)
+	}
+	fmt.Fprintf(rw, "}")
 }
 
 func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (success bool) {
@@ -1268,7 +1287,6 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 	}
 
 	// Check the passhash!
-	//hash := sha1.New()
 	hash := sha256.New() // use more secure hash for passwords
 	io.WriteString(hash, fmt.Sprintf("%s%d", userhash, challenge))
 	tryhash := fmt.Sprintf("%x",hash.Sum(nil))
@@ -1554,16 +1572,17 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	h.papers.QueryFull(query)
 }
 
-func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, pwdversion string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
 
-	// TODO clean hash before inserting into mysql!
+	// TODO clean hash and pwdversion and salt before inserting into mysql!
 
+	pwdvNum, _ := strconv.ParseUint(pwdversion, 10, 32)
 	saltNum, _ := strconv.ParseUint(salt, 10, 64)
 
-	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, uint64(saltNum), username)
+	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d, pwdversion = %d WHERE username = '%s'", newhash, uint64(saltNum), uint32(pwdvNum), username)
 	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
 }
 
