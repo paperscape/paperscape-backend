@@ -1218,10 +1218,10 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 
 	// check username exists and get the 'salt'
 	var salt uint64
-	var pwdversion uint32;
+	var pwdversion uint64
 	var ok bool
 
-    query := fmt.Sprintf("SELECT salt, pwdversion FROM userdata WHERE username = '%s'", username)
+    query := fmt.Sprintf("SELECT salt,pwdversion FROM userdata WHERE username = '%s'", username)
     row := h.papers.QuerySingleRow(query)
 	h.papers.QueryEnd()
     if row == nil {
@@ -1238,7 +1238,7 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 		}
 	}
 	if giveVersion {
-		if pwdversion, ok = row[1].(uint32); !ok {
+		if pwdversion, ok = row[1].(uint64); !ok {
 			fmt.Printf("ERROR: challenging '%s' - pwdversion\n", username)
 			fmt.Fprintf(rw, "false")
 			return
@@ -1254,7 +1254,7 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 		fmt.Fprintf(rw, ",\"salt\":\"%d\"", salt)
 	}
 	if giveVersion {
-		fmt.Fprintf(rw, ",\"pwdv\":\"%d\"", pwdversion)
+		fmt.Fprintf(rw, ",\"pwdv\":\"%d\"", uint(pwdversion))
 	}
 	fmt.Fprintf(rw, "}")
 }
@@ -1579,11 +1579,11 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 
 	// TODO clean hash and pwdversion and salt before inserting into mysql!
 
-	pwdvNum, _ := strconv.ParseUint(pwdversion, 10, 32)
+	pwdvNum, _ := strconv.ParseUint(pwdversion, 10, 64)
 	saltNum, _ := strconv.ParseUint(salt, 10, 64)
 
-	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d, pwdversion = %d WHERE username = '%s'", newhash, uint64(saltNum), uint32(pwdvNum), username)
-	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
+	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d, pwdversion = %d WHERE username = '%s'", newhash, uint64(saltNum), uint64(pwdvNum), username)
+	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\",\"pwdv\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum),uint64(pwdvNum))
 }
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
