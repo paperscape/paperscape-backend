@@ -20,6 +20,7 @@ import (
     "strings"
 	"math/rand"
 	"crypto/sha1"
+	"crypto/sha256"
     "sort"
     //"xiwi"
 )
@@ -1267,9 +1268,11 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 	}
 
 	// Check the passhash!
-	hash := sha1.New()
+	//hash := sha1.New()
+	hash := sha256.New() // use more secure hash for passwords
 	io.WriteString(hash, fmt.Sprintf("%s%d", userhash, challenge))
 	tryhash := fmt.Sprintf("%x",hash.Sum(nil))
+
 	if passhash != tryhash {
 		fmt.Printf("ERROR: authenticating '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
 		return
@@ -1556,24 +1559,13 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 		return
 	}
 
+	// TODO clean hash before inserting into mysql!
+
 	saltNum, _ := strconv.ParseUint(salt, 10, 64)
 
 	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d WHERE username = '%s'", newhash, uint64(saltNum), username)
 	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum))
 }
-
-/*
-func (h *MyHTTPHandler) ProfileCullNewPapers(username string, passhash string, rw http.ResponseWriter) {
-	if !h.ProfileAuthenticate(username,passhash) {
-		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
-		return
-	}
-
-	// clear newPapers db field:
-	query := fmt.Sprintf("UPDATE userdata SET newpapers = '' WHERE username = '%s'", username)
-	fmt.Fprintf(rw, "{\"succ\":\"%t\"}",h.papers.QueryFull(query))
-}
-*/
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
     // perform query
