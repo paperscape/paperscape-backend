@@ -1400,7 +1400,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	// this is important for users without profile!
 	if papershashDb != papershashOld {
 		stmt, _ := h.papers.db.Prepare("UPDATE userdata SET papershash = ?, papers = ? WHERE username = ?")
-		stmt.BindParams(h.papers.db.Escape(papershashDb),h.papers.db.Escape(papersStr),h.papers.db.Escape(username))
+		stmt.BindParams(papershashDb,papersStr,h.papers.db.Escape(username))
 		err := stmt.Execute()
 		if err != nil {
 			fmt.Printf(errMsg + "for %s - failed to execute papers update statement\n", username)
@@ -1447,7 +1447,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	// this is important for users without profile!
 	if tagshashDb != tagshashOld {
 		stmt, _ := h.papers.db.Prepare("UPDATE userdata SET tagshash = ?, tags = ? WHERE username = ?")
-		stmt.BindParams(h.papers.db.Escape(tagshashDb),h.papers.db.Escape(tagsStr),h.papers.db.Escape(username))
+		stmt.BindParams(tagshashDb,tagsStr,h.papers.db.Escape(username))
 		err := stmt.Execute()
 		if err != nil {
 			fmt.Printf(errMsg + "for %s - failed to execute tags update statement\n", username)
@@ -1474,25 +1474,35 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
 
+/* Profile Sync */
 func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers string, difftags string, papershash string, tagshash string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
 	}
 
-	var query string
-	var row mysql.Row
-
-	query = fmt.Sprintf("SELECT papers,tags FROM userdata WHERE username = '%s'", username)
-	row = h.papers.QuerySingleRow(query)
-    h.papers.QueryEnd()
-
 	var papers,tags []byte
-    if row != nil {
-        var ok bool
-        papers, ok = row[0].([]byte)
-        if !ok { papers = nil }
-        tags, ok = row[1].([]byte)
-        if !ok { tags = nil }
+
+	errMsg := "ERROR: ProfileSync "
+	stmt, _ := h.papers.db.Prepare("SELECT papers,tags FROM userdata WHERE username = ?")
+	stmt.BindParams(h.papers.db.Escape(username))
+	err := stmt.Execute()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to execute select statement\n", username)
+		return
+	}
+	stmt.BindResult(&papers,&tags)
+	var eof bool
+	eof, err = stmt.Fetch()
+	// expect only one row:
+	if err != nil || eof {
+		fmt.Printf(errMsg + "for %s - failed to bind select result\n", username)
+		return
+	}
+    stmt.FreeResult()
+    err = stmt.Close()
+    if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to close select statement\n", username)
+		return
     }
 
 	/* PAPERS */
@@ -1593,16 +1603,24 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	/* MYSQL */
 	/*********/
 
-	query = fmt.Sprintf("UPDATE userdata SET papers = '%s', tags = '%s', papershash = '%s', tagshash = '%s' WHERE username = '%s'", papersStr, tagsStr, papershashDb, tagshashDb, username)
-    if !h.papers.QueryFull(query) {
+	stmt, _ = h.papers.db.Prepare("UPDATE userdata SET papers = ?, tags = ?, papershash = ?, tagshash = ?, numsync = numsync + 1, lastsync = NOW() WHERE username = ?")
+	stmt.BindParams(papersStr, tagsStr, papershashDb, tagshashDb, h.papers.db.Escape(username))
+	err = stmt.Execute()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to execute login statement\n", username)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
-	} else {
-		fmt.Fprintf(rw, "{\"succ\":\"true\",\"ph\":\"%s\",\"th\":\"%s\"}",papershashDb,tagshashDb)
 	}
-	// record this sync
-	query = fmt.Sprintf("UPDATE userdata SET numsync = numsync + 1, lastsync = NOW() WHERE username = '%s'", username)
-	h.papers.QueryFull(query)
+	err = stmt.Close()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to  close login statement\n", username)
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+		return
+	}
+
+	// We succeeded
+	fmt.Fprintf(rw, "{\"succ\":\"true\",\"ph\":\"%s\",\"th\":\"%s\"}",papershashDb,tagshashDb)
+
 }
 
 func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, pwdversion string, rw http.ResponseWriter) {
@@ -1610,17 +1628,30 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 		return
 	}
 
-	// TODO clean hash and pwdversion and salt before inserting into mysql!
-
 	pwdvNum, _ := strconv.ParseUint(pwdversion, 10, 64)
 	saltNum, _ := strconv.ParseUint(salt, 10, 64)
 
-	query := fmt.Sprintf("UPDATE userdata SET userhash = '%s', salt = %d, pwdversion = %d WHERE username = '%s'", newhash, uint64(saltNum), uint64(pwdvNum), username)
-	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\",\"pwdv\":\"%d\"}",h.papers.QueryFull(query),uint64(saltNum),uint64(pwdvNum))
+	success := true
+	errMsg := "ERROR: ProfileChangePassword "
+	stmt, _ := h.papers.db.Prepare("UPDATE userdata SET userhash = ?, salt = ?, pwdversion = ? WHERE username = ?")
+	stmt.BindParams(h.papers.db.Escape(newhash), uint64(saltNum), uint64(pwdvNum), h.papers.db.Escape(username))
+	err := stmt.Execute()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to execute login statement\n", username)
+		success = false
+	}
+	err = stmt.Close()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to  close login statement\n", username)
+		success = false
+	}
+
+	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\",\"pwdv\":\"%d\"}",success,uint64(saltNum),uint64(pwdvNum))
 }
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
     // perform query
+	// TODO convert to Prepared Statements, or keep as normal query, which is faster
     if !h.papers.QueryBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5") {
         return
     }
