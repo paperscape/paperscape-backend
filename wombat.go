@@ -1199,51 +1199,80 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
     fmt.Fprintf(w, "]")
 }
 
-func (h *MyHTTPHandler) SetChallenge(username string) int64 {
-    // TODO security issue, make sure username is sanitised
-
+func (h *MyHTTPHandler) SetChallenge(username string) (challenge int64) {
 	// generate random "challenge" code
-	challenge := rand.Int63();
+	challenge = rand.Int63()
 
-	// store new challenge code in user database entry
-	query := fmt.Sprintf("UPDATE userdata SET challenge = '%d' WHERE username = '%s'", challenge, username)
-    if !h.papers.QueryFull(query) {
-		fmt.Printf("ERROR: failed to set new challenge for user %s\n", username)
+	errMsg := "ERROR: SetChallenge "
+	stmt, err := h.papers.db.Prepare("UPDATE userdata SET challenge = ? WHERE username = ?")
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to prepare mysql string\n", username)
+		return
+	}
+	err = stmt.BindParams(challenge,h.papers.db.Escape(username))
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to bind params\n", username)
+		return
+	}
+	err = stmt.Execute()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
+		return
+	}
+    err = stmt.Close()
+    if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to  close statement\n", username)
+		return
     }
-	return challenge
+
+	return
 }
 
+/* check username exists and get the 'salt' and/or 'version' */
 func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVersion bool, rw http.ResponseWriter) {
-    // TODO security issue, make sure username is sanitised
-
-	// check username exists and get the 'salt'
 	var salt uint64
 	var pwdversion uint64
-	var ok bool
 
-    query := fmt.Sprintf("SELECT salt,pwdversion FROM userdata WHERE username = '%s'", username)
-    row := h.papers.QuerySingleRow(query)
-	h.papers.QueryEnd()
-    if row == nil {
-        // unknown username
-		fmt.Printf("ERROR: challenging '%s' - no such user\n", username)
+	errMsg := "ERROR: ProfileChallenge "
+	stmt, err := h.papers.db.Prepare("SELECT salt,pwdversion FROM userdata WHERE username = ?")
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to prepare mysql string\n", username)
 		fmt.Fprintf(rw, "false")
 		return
 	}
-	if giveSalt {
-		if salt, ok = row[0].(uint64); !ok {
-			fmt.Printf("ERROR: challenging '%s' - salt\n", username)
-			fmt.Fprintf(rw, "false")
-			return
-		}
+	err = stmt.BindParams(h.papers.db.Escape(username))
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to bind params\n", username)
+		fmt.Fprintf(rw, "false")
+		return
 	}
-	if giveVersion {
-		if pwdversion, ok = row[1].(uint64); !ok {
-			fmt.Printf("ERROR: challenging '%s' - pwdversion\n", username)
-			fmt.Fprintf(rw, "false")
-			return
-		}
+	err = stmt.Execute()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
+		fmt.Fprintf(rw, "false")
+		return
 	}
+	stmt.BindResult(&salt,&pwdversion)
+	var eof bool
+	eof, err = stmt.Fetch()
+	// expect only one row:
+	if err != nil || eof {
+		fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
+		fmt.Fprintf(rw, "false")
+		return
+	}
+    err = stmt.FreeResult()
+    if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to free result\n", username)
+		fmt.Fprintf(rw, "false")
+		return
+    }
+    err = stmt.Close()
+    if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to close statement\n", username)
+		fmt.Fprintf(rw, "false")
+		return
+    }
 
 	// generate random "challenge" code
 	challenge := h.SetChallenge(username)
@@ -1262,29 +1291,44 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (success bool) {
 	success = false
 
-    // TODO security issue, make sure username is sanitised!!
-
 	// Check for valid username and get the user challenge and hash
 	var challenge uint64
     var userhash string = ""
-	query := fmt.Sprintf("SELECT challenge,userhash FROM userdata WHERE username = '%s'", username)
-    row := h.papers.QuerySingleRow(query)
-    if row == nil {
-        h.papers.QueryEnd()
-		fmt.Printf("ERROR: authenticating '%s' - no such user\n", username)
+
+	errMsg := "ERROR: ProfileAuthenticate "
+	stmt, err := h.papers.db.Prepare("SELECT challenge,userhash FROM userdata WHERE username = ?")
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to prepare mysql string\n", username)
 		return
-	} else {
-        var ok bool
-		proceed := true
-		if challenge, ok = row[0].(uint64); !ok { proceed = false }
-		if userhash, ok = row[1].(string); !ok { proceed = false }
-		h.papers.QueryEnd()
-		if !proceed || userhash == ""  {
-			fmt.Printf("ERROR: '%s', '%d'\n", userhash,challenge)
-			fmt.Printf("ERROR: authenticating '%s' - challenge,hash error\n", username)
-			return
-		}
 	}
+	err = stmt.BindParams(h.papers.db.Escape(username))
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to bind params\n", username)
+		return
+	}
+	err = stmt.Execute()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
+		return
+	}
+	stmt.BindResult(&challenge,&userhash)
+	var eof bool
+	eof, err = stmt.Fetch()
+	// expect only one row:
+	if err != nil || eof {
+		fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
+		return
+	}
+    err = stmt.FreeResult()
+    if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to free result\n", username)
+		return
+    }
+    err = stmt.Close()
+    if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to close statement\n", username)
+		return
+    }
 
 	// Check the passhash!
 	hash := sha256.New() // use more secure hash for passwords
@@ -1292,7 +1336,7 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 	tryhash := fmt.Sprintf("%x",hash.Sum(nil))
 
 	if passhash != tryhash {
-		fmt.Printf("ERROR: authenticating '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
+		fmt.Printf(errMsg + "for '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
 		return
 	}
 
@@ -1311,7 +1355,6 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
 	var query string
 	var row mysql.Row
-
 
 	// generate random "challenge", as we expect user to reply
 	// with a sync request if this is an autosave
