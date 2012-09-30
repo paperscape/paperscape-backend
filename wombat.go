@@ -1199,22 +1199,15 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper) {
     fmt.Fprintf(w, "]")
 }
 
-func (h *MyHTTPHandler) SetChallenge(username string) (challenge int64) {
+func (h *MyHTTPHandler) SetChallenge(username string) (challenge int64, success bool) {
 	// generate random "challenge" code
+	success = false
 	challenge = rand.Int63()
 
 	errMsg := "ERROR: SetChallenge "
-	stmt, err := h.papers.db.Prepare("UPDATE userdata SET challenge = ? WHERE username = ?")
-	if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to prepare mysql string\n", username)
-		return
-	}
-	err = stmt.BindParams(challenge,h.papers.db.Escape(username))
-	if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to bind params\n", username)
-		return
-	}
-	err = stmt.Execute()
+	stmt, _ := h.papers.db.Prepare("UPDATE userdata SET challenge = ? WHERE username = ?")
+	stmt.BindParams(challenge,h.papers.db.Escape(username))
+	err := stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
 		return
@@ -1224,7 +1217,7 @@ func (h *MyHTTPHandler) SetChallenge(username string) (challenge int64) {
 		fmt.Printf(errMsg + "for %s - failed to  close statement\n", username)
 		return
     }
-
+	success = true
 	return
 }
 
@@ -1234,19 +1227,9 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 	var pwdversion uint64
 
 	errMsg := "ERROR: ProfileChallenge "
-	stmt, err := h.papers.db.Prepare("SELECT salt,pwdversion FROM userdata WHERE username = ?")
-	if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to prepare mysql string\n", username)
-		fmt.Fprintf(rw, "false")
-		return
-	}
-	err = stmt.BindParams(h.papers.db.Escape(username))
-	if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to bind params\n", username)
-		fmt.Fprintf(rw, "false")
-		return
-	}
-	err = stmt.Execute()
+	stmt, _ := h.papers.db.Prepare("SELECT salt,pwdversion FROM userdata WHERE username = ?")
+	stmt.BindParams(h.papers.db.Escape(username))
+	err := stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
 		fmt.Fprintf(rw, "false")
@@ -1261,12 +1244,7 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 		fmt.Fprintf(rw, "false")
 		return
 	}
-    err = stmt.FreeResult()
-    if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to free result\n", username)
-		fmt.Fprintf(rw, "false")
-		return
-    }
+    stmt.FreeResult()
     err = stmt.Close()
     if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to close statement\n", username)
@@ -1275,7 +1253,11 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
     }
 
 	// generate random "challenge" code
-	challenge := h.SetChallenge(username)
+	challenge, success := h.SetChallenge(username)
+	if success != true {
+		fmt.Fprintf(rw, "false")
+		return
+	}
 
 	// return challenge code
 	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"",username, challenge);
@@ -1293,20 +1275,12 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 
 	// Check for valid username and get the user challenge and hash
 	var challenge uint64
-    var userhash string = ""
+    var userhash string
 
 	errMsg := "ERROR: ProfileAuthenticate "
-	stmt, err := h.papers.db.Prepare("SELECT challenge,userhash FROM userdata WHERE username = ?")
-	if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to prepare mysql string\n", username)
-		return
-	}
-	err = stmt.BindParams(h.papers.db.Escape(username))
-	if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to bind params\n", username)
-		return
-	}
-	err = stmt.Execute()
+	stmt, _ := h.papers.db.Prepare("SELECT challenge,userhash FROM userdata WHERE username = ?")
+	stmt.BindParams(h.papers.db.Escape(username))
+	err := stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
 		return
@@ -1319,11 +1293,7 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 		fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
 		return
 	}
-    err = stmt.FreeResult()
-    if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to free result\n", username)
-		return
-    }
+    stmt.FreeResult()
     err = stmt.Close()
     if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to close statement\n", username)
@@ -1353,65 +1323,64 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 		return
 	}
 
-	var query string
-	var row mysql.Row
+	//var query string
+	//var row mysql.Row
 
 	// generate random "challenge", as we expect user to reply
 	// with a sync request if this is an autosave
-	challenge := h.SetChallenge(username)
+	challenge, success := h.SetChallenge(username)
+	if success != true {
+		return
+	}
+
+    var papers,tags []byte
+	var papershashOld,tagshashOld string
+
+	errMsg := "ERROR: ProfileLoad "
+	stmt, _ := h.papers.db.Prepare("SELECT papers,tags,papershash,tagshash FROM userdata WHERE username = ?")
+	stmt.BindParams(h.papers.db.Escape(username))
+	err := stmt.Execute()
+	if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to execute select statement\n", username)
+		return
+	}
+	stmt.BindResult(&papers,&tags,&papershashOld,&tagshashOld)
+	var eof bool
+	eof, err = stmt.Fetch()
+	// expect only one row:
+	if err != nil || eof {
+		fmt.Printf(errMsg + "for %s - failed to bind select result\n", username)
+		return
+	}
+    stmt.FreeResult()
+    err = stmt.Close()
+    if err != nil {
+		fmt.Printf(errMsg + "for %s - failed to close select statement\n", username)
+		return
+    }
 
 	/* Check if papers/tags hashes up to date if given (else assume this is a login) */
 	if papershash != "" && tagshash != "" {
-		query = fmt.Sprintf("SELECT papershash,tagshash FROM userdata WHERE username = '%s'", username)
-		row = h.papers.QuerySingleRow(query)
-		h.papers.QueryEnd()
-
-		var papershashDb,tagshashDb string
-
-		if row == nil {
-			fmt.Printf("ERROR: user %s - MySQL fail\n")
-			return
-		} else {
-			var ok bool
-			papershashDb, ok = row[0].(string)
-			if !ok { papershashDb = "" }
-			tagshashDb, ok = row[1].(string)
-			if !ok { tagshashDb = "" }
-		}
-		if (papershashDb == papershash && tagshashDb == tagshash) {
+		if (papershashOld == papershash && tagshashOld == tagshash) {
 			// hashes match, 
-			fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",username,challenge,papershashDb,tagshashDb)
+			fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",username,challenge,papershashOld,tagshashOld)
 			return
 		}
 	} else {
 		// as no useful papers/tags hashes given, record this load as a LOGIN
-		query = fmt.Sprintf("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE username = '%s'", username)
-		h.papers.QueryFull(query)
+		stmt, _ := h.papers.db.Prepare("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE username = ?")
+		stmt.BindParams(h.papers.db.Escape(username))
+		err := stmt.Execute()
+		if err != nil {
+			fmt.Printf(errMsg + "for %s - failed to execute login statement\n", username)
+			return
+		}
+		err = stmt.Close()
+		if err != nil {
+			fmt.Printf(errMsg + "for %s - failed to  close login statement\n", username)
+			return
+		}
 	}
-
-	/* Proceed with loading data for user */
-
-	query = fmt.Sprintf("SELECT papers,tags,papershash,tagshash FROM userdata WHERE username = '%s'", username)
-	row = h.papers.QuerySingleRow(query)
-	h.papers.QueryEnd()
-
-    var papers,tags []byte
-    var papershashOld,tagshashOld string
-
-    if row == nil {
-		fmt.Printf("ERROR: user %s - MySQL fail\n")
-		return
-	} else {
-        var ok bool
-        papers, ok = row[0].([]byte)
-        if !ok { papers = nil }
-        tags, ok = row[1].([]byte)
-        if !ok { tags = nil }
-        papershashOld, ok = row[2].(string)
-        if !ok { papershashOld = "" }
-        tagshashOld, ok = row[3].(string)
-        if !ok { tagshashOld = "" }
-    }
 
 	/* PAPERS */
 	/**********/
@@ -1430,10 +1399,21 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
 	if papershashDb != papershashOld {
-		query = fmt.Sprintf("UPDATE userdata SET papershash = '%s', papers = '%s' WHERE username = '%s'", papershashDb, papersStr, username)
-		if !h.papers.QueryFull(query) {
-			fmt.Printf("ERROR: failed to set new papers field and hash for user %s\n", username)
+		stmt, _ := h.papers.db.Prepare("UPDATE userdata SET papershash = ?, papers = ? WHERE username = ?")
+		stmt.BindParams(h.papers.db.Escape(papershashDb),h.papers.db.Escape(papersStr),h.papers.db.Escape(username))
+		err := stmt.Execute()
+		if err != nil {
+			fmt.Printf(errMsg + "for %s - failed to execute papers update statement\n", username)
 		}
+		err = stmt.Close()
+		if err != nil {
+			fmt.Printf(errMsg + "for %s - failed to  close papers update statement\n", username)
+		}
+		fmt.Printf("for user %s, paper string updated\n", username)
+		//query = fmt.Sprintf("UPDATE userdata SET papershash = '%s', papers = '%s' WHERE username = '%s'", papershashDb, papersStr, username)
+		//if !h.papers.QueryFull(query) {
+		//	fmt.Printf("ERROR: failed to set new papers field and hash for user %s\n", username)
+		//}
 	}
 
 	// output papers in json format
@@ -1466,11 +1446,21 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
 	if tagshashDb != tagshashOld {
-		fmt.Printf("for user %s, tag string updated\n", username)
-		query = fmt.Sprintf("UPDATE userdata SET tagshash = '%s', tags = '%s' WHERE username = '%s'", tagshashDb, tagsStr, username)
-		if !h.papers.QueryFull(query) {
-			fmt.Printf("ERROR: failed to set new tags field and hash for user %s\n", username)
+		stmt, _ := h.papers.db.Prepare("UPDATE userdata SET tagshash = ?, tags = ? WHERE username = ?")
+		stmt.BindParams(h.papers.db.Escape(tagshashDb),h.papers.db.Escape(tagsStr),h.papers.db.Escape(username))
+		err := stmt.Execute()
+		if err != nil {
+			fmt.Printf(errMsg + "for %s - failed to execute tags update statement\n", username)
 		}
+		err = stmt.Close()
+		if err != nil {
+			fmt.Printf(errMsg + "for %s - failed to  close tags update statement\n", username)
+		}
+		fmt.Printf("for user %s, tag string updated\n", username)
+		//query = fmt.Sprintf("UPDATE userdata SET tagshash = '%s', tags = '%s' WHERE username = '%s'", tagshashDb, tagsStr, username)
+		//if !h.papers.QueryFull(query) {
+		//	fmt.Printf("ERROR: failed to set new tags field and hash for user %s\n", username)
+		//}
 	}
 
 	// output tags in json format
