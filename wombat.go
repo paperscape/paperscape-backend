@@ -1210,10 +1210,9 @@ func (h *MyHTTPHandler) SetChallenge(username string) (challenge int64, success 
 	err := stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
-		return
 	}
-    err = stmt.Close()
-    if err != nil {
+    errC := stmt.Close()
+    if err != nil || errC != nil {
 		fmt.Printf(errMsg + "for %s - failed to  close statement\n", username)
 		return
     }
@@ -1232,22 +1231,19 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 	err := stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
-		fmt.Fprintf(rw, "false")
-		return
+	} else {
+		stmt.BindResult(&salt,&pwdversion)
+		var eof bool
+		eof, err = stmt.Fetch()
+		// expect only one row:
+		if err != nil || eof {
+			fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
+		}
+		stmt.FreeResult()
 	}
-	stmt.BindResult(&salt,&pwdversion)
-	var eof bool
-	eof, err = stmt.Fetch()
-	// expect only one row:
-	if err != nil || eof {
-		fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
-		fmt.Fprintf(rw, "false")
-		return
-	}
-    stmt.FreeResult()
-    err = stmt.Close()
-    if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to close statement\n", username)
+	errC := stmt.Close()
+    if err != nil || errC != nil {
+		fmt.Printf(errMsg + "for %s - general fail\n", username)
 		fmt.Fprintf(rw, "false")
 		return
     }
@@ -1283,20 +1279,19 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 	err := stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
-		return
+	} else {
+		stmt.BindResult(&challenge,&userhash)
+		var eof bool
+		eof, err = stmt.Fetch()
+		// expect only one row:
+		if err != nil || eof {
+			fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
+		}
+		stmt.FreeResult()
 	}
-	stmt.BindResult(&challenge,&userhash)
-	var eof bool
-	eof, err = stmt.Fetch()
-	// expect only one row:
-	if err != nil || eof {
-		fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
-		return
-	}
-    stmt.FreeResult()
-    err = stmt.Close()
-    if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to close statement\n", username)
+	errC := stmt.Close()
+    if err != nil || errC != nil {
+		fmt.Printf(errMsg + "for %s - general fail\n", username)
 		return
     }
 
@@ -1342,20 +1337,19 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	err := stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute select statement\n", username)
-		return
+	} else {
+		stmt.BindResult(&papers,&tags,&papershashOld,&tagshashOld)
+		var eof bool
+		eof, err = stmt.Fetch()
+		// expect only one row:
+		if err != nil || eof {
+			fmt.Printf(errMsg + "for %s - failed to bind select result\n", username)
+		}
+		stmt.FreeResult()
 	}
-	stmt.BindResult(&papers,&tags,&papershashOld,&tagshashOld)
-	var eof bool
-	eof, err = stmt.Fetch()
-	// expect only one row:
-	if err != nil || eof {
-		fmt.Printf(errMsg + "for %s - failed to bind select result\n", username)
-		return
-	}
-    stmt.FreeResult()
-    err = stmt.Close()
-    if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to close select statement\n", username)
+	errC := stmt.Close()
+    if err != nil || errC != nil {
+		fmt.Printf(errMsg + "for %s - general fail\n", username)
 		return
     }
 
@@ -1373,11 +1367,10 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 		err := stmt.Execute()
 		if err != nil {
 			fmt.Printf(errMsg + "for %s - failed to execute login statement\n", username)
-			return
 		}
-		err = stmt.Close()
-		if err != nil {
-			fmt.Printf(errMsg + "for %s - failed to  close login statement\n", username)
+		errC := stmt.Close()
+		if err != nil || errC != nil {
+			fmt.Printf(errMsg + "for %s - general fail\n", username)
 			return
 		}
 	}
@@ -1405,9 +1398,9 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 		if err != nil {
 			fmt.Printf(errMsg + "for %s - failed to execute papers update statement\n", username)
 		}
-		err = stmt.Close()
-		if err != nil {
-			fmt.Printf(errMsg + "for %s - failed to  close papers update statement\n", username)
+		errC := stmt.Close()
+		if err != nil || errC != nil {
+			fmt.Printf(errMsg + "for %s - general fail\n", username)
 		}
 		fmt.Printf("for user %s, paper string updated\n", username)
 		//query = fmt.Sprintf("UPDATE userdata SET papershash = '%s', papers = '%s' WHERE username = '%s'", papershashDb, papersStr, username)
@@ -1452,9 +1445,9 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 		if err != nil {
 			fmt.Printf(errMsg + "for %s - failed to execute tags update statement\n", username)
 		}
-		err = stmt.Close()
-		if err != nil {
-			fmt.Printf(errMsg + "for %s - failed to  close tags update statement\n", username)
+		errC := stmt.Close()
+		if err != nil || errC != nil {
+			fmt.Printf(errMsg + "for %s - general fail\n", username)
 		}
 		fmt.Printf("for user %s, tag string updated\n", username)
 		//query = fmt.Sprintf("UPDATE userdata SET tagshash = '%s', tags = '%s' WHERE username = '%s'", tagshashDb, tagsStr, username)
@@ -1488,20 +1481,19 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	err := stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute select statement\n", username)
-		return
+	} else {
+		stmt.BindResult(&papers,&tags)
+		var eof bool
+		eof, err = stmt.Fetch()
+		// expect only one row:
+		if err != nil || eof {
+			fmt.Printf(errMsg + "for %s - failed to bind select result\n", username)
+		}
+		stmt.FreeResult()
 	}
-	stmt.BindResult(&papers,&tags)
-	var eof bool
-	eof, err = stmt.Fetch()
-	// expect only one row:
-	if err != nil || eof {
-		fmt.Printf(errMsg + "for %s - failed to bind select result\n", username)
-		return
-	}
-    stmt.FreeResult()
-    err = stmt.Close()
-    if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to close select statement\n", username)
+	errC := stmt.Close()
+    if err != nil || errC != nil {
+		fmt.Printf(errMsg + "for %s - general fail\n", username)
 		return
     }
 
@@ -1608,12 +1600,10 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	err = stmt.Execute()
 	if err != nil {
 		fmt.Printf(errMsg + "for %s - failed to execute login statement\n", username)
-		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
-		return
 	}
-	err = stmt.Close()
-	if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to  close login statement\n", username)
+	errC = stmt.Close()
+	if err != nil || errC != nil {
+		fmt.Printf(errMsg + "for %s - general fail\n", username)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
@@ -1640,8 +1630,8 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 		fmt.Printf(errMsg + "for %s - failed to execute login statement\n", username)
 		success = false
 	}
-	err = stmt.Close()
-	if err != nil {
+	errC := stmt.Close()
+	if errC != nil {
 		fmt.Printf(errMsg + "for %s - failed to  close login statement\n", username)
 		success = false
 	}
