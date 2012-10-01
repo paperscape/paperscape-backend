@@ -172,6 +172,44 @@ func NewPapersEnv(db *mysql.Client) *PapersEnv {
     return papers
 }
 
+func (papers *PapersEnv) StatementBegin(sql string, params ...interface{}) *mysql.Statement {
+    papers.db.Lock()
+	stmt, err := papers.db.Prepare(sql)
+	if err != nil {
+        fmt.Println("MySQL statement error;", err)
+		return nil
+	}
+	err = stmt.BindParams(params)
+	if err != nil {
+        fmt.Println("MySQL statement error;", err)
+		return nil
+	}
+	err = stmt.Execute()
+	if err != nil {
+        fmt.Println("MySQL statement error;", err)
+		return nil
+	}
+	return stmt
+}
+
+func (papers *PapersEnv) StatementEnd(stmt *mysql.Statement) (success bool) {
+	success = true
+	if stmt != nil {
+		err := stmt.FreeResult()
+		if err != nil {
+			fmt.Println("MySQL statement error;", err)
+			success = false
+		}
+		err = stmt.Close()
+		if err != nil {
+			fmt.Println("MySQL statement error;", err)
+			success = false
+		}
+	}
+    papers.db.Unlock()
+	return
+}
+
 func (papers *PapersEnv) QueryBegin(query string) bool {
     // perform query
     //fmt.Println("waiting for lock")
@@ -1225,28 +1263,41 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 	var salt uint64
 	var pwdversion uint64
 
-	errMsg := "ERROR: ProfileChallenge "
-	stmt, _ := h.papers.db.Prepare("SELECT salt,pwdversion FROM userdata WHERE username = ?")
-	stmt.BindParams(h.papers.db.Escape(username))
-	err := stmt.Execute()
-	if err != nil {
-		fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
-	} else {
+	stmt := h.papers.StatementBegin("SELECT salt,pwdversion FROM userdata WHERE username = ?",h.papers.db.Escape(username))
+	if stmt != nil {
 		stmt.BindResult(&salt,&pwdversion)
 		var eof bool
-		eof, err = stmt.Fetch()
+		eof, err := stmt.Fetch()
 		// expect only one row:
 		if err != nil || eof {
-			fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
+			fmt.Println("MySQL statement error;", err)
+		} else if eof {
+			fmt.Println("MySQL statement error; eof")
 		}
-		stmt.FreeResult()
 	}
-	errC := stmt.Close()
-    if err != nil || errC != nil {
-		fmt.Printf(errMsg + "for %s - general fail\n", username)
-		fmt.Fprintf(rw, "false")
-		return
-    }
+	h.papers.StatementEnd(stmt)
+	//errMsg := "ERROR: ProfileChallenge "
+	//stmt, _ := h.papers.db.Prepare("SELECT salt,pwdversion FROM userdata WHERE username = ?")
+	//stmt.BindParams(h.papers.db.Escape(username))
+	//err := stmt.Execute()
+	//if err != nil {
+	//	fmt.Printf(errMsg + "for %s - failed to execute statement\n", username)
+	//} else {
+	//	stmt.BindResult(&salt,&pwdversion)
+	//	var eof bool
+	//	eof, err = stmt.Fetch()
+	//	// expect only one row:
+	//	if err != nil || eof {
+	//		fmt.Printf(errMsg + "for %s - failed to bind result\n", username)
+	//	}
+	//	stmt.FreeResult()
+	//}
+	//errC := stmt.Close()
+    //if err != nil || errC != nil {
+	//	fmt.Printf(errMsg + "for %s - general fail\n", username)
+	//	fmt.Fprintf(rw, "false")
+	//	return
+    //}
 
 	// generate random "challenge" code
 	challenge, success := h.SetChallenge(username)
