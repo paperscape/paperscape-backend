@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"crypto/sha1"
 	"crypto/sha256"
+	//"crypto/aes"
     "sort"
     //"xiwi"
 )
@@ -1545,7 +1546,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 
 	// compare with hashes we were sent (should match!!)
 	if tagshash != tagshashDb {
-		fmt.Printf("Error: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", username,tagshash,tagshashDb)
+		fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", username,tagshash,tagshashDb)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
@@ -1572,8 +1573,24 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 	pwdvNum, _ := strconv.ParseUint(pwdversion, 10, 64)
 	saltNum, _ := strconv.ParseUint(salt, 10, 64)
 
+	// decrypt newhash
+	//var userhash []byte
+	//stmt := h.papers.StatementBegin("SELECT userhash FROM userdata WHERE username = ?",h.papers.db.Escape(username))
+	//if !h.papers.StatementBindSingleRow(stmt,&userhash) {
+	//	return
+	//}
+	// convert userhash to 32 byte key
+	//fmt.Printf("length of userhash %d\n", len(userhash))
+	//cipher, err := aes.NewCipher(userhash[:16])
+	//if err != nil {
+	//	fmt.Printf("ERROR: for user %s, could not create aes cipher to decrypt new password\n", username)
+	//}
+	//output := make([]byte);
+	//cipher.Decrypt([]byte(newhash),output)
+
+
 	success := true
-	stmt := h.papers.StatementBegin("UPDATE userdata SET userhash = ?, salt = ?, pwdversion = ? WHERE username = ?", h.papers.db.Escape(newhash), uint64(saltNum), uint64(pwdvNum), h.papers.db.Escape(username))
+	stmt = h.papers.StatementBegin("UPDATE userdata SET userhash = ?, salt = ?, pwdversion = ? WHERE username = ?", h.papers.db.Escape(newhash), uint64(saltNum), uint64(pwdvNum), h.papers.db.Escape(username))
 	if !h.papers.StatementEnd(stmt) {
 		success = false
 	}
