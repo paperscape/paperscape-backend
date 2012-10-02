@@ -1590,7 +1590,7 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 
 
 	success := true
-	stmt = h.papers.StatementBegin("UPDATE userdata SET userhash = ?, salt = ?, pwdversion = ? WHERE username = ?", h.papers.db.Escape(newhash), uint64(saltNum), uint64(pwdvNum), h.papers.db.Escape(username))
+        stmt := h.papers.StatementBegin("UPDATE userdata SET userhash = ?, salt = ?, pwdversion = ? WHERE username = ?", h.papers.db.Escape(newhash), uint64(saltNum), uint64(pwdvNum), h.papers.db.Escape(username))
 	if !h.papers.StatementEnd(stmt) {
 		success = false
 	}
