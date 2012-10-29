@@ -138,10 +138,12 @@ type Paper struct {
 
 type Tag struct {
     name       string   // unique name
+	active     bool		// whether tag is active
 	blobbed    bool		// whether tag is blobbed
 	blobCol	   int      // index of blob colour array
 	starred    bool		// whether tag is starred
 	remove     bool     // for loaded profile, mark to remove from db
+	index      uint     // its position in tag array (necessary if we send differences rather than whole list)
 }
 
 // first is one with smallest id
@@ -161,6 +163,12 @@ func (ts TagSliceSortName) Less(i, j int) bool {
 }
 func (ts TagSliceSortName) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
 
+// sort by index 
+type TagSliceSortIndex []*Tag
+
+func (ts TagSliceSortIndex) Len() int           { return len(ts) }
+func (ts TagSliceSortIndex) Less(i, j int) bool { return ts[i].index < ts[j].index }
+func (ts TagSliceSortIndex) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
 
 type PapersEnv struct {
     db *mysql.Client
@@ -886,9 +894,14 @@ func (h *MyHTTPHandler) TagListToDBString (tagList []*Tag) string {
 	// This SHOULD be identical to JS code in kea i.e. it should be parseable
 	// by the TagListFromDBString code below
 	w := new(bytes.Buffer)
-	fmt.Fprintf(w,"v:1"); // TAGS VERSION 1
+	fmt.Fprintf(w,"v:2"); // TAGS VERSION 2
 	for _, tag := range tagList {
-		fmt.Fprintf(w,"(%s,s",tag.name);
+		fmt.Fprintf(w,"(%s,%d",tag.name,tag.index);
+		fmt.Fprintf(w,",a");
+		if !tag.active {
+			fmt.Fprintf(w,"!");
+		}
+		fmt.Fprintf(w,",s");
 		if !tag.starred {
 			fmt.Fprintf(w,"!");
 		}
@@ -927,6 +940,8 @@ func (h *MyHTTPHandler) TagListFromDBString (tags []byte) []*Tag {
 		for tok != scanner.EOF {
 			if tok != '(' { break }
 			tag := new(Tag)
+			tag.index = 0; // for compatability with V2
+			tag.active  = false
 			tag.starred = true
 			tag.blobbed = true
 			tag.remove = false
@@ -943,6 +958,59 @@ func (h *MyHTTPHandler) TagListFromDBString (tags []byte) []*Tag {
 				tok = s.Scan()
 				continue
 			} else if tok != ',' { break }
+			// tag starred?
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "s" { break }
+			if tok = s.Scan(); tok == '!' {
+				tag.starred = false
+				tok = s.Scan()
+			}
+			if tok != ',' { break }
+			// tag blobbed?
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "b" { break }
+			if tok = s.Scan(); tok == '!' {
+				tag.blobbed = false
+				tok = s.Scan()
+			}
+			//tag.blobCol = int(blobCol)
+			if tok != ')' { break }
+			tok = s.Scan()
+			tagList = append(tagList, tag)
+		}
+	} else if tagsVersion == 2 {
+		// TAGS VERSION 2
+		// this version adds a tag index for ranking and saves which tags are active
+		for tok != scanner.EOF {
+			if tok != '(' { break }
+			tag := new(Tag)
+			tag.active  = true
+			tag.starred = true
+			tag.blobbed = true
+			tag.remove = false
+			// tag name
+			if tok = s.Scan(); tok != scanner.String { break }
+			tag.name = s.TokenText()
+			tok = s.Scan()
+			if tok == ')' {
+				// this tag was marked for deletion
+				// so fill it with empty data 
+				// and mark it as so
+				tag.remove = true
+				tagList = append(tagList, tag)
+				tok = s.Scan()
+				continue
+			} else if tok != ',' { break }
+			// tag index (rank)
+			if tok = s.Scan(); tok != scanner.Int { break }
+			rank, _ := strconv.ParseUint(s.TokenText(), 10, 0)
+			tag.index = uint(rank)
+			if tok = s.Scan(); tok != ',' { break }
+			// tag active?
+			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "a" { break }
+			if tok = s.Scan(); tok == '!' {
+				tag.active = false
+				tok = s.Scan()
+			}
+			if tok != ',' { break }
 			// tag starred?
 			if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "s" { break }
 			if tok = s.Scan(); tok == '!' {
@@ -1410,10 +1478,12 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	/* TAGS */
 	/********/
 
-    // build a list of TAGS  this profile
+    // build a list of TAGS for this profile
 	tagsList := h.TagListFromDBString(tags)
     fmt.Printf("for user %s, read %d tags\n", username, len(tagsList))
-    sort.Sort(TagSliceSortName(tagsList))
+    // Keep in original order!
+	//sort.Sort(TagSliceSortName(tagsList))
+	sort.Sort(TagSliceSortIndex(tagsList))
 	tagsStr := h.TagListToDBString(tagsList)
 
 	// create tagshash
@@ -1438,7 +1508,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
-		fmt.Fprintf(rw, "{\"name\":%s,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.starred, tag.blobbed)
+		fmt.Fprintf(rw, "{\"name\":%s,\"index\":%d,\"active\":\"%t\",\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.active, tag.starred, tag.blobbed)
     }
 	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
@@ -1537,7 +1607,9 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	}
 
 	// sort this list
-    sort.Sort(TagSliceSortName(tagsList))
+	// Keep in original order!
+    //sort.Sort(TagSliceSortName(tagsList))
+    sort.Sort(TagSliceSortIndex(tagsList))
 	tagsStr := h.TagListToDBString(tagsList)
 
 	hash = sha1.New()
