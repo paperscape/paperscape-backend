@@ -1973,7 +1973,7 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
         idTo = "4000000000";
     }
 
-    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND " + catQuery.String() + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND " + catQuery.String() + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
         fmt.Fprintf(rw, "[]")
         return
     }
@@ -2000,16 +2000,34 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
         var ok bool
         var id uint64
         var numCites uint64
+        var refStr []byte
         if id, ok = row[0].(uint64); !ok { continue }
         if numCites, ok = row[1].(uint64); !ok {
             numCites = 0
+        }
+        if refStr, ok = row[2].([]byte); !ok {
+            //refStr[:]
         }
 
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
-        fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d}", id, numCites)
+        fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"ref\":", id, numCites)
+        ParseRefsCitesStringToJSONListOfIds(refStr, rw)
+        fmt.Fprintf(rw, "}")
         numResults += 1
+    }
+    fmt.Fprintf(rw, "]")
+}
+
+func ParseRefsCitesStringToJSONListOfIds(blob []byte, rw http.ResponseWriter) {
+    fmt.Fprintf(rw, "[")
+    for i := 0; i + 10 <= len(blob); i += 10 {
+        refId := getLE32(blob, i)
+        if i > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        fmt.Fprintf(rw, "%d", refId)
     }
     fmt.Fprintf(rw, "]")
 }
