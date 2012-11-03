@@ -1185,6 +1185,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // search-category: search papers between given id range, in given category
             // x = include cross lists, f = from, t = to
             h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", req.Form["f"][0], req.Form["t"][0], rw)
+        } else if req.Form["snp"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
+            // search-new-papers: search papers between given id range
+            // f = from, t = to
+            h.SearchNewPapers(req.Form["f"][0], req.Form["t"][0], rw)
         } else if req.Form["str"] != nil {
             // search-trending: search papers that are "trending"
             h.SearchTrending(rw)
@@ -1913,7 +1917,7 @@ func sanityCheckId(id string) bool {
 }
 
 // searches for all papers within the id range, with main category as given
-// returns id and numCites for up to 500 results
+// returns id, numCites, refs for up to 500 results
 func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, idFrom string, idTo string, rw http.ResponseWriter) {
     // sanity check of category, and build query
     // comma is used to separate multiple categories, which means "or"
@@ -2013,6 +2017,67 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
             fmt.Fprintf(rw, ",")
         }
         fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"ref\":", id, numCites)
+        ParseRefsCitesStringToJSONListOfIds(refStr, rw)
+        fmt.Fprintf(rw, "}")
+        numResults += 1
+    }
+    fmt.Fprintf(rw, "]")
+}
+
+// searches for all new papers within the id range
+// returns id,allcats,numCites,refs for up to 500 results
+func (h *MyHTTPHandler) SearchNewPapers(idFrom string, idTo string, rw http.ResponseWriter) {
+    // sanity check of id numbers
+    if !sanityCheckId(idFrom) {
+        return
+    }
+    if !sanityCheckId(idTo) {
+        return
+    }
+
+    // a top of 0 means infinitely far into the future
+    if idTo == "0" {
+        idTo = "4000000000";
+    }
+
+    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.allcats," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+
+    defer h.papers.QueryEnd()
+
+    // get result set  
+    result, err := h.papers.db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+
+    // get each row from the result and create the JSON object
+    fmt.Fprintf(rw, "[")
+    numResults := 0
+    for {
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        var ok bool
+        var id uint64
+        var allcats string
+        var numCites uint64
+        var refStr []byte
+        if id, ok = row[0].(uint64); !ok { continue }
+        if allcats, ok = row[1].(string); !ok { continue }
+        if numCites, ok = row[2].(uint64); !ok { numCites = 0 }
+        if refStr, ok = row[3].([]byte); !ok { }
+
+        if numResults > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        fmt.Fprintf(rw, "{\"id\":%d,\"cat\":\"%s\",\"nc\":%d,\"ref\":", id, allcats, numCites)
         ParseRefsCitesStringToJSONListOfIds(refStr, rw)
         fmt.Fprintf(rw, "}")
         numResults += 1
