@@ -1829,8 +1829,8 @@ func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
         searchString.WriteRune('"')
     }
 
-    // do the boolean search
-    h.SearchPaperBoolean("authors", searchString.String(), rw)
+    // do the search
+    h.SearchGeneric("MATCH (authors) AGAINST ('" + searchString.String() + "' IN BOOLEAN MODE)", rw)
 }
 
 func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
@@ -1851,51 +1851,8 @@ func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
         }
     }
 
-    // do the boolean search
-    h.SearchPaperBoolean("title", searchString.String(), rw)
-}
-
-// returns id and numCites for up to 500 results
-func (h *MyHTTPHandler) SearchPaperBoolean(searchWhat string, searchString string, rw http.ResponseWriter) {
-    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE MATCH (" + searchWhat + ") AGAINST ('" + searchString + "' IN BOOLEAN MODE) AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-
-    defer h.papers.QueryEnd()
-
-    // get result set  
-    result, err := h.papers.db.UseResult()
-    if err != nil {
-        fmt.Println("MySQL use result error;", err)
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-
-    // get each row from the result and create the JSON object
-    fmt.Fprintf(rw, "[")
-    numResults := 0
-    for {
-        row := result.FetchRow()
-        if row == nil {
-            break
-        }
-
-        var ok bool
-        var id uint64
-        var numCites uint64
-        if id, ok = row[0].(uint64); !ok { continue }
-        if numCites, ok = row[1].(uint64); !ok {
-            numCites = 0
-        }
-
-        if numResults > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d}", id, numCites)
-        numResults += 1
-    }
-    fmt.Fprintf(rw, "]")
+    // do the search
+    h.SearchGeneric("MATCH (title) AGAINST ('" + searchString.String() + "' IN BOOLEAN MODE)", rw)
 }
 
 func sanityCheckId(id string) bool {
@@ -1974,10 +1931,17 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
 
     // a top of 0 means infinitely far into the future
     if idTo == "0" {
-        idTo = "4000000000";
+        idTo = "4000000000"
     }
 
-    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND " + catQuery.String() + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+    // do the search
+    h.SearchGeneric("meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND " + catQuery.String(), rw)
+}
+
+// searches for papers using the given where-clause
+// builds a JSON list with id, numCites, refs for up to 500 results
+func (h *MyHTTPHandler) SearchGeneric(whereClause string, rw http.ResponseWriter) {
+    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id=" + *flagPciteTable + ".id AND (" + whereClause + ") LIMIT 500") {
         fmt.Fprintf(rw, "[]")
         return
     }
@@ -2006,12 +1970,8 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
         var numCites uint64
         var refStr []byte
         if id, ok = row[0].(uint64); !ok { continue }
-        if numCites, ok = row[1].(uint64); !ok {
-            numCites = 0
-        }
-        if refStr, ok = row[2].([]byte); !ok {
-            //refStr[:]
-        }
+        if numCites, ok = row[1].(uint64); !ok { numCites = 0 }
+        if refStr, ok = row[2].([]byte); !ok { /* refStr is empty, that's okay */ }
 
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
