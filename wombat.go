@@ -1167,7 +1167,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             var dbs []uint
-            for _, strDb := range req.Form["grc[]"] {
+            for _, strDb := range req.Form["dbs[]"] {
                 if preDb, er := strconv.ParseUint(strDb, 10, 0); er == nil {
                     dbs = append(dbs, uint(preDb))
                 } else {
@@ -1341,14 +1341,16 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper, dateBoundary uint) {
 
     // output the cites (past -> future)
     fmt.Fprintf(w, "],\"cite\":[")
-    for i, link := range paper.cites {
-        if i > 0 {
-            fmt.Fprintf(w, ",")
-        }
+	first := true
+    for _, link := range paper.cites {
 		if link.futureId < dateBoundary  {
 			continue
 		}
+        if !first {
+            fmt.Fprintf(w, ",")
+        }
         PrintJSONLinkFutureInfo(w, link)
+		first = false
     }
 
     fmt.Fprintf(w, "]")
