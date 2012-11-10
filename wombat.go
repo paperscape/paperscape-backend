@@ -1232,6 +1232,37 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-sync: sync request
             // h = passHash, p = papersdiff, t = tagsdiff
             h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], req.Form["ph"][0], req.Form["th"][0], rw)
+        } else if req.Form["gm[]"] != nil {
+			// In case user wants many many metas, a POST is sent
+            // get-metas: get the meta data for given list of paper ids
+            var ids []uint
+            for _, strId := range req.Form["gm[]"] {
+                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                    ids = append(ids, uint(preId))
+                } else {
+                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                }
+            }
+            h.GetMetas(ids, rw)
+        } else if req.Form["grc[]"] != nil {
+			// In case user wants many many ids, a POST is sent
+            var ids []uint
+            for _, strId := range req.Form["grc[]"] {
+                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                    ids = append(ids, uint(preId))
+                } else {
+                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                }
+            }
+            var dbs []uint
+            for _, strDb := range req.Form["dbs[]"] {
+                if preDb, er := strconv.ParseUint(strDb, 10, 0); er == nil {
+                    dbs = append(dbs, uint(preDb))
+                } else {
+                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strDb)
+                }
+            }
+            h.GetRefsCites(ids, dbs, rw)
         } else {
             // unknown ajax request
         }
