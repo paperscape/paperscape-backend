@@ -1347,6 +1347,27 @@ func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
 	fmt.Fprintf(w, "]")
 }
 
+
+func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
+	fmt.Fprintf(w, ",\"allrc\":false,\"ref\":[")
+	first := true
+	for _, link := range paper.refs {
+		// only return links that point to other papers in this profile
+		for _, paper2 := range paperList {
+			if link.pastId == paper2.id {
+				if first {
+					first = false
+				} else {
+					fmt.Fprintf(w, ",")
+				}
+				PrintJSONLinkPastInfo(w, link)
+				break
+			}
+		}
+	}
+	fmt.Fprintf(w, "]")
+}
+
 func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
     fmt.Fprintf(w, "{\"id\":%d,\"rord\":%d,\"rfrq\":%d,\"nc\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
 }
