@@ -1128,10 +1128,6 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-load: either login request or load request from an autosave
             // h = passHash, ph = papersHash, th = tagsHash
             h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], req.Form["ph"][0], req.Form["th"][0], rw)
-		/*} else if req.Form["pcull"] != nil && req.Form["h"] != nil {
-            // profile-cull: clear newpapers db field request
-            // h = passHash
-			h.ProfileCullNewPapers(req.Form["pcull"][0], req.Form["h"][0], rw)*/
 		} else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt), pv = password version
@@ -1158,6 +1154,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             h.GetMetas(ids, rw)
         } else if req.Form["grc[]"] != nil {
+            // get-refs-cites: get the references and citations for given paper ids 
+			// and date-boundaries
             var ids []uint
             for _, strId := range req.Form["grc[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
@@ -1174,12 +1172,18 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                     fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strDb)
                 }
             }
-            // get-refs-cites: get the references and citations for a given paper id
-            //var id uint = 0
-            //if preId, er := strconv.ParseUint(req.Form["grc"][0], 10, 0); er == nil {
-            //    id = uint(preId)
-            //}
             h.GetRefsCites(ids, dbs, rw)
+        } else if req.Form["gnc[]"] != nil {
+            // get-new-cites: get the recent citations for given paper ids 
+            var ids []uint
+            for _, strId := range req.Form["grc[]"] {
+                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                    ids = append(ids, uint(preId))
+                } else {
+                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                }
+            }
+            h.GetNewCites(ids, rw)
         } else if req.Form["ga"] != nil {
             // get-abstract: get the abstract for a paper
             var id uint = 0
@@ -1233,8 +1237,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // h = passHash, p = papersdiff, t = tagsdiff
             h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], req.Form["ph"][0], req.Form["th"][0], rw)
         } else if req.Form["gm[]"] != nil {
-			// In case user wants many many metas, a POST is sent
             // get-metas: get the meta data for given list of paper ids
+			// In case user wants many many metas, a POST is sent
             var ids []uint
             for _, strId := range req.Form["gm[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
@@ -1245,7 +1249,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             h.GetMetas(ids, rw)
         } else if req.Form["grc[]"] != nil {
-			// In case user wants many many ids, a POST is sent
+            // get-refs-cites: get the references and citations for a given paper ids 
+			// and date-boundaries
+			// If user wants many many ids, a POST is sent
             var ids []uint
             for _, strId := range req.Form["grc[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
@@ -1347,27 +1353,6 @@ func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
 	fmt.Fprintf(w, "]")
 }
 
-
-func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
-	fmt.Fprintf(w, ",\"allrc\":false,\"ref\":[")
-	first := true
-	for _, link := range paper.refs {
-		// only return links that point to other papers in this profile
-		for _, paper2 := range paperList {
-			if link.pastId == paper2.id {
-				if first {
-					first = false
-				} else {
-					fmt.Fprintf(w, ",")
-				}
-				PrintJSONLinkPastInfo(w, link)
-				break
-			}
-		}
-	}
-	fmt.Fprintf(w, "]")
-}
-
 func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
     fmt.Fprintf(w, "{\"id\":%d,\"rord\":%d,\"rfrq\":%d,\"nc\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
 }
@@ -1395,6 +1380,28 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper, dateBoundary uint) {
     fmt.Fprintf(w, "],\"cite\":[")
 	first := true
     for _, link := range paper.cites {
+		if link.futureId < dateBoundary  {
+			continue
+		}
+        if !first {
+
+            fmt.Fprintf(w, ",")
+        }
+        PrintJSONLinkFutureInfo(w, link)
+		first = false
+    }
+
+    fmt.Fprintf(w, "]")
+}
+
+
+func PrintJSONNewCites(w io.Writer, paper *Paper, dateBoundary uint) {
+    fmt.Fprintf(w, "\"allnc\":true,\"cite\":[")
+
+    // output the cites (past -> future)
+	first := true
+    for _, link := range paper.cites {
+		fmt.Printf("%d, %d\n",link.futureId,dateBoundary)
 		if link.futureId < dateBoundary  {
 			continue
 		}
@@ -1543,6 +1550,21 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 		}
 	}
 
+	// Get 5 days ago date boundary so we can pass along new cites
+	row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
+	h.papers.QueryEnd()
+	var db uint64
+	if row == nil {
+		fmt.Printf("ERROR: ProfileLoad could not get 5 day boundary from MySQL\n")
+		db = 0
+	} else {
+		var ok bool
+		if db, ok = row[0].(uint64); !ok {
+			fmt.Printf("ERROR: ProfileLoad could not get 5 day boundary from Row\n")
+			db = 0
+		}
+	}
+
 	// output papers in json format
 	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", username,challenge)
     for i, paper := range papersList {
@@ -1552,7 +1574,12 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
         PrintJSONMetaInfo(rw, paper)
 		PrintJSONContextInfo(rw, paper)
 		PrintJSONRelevantRefs(rw, paper, papersList)
-        fmt.Fprintf(rw, "}")
+		if db > 0 {
+			h.papers.QueryCites(paper, false)
+            fmt.Fprintf(rw, ",")
+			PrintJSONNewCites(rw, paper, uint(db))
+		}
+		fmt.Fprintf(rw, "}")
     }
 	fmt.Fprintf(rw, "],\"ph\":\"%s\"",papershashDb)
 
@@ -1867,6 +1894,49 @@ func (h *MyHTTPHandler) GetRefsCites(ids []uint, dbs []uint, rw http.ResponseWri
 		// print the json output
 		fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
 		PrintJSONAllRefsCites(rw, paper, db)
+		fmt.Fprintf(rw, "}")
+    }
+    fmt.Fprintf(rw, "]")
+}
+
+func (h *MyHTTPHandler) GetNewCites(ids []uint, rw http.ResponseWriter) {
+	row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
+	h.papers.QueryEnd()
+	if row == nil {
+		fmt.Printf("ERROR: GetNewCites could not get 5 day boundary from MySQL\n")
+        fmt.Fprintf(rw, "[]")
+		return
+	}
+	var ok bool
+	var db uint64
+	if db, ok = row[0].(uint64); !ok {
+		fmt.Printf("ERROR: GetNewCites could not get 5 day boundary from Row\n")
+        fmt.Fprintf(rw, "[]")
+		return
+	}
+    fmt.Fprintf(rw, "[")
+    first := true
+    for i := 0; i < len(ids); i++ {
+		id := ids[i]
+		// query the paper and its refs and cites
+		paper := h.papers.QueryPaper(id, "")
+		h.papers.QueryCites(paper, false)
+
+		// check the paper exists
+		if paper == nil {
+            fmt.Printf("ERROR: GetNewCites could not find paper for id %d; skipping\n", id)
+            continue
+		}
+
+		if first {
+            first = false
+        } else {
+            fmt.Fprintf(rw, ",")
+        }
+
+		// print the json output
+		fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
+		PrintJSONNewCites(rw, paper, uint(db))
 		fmt.Fprintf(rw, "}")
     }
     fmt.Fprintf(rw, "]")
