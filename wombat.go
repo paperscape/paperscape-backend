@@ -1401,7 +1401,6 @@ func PrintJSONNewCites(w io.Writer, paper *Paper, dateBoundary uint) {
     // output the cites (past -> future)
 	first := true
     for _, link := range paper.cites {
-		fmt.Printf("%d, %d\n",link.futureId,dateBoundary)
 		if link.futureId < dateBoundary  {
 			continue
 		}
