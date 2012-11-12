@@ -1176,7 +1176,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["gnc[]"] != nil {
             // get-new-cites: get the recent citations for given paper ids 
             var ids []uint
-            for _, strId := range req.Form["grc[]"] {
+            for _, strId := range req.Form["gnc[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
                     ids = append(ids, uint(preId))
                 } else {
