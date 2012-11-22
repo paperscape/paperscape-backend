@@ -138,7 +138,7 @@ type Paper struct {
 
 type Tag struct {
     name       string   // unique name
-	active     bool		// whether tag is active
+	active     bool		// whether tag is active *obsolete*
 	blobbed    bool		// whether tag is blobbed
 	blobCol	   int      // index of blob colour array
 	starred    bool		// whether tag is starred
@@ -897,10 +897,11 @@ func (h *MyHTTPHandler) TagListToDBString (tagList []*Tag) string {
 	fmt.Fprintf(w,"v:2"); // TAGS VERSION 2
 	for _, tag := range tagList {
 		fmt.Fprintf(w,"(%s,%d",tag.name,tag.index);
-		fmt.Fprintf(w,",a");
-		if !tag.active {
-			fmt.Fprintf(w,"!");
-		}
+		fmt.Fprintf(w,",a!");
+		// tag.active is obsolete
+		//if !tag.active {
+		//	fmt.Fprintf(w,"!");
+		//}
 		fmt.Fprintf(w,",s");
 		if !tag.starred {
 			fmt.Fprintf(w,"!");
@@ -982,7 +983,7 @@ func (h *MyHTTPHandler) TagListFromDBString (tags []byte) []*Tag {
 		for tok != scanner.EOF {
 			if tok != '(' { break }
 			tag := new(Tag)
-			tag.active  = true
+			tag.active  = false // as obsolete now
 			tag.starred = true
 			tag.blobbed = true
 			tag.remove = false
@@ -1132,6 +1133,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt), pv = password version
             h.ProfileChangePassword(req.Form["pchpw"][0], req.Form["h"][0], req.Form["p"][0], req.Form["s"][0], req.Form["pv"][0], rw)
+		} else if req.Form["gload"] != nil {
+            // graph-load: from a page load
+            h.GraphLoad(req.Form["gload"][0], rw)
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
@@ -1615,7 +1619,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
-		fmt.Fprintf(rw, "{\"name\":%s,\"index\":%d,\"active\":\"%t\",\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.active, tag.starred, tag.blobbed)
+		fmt.Fprintf(rw, "{\"name\":%s,\"index\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
     }
 	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
@@ -1744,6 +1748,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 
 }
 
+/* ProfileChangePassword */
 func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, pwdversion string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(username,passhash) {
 		return
@@ -1775,6 +1780,94 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 	}
 
 	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\",\"pwdv\":\"%d\"}",success,uint64(saltNum),uint64(pwdvNum))
+}
+
+/* Serves stored graph on user page load */
+func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
+
+    var papers,tags []byte
+
+	stmt := h.papers.StatementBegin("SELECT papers,tags FROM sharedata WHERE code = ?",h.papers.db.Escape(code))
+	if !h.papers.StatementBindSingleRow(stmt,&papers,&tags) {
+		return
+	}
+
+	stmt = h.papers.StatementBegin("UPDATE sharedata SET numloaded = numloaded + 1, lastloaded = NOW() WHERE code = ?",h.papers.db.Escape(code))
+	if !h.papers.StatementEnd(stmt) {
+		return
+	}
+
+
+	/* PAPERS */
+
+    // build a list of PAPERS and their metadata for this profile 
+	papersList := h.PaperListFromDBString(papers)
+    fmt.Printf("for graph code %s, read %d papers\n", code, len(papersList))
+    sort.Sort(PaperSliceSortId(papersList))
+	papersStr := h.PaperListToDBString(papersList)
+
+	// create papershash, and also store this in db
+	hash := sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
+	papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
+
+	// Get 5 days ago date boundary so we can pass along new cites
+	row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
+	h.papers.QueryEnd()
+	var db uint64
+	if row == nil {
+		fmt.Printf("ERROR: GraphLoad could not get 5 day boundary from MySQL\n")
+		db = 0
+	} else {
+		var ok bool
+		if db, ok = row[0].(uint64); !ok {
+			fmt.Printf("ERROR: GraphLoad could not get 5 day boundary from Row\n")
+			db = 0
+		}
+	}
+
+	// output papers in json format
+	fmt.Fprintf(rw, "{\"code\":\"%s\",\"papr\":[", code)
+    for i, paper := range papersList {
+        if i > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        PrintJSONMetaInfo(rw, paper)
+		PrintJSONContextInfo(rw, paper)
+		PrintJSONRelevantRefs(rw, paper, papersList)
+		if db > 0 {
+			h.papers.QueryCites(paper, false)
+            fmt.Fprintf(rw, ",")
+			PrintJSONNewCites(rw, paper, uint(db))
+		}
+		fmt.Fprintf(rw, "}")
+    }
+	fmt.Fprintf(rw, "],\"ph\":\"%s\"",papershashDb)
+
+	/* TAGS */
+
+    // build a list of TAGS for this profile
+	tagsList := h.TagListFromDBString(tags)
+    fmt.Printf("for graph code %s, read %d tags\n", code, len(tagsList))
+    // Keep in original order!
+	sort.Sort(TagSliceSortIndex(tagsList))
+	tagsStr := h.TagListToDBString(tagsList)
+
+	// create tagshash
+	hash = sha1.New()
+	io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
+	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
+    fmt.Printf("tagh %s, papr %s\n", tagshashDb, papershashDb)
+
+	// output tags in json format
+	fmt.Fprintf(rw, ",\"tag\":[")
+    for i, tag := range tagsList {
+        if i > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+		fmt.Fprintf(rw, "{\"name\":%s,\"index\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
+    }
+	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
