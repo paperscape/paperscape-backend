@@ -210,12 +210,16 @@ func (papers *PapersEnv) StatementBindSingleRow(stmt *mysql.Statement, params ..
 		// expect only one row:
 		if err != nil {
 			fmt.Println("MySQL statement error;", err)
+			success = false
 		} else if eof {
-			fmt.Println("MySQL statement error; eof")
+			//fmt.Println("MySQL statement error; eof")
+			// Row just didn't exist, return false but don't print error
+			success = false
 		}
 		err = stmt.FreeResult()
 		if err != nil {
 			fmt.Println("MySQL statement error;", err)
+			success = false
 		}
 	} else {
 		success = false
@@ -388,6 +392,23 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     papers.QueryEnd()
 
     return paper
+}
+
+func GenerateRandString(minLen int, maxLen int) string {
+	characters := []byte{'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','1','2','3','4','5','6','7','8','9','0'}
+	if maxLen < minLen { return "" }
+
+	var length = minLen
+	if maxLen > minLen {
+		length += rand.Intn(maxLen-minLen)
+	}
+
+	bytes := make([]byte,0)
+	for i:=0; i < length; i++ {
+		ind := rand.Intn(62)
+		bytes = append(bytes,characters[ind])
+	}
+	return string(bytes)
 }
 
 func FindNextComma(str string, idx int) (int, int) {
@@ -1240,6 +1261,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-sync: sync request
             // h = passHash, p = papersdiff, t = tagsdiff
             h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], req.Form["ph"][0], req.Form["th"][0], rw)
+        } else if req.Form["gsave"] != nil {
+            // graph-save: existing code (or empty string if none)
+            // k = modkey (or empty string if none), p = papers, ph = papers hash
+            h.GraphSave(req.Form["gsave"][0], req.Form["k"][0], req.Form["p"][0], req.Form["ph"][0], rw)
         } else if req.Form["gm[]"] != nil {
             // get-metas: get the meta data for given list of paper ids
 			// In case user wants many many metas, a POST is sent
@@ -1848,7 +1873,7 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
 
     // build a list of TAGS for this profile
 	tagsList := h.TagListFromDBString(tags)
-    fmt.Printf("for graph code %s, read %d tags\n", code, len(tagsList))
+    //fmt.Printf("for graph code %s, read %d tags\n", code, len(tagsList))
     // Keep in original order!
 	sort.Sort(TagSliceSortIndex(tagsList))
 	tagsStr := h.TagListToDBString(tagsList)
@@ -1857,7 +1882,6 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
 	hash = sha1.New()
 	io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
 	tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
-    fmt.Printf("tagh %s, papr %s\n", tagshashDb, papershashDb)
 
 	// output tags in json format
 	fmt.Fprintf(rw, ",\"tag\":[")
@@ -1868,6 +1892,70 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
 		fmt.Fprintf(rw, "{\"name\":%s,\"index\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
     }
 	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
+}
+
+/* Graph Save */
+func (h *MyHTTPHandler) GraphSave(code string, modkey string, papers string, papershash string, rw http.ResponseWriter) {
+
+	if len(code) > 16 || len(modkey) > 16 {
+		fmt.Printf("ERROR: GraphSave given code or modkey are too long\n")
+		return
+	}
+	// check if code already exists
+	if len(code) > 0 {
+		var modkeyDb string
+		stmt := h.papers.StatementBegin("SELECT modkey FROM sharedata WHERE code = ?",h.papers.db.Escape(code))
+		if !h.papers.StatementBindSingleRow(stmt,&modkeyDb) {
+			return
+		}
+		if modkeyDb != modkey {
+			fmt.Printf("ERROR: GraphSave for code %s keys don't match\n",code)
+			return
+		}
+	} else {
+
+		// User wants a new code, so generate one
+		// For now just generate something random by trial and error (i.e. repeat if it exists)
+		// If this ends up being too slow (too many codes already taken), then we can precompute
+		code = ""
+		// just so this can't crash server, only try it N times
+		N := 50
+		for i := 0; i < 50; i++ {
+			code = GenerateRandString(8,8)
+			stmt := h.papers.StatementBegin("SELECT modkey FROM sharedata WHERE code = ?",h.papers.db.Escape(code))
+			var fubar string
+			if !h.papers.StatementBindSingleRow(stmt,&fubar) {
+				break
+			}
+		}
+		if code == "" {
+			fmt.Printf("ERROR: GraphSave couldn't generate a code in %d tries!\n",N)
+			return
+		} else {
+			// modkey doesn't have to be unique:
+			modkey = GenerateRandString(4,6)
+			stmt := h.papers.StatementBegin("INSERT INTO sharedata (code,modkey) VALUES (?,?)",h.papers.db.Escape(code),h.papers.db.Escape(modkey))
+			if !h.papers.StatementEnd(stmt) {return}
+		}
+	}
+
+	papersList := h.PaperListFromDBString([]byte(papers))
+	fmt.Printf("for graph code %s, read %d papers from db\n", code, len(papersList))
+    sort.Sort(PaperSliceSortId(papersList))
+	papersStr := h.PaperListToDBString(papersList)
+
+	var tagsList []*Tag // leave empty
+	tagsStr := h.TagListToDBString(tagsList)
+
+	// save
+	stmt := h.papers.StatementBegin("UPDATE sharedata SET papers = ?, tags = ? where code = ?", papersStr, tagsStr, h.papers.db.Escape(code))
+	if !h.papers.StatementEnd(stmt) {
+		return
+	}
+
+	// We succeeded
+	fmt.Fprintf(rw, "{\"code\":\"%s\",\"key\":\"%s\"}",code,modkey)
+
 }
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
