@@ -1263,8 +1263,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], req.Form["ph"][0], req.Form["th"][0], rw)
         } else if req.Form["gsave"] != nil {
             // graph-save: existing code (or empty string if none)
-            // k = modkey (or empty string if none), p = papers, ph = papers hash
-            h.GraphSave(req.Form["gsave"][0], req.Form["k"][0], req.Form["p"][0], req.Form["ph"][0], rw)
+            // p = papers, ph = papers hash
+            h.GraphSave(req.Form["gsave"][0], req.Form["p"][0], req.Form["ph"][0], rw)
         } else if req.Form["gm[]"] != nil {
             // get-metas: get the meta data for given list of paper ids
 			// In case user wants many many metas, a POST is sent
@@ -1811,17 +1811,27 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
 
     var papers,tags []byte
+	modcode := ""
 
+	// discover if we've loading code or modcode
+	// codes and modcodes are unique
+	// first check if its a code
 	stmt := h.papers.StatementBegin("SELECT papers,tags FROM sharedata WHERE code = ?",h.papers.db.Escape(code))
 	if !h.papers.StatementBindSingleRow(stmt,&papers,&tags) {
-		return
+		// It wasn't, so check if its a modcode
+		var modcodeDb, codeDb string
+		stmt := h.papers.StatementBegin("SELECT papers,tags,code,modkey FROM sharedata WHERE modkey = ?",h.papers.db.Escape(code))
+		if !h.papers.StatementBindSingleRow(stmt,&papers,&tags,&codeDb,&modcodeDb) {
+			return
+		}
+		code = codeDb
+		modcode = modcodeDb
 	}
 
 	stmt = h.papers.StatementBegin("UPDATE sharedata SET numloaded = numloaded + 1, lastloaded = NOW() WHERE code = ?",h.papers.db.Escape(code))
 	if !h.papers.StatementEnd(stmt) {
 		return
 	}
-
 
 	/* PAPERS */
 
@@ -1852,7 +1862,7 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
 	}
 
 	// output papers in json format
-	fmt.Fprintf(rw, "{\"code\":\"%s\",\"papr\":[", code)
+	fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\",\"papr\":[", code, modcode)
     for i, paper := range papersList {
         if i > 0 {
             fmt.Fprintf(rw, ",")
@@ -1895,67 +1905,66 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
 }
 
 /* Graph Save */
-func (h *MyHTTPHandler) GraphSave(code string, modkey string, papers string, papershash string, rw http.ResponseWriter) {
-
-	if len(code) > 16 || len(modkey) > 16 {
-		fmt.Printf("ERROR: GraphSave given code or modkey are too long\n")
-		return
-	}
-	// check if code already exists
-	if len(code) > 0 {
-		var modkeyDb string
-		stmt := h.papers.StatementBegin("SELECT modkey FROM sharedata WHERE code = ?",h.papers.db.Escape(code))
-		if !h.papers.StatementBindSingleRow(stmt,&modkeyDb) {
-			return
-		}
-		if modkeyDb != modkey {
-			fmt.Printf("ERROR: GraphSave for code %s keys don't match\n",code)
-			return
-		}
-	} else {
-
-		// User wants a new code, so generate one
-		// For now just generate something random by trial and error (i.e. repeat if it exists)
-		// If this ends up being too slow (too many codes already taken), then we can precompute
-		code = ""
-		// just so this can't crash server, only try it N times
-		N := 50
-		for i := 0; i < 50; i++ {
-			code = GenerateRandString(8,8)
-			stmt := h.papers.StatementBegin("SELECT modkey FROM sharedata WHERE code = ?",h.papers.db.Escape(code))
-			var fubar string
-			if !h.papers.StatementBindSingleRow(stmt,&fubar) {
-				break
-			}
-		}
-		if code == "" {
-			fmt.Printf("ERROR: GraphSave couldn't generate a code in %d tries!\n",N)
-			return
-		} else {
-			// modkey doesn't have to be unique:
-			modkey = GenerateRandString(4,6)
-			stmt := h.papers.StatementBegin("INSERT INTO sharedata (code,modkey) VALUES (?,?)",h.papers.db.Escape(code),h.papers.db.Escape(modkey))
-			if !h.papers.StatementEnd(stmt) {return}
-		}
-	}
+func (h *MyHTTPHandler) GraphSave(modcode string, papers string, papershash string, rw http.ResponseWriter) {
 
 	papersList := h.PaperListFromDBString([]byte(papers))
-	fmt.Printf("for graph code %s, read %d papers from db\n", code, len(papersList))
+	if len(papersList) == 0 {
+		return
+	}
+	fmt.Printf("for graph code %s, read %d papers from db\n", modcode, len(papersList))
     sort.Sort(PaperSliceSortId(papersList))
 	papersStr := h.PaperListToDBString(papersList)
 
 	var tagsList []*Tag // leave empty
 	tagsStr := h.TagListToDBString(tagsList)
 
+
+	if len(modcode) > 16 {
+		fmt.Printf("ERROR: GraphSave given code are too long\n")
+		return
+	}
+	var code string
+	// if user gave modcode, load appropriate sharecode (if valid)
+	if len(modcode) > 0 {
+		stmt := h.papers.StatementBegin("SELECT code FROM sharedata WHERE modkey = ?",h.papers.db.Escape(modcode))
+		if !h.papers.StatementBindSingleRow(stmt,&code) {
+			return
+		}
+	} else {
+		// User wants a new code and modcode, so generate them
+		// codes and modcodes must be unique wrt each other
+		// For now just generate something random by trial and error (i.e. repeat if it exists)
+		// If this ends up being too slow (too many codes already taken), then we can precompute
+		code = ""
+		modcode = ""
+		// just so this can't crash server, only try it N times
+		N := 50
+		for i := 0; i < 50; i++ {
+			code = GenerateRandString(8,8)
+			modcode = GenerateRandString(8,8)
+			stmt := h.papers.StatementBegin("SELECT code FROM sharedata WHERE code = ? OR modkey = ? OR code = ? OR modkey = ?",h.papers.db.Escape(code),h.papers.db.Escape(code),h.papers.db.Escape(modcode),h.papers.db.Escape(modcode))
+			var fubar string
+			if !h.papers.StatementBindSingleRow(stmt,&fubar) {
+				break
+			}
+		}
+		if code == "" || modcode == "" {
+			fmt.Printf("ERROR: GraphSave couldn't generate a code and modcode in %d tries!\n",N)
+			return
+		} else {
+			stmt := h.papers.StatementBegin("INSERT INTO sharedata (code,modkey,lastloaded) VALUES (?,?,NOW())",h.papers.db.Escape(code),h.papers.db.Escape(modcode))
+			if !h.papers.StatementEnd(stmt) {return}
+		}
+	}
+
 	// save
-	stmt := h.papers.StatementBegin("UPDATE sharedata SET papers = ?, tags = ? where code = ?", papersStr, tagsStr, h.papers.db.Escape(code))
+	stmt := h.papers.StatementBegin("UPDATE sharedata SET papers = ?, tags = ? where code = ? AND modkey = ?", papersStr, tagsStr, h.papers.db.Escape(code), h.papers.db.Escape(modcode))
 	if !h.papers.StatementEnd(stmt) {
 		return
 	}
 
 	// We succeeded
-	fmt.Fprintf(rw, "{\"code\":\"%s\",\"key\":\"%s\"}",code,modkey)
-
+	fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"}",code,modcode)
 }
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
