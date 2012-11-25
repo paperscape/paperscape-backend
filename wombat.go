@@ -120,8 +120,7 @@ type Paper struct {
     allcats    string   // all arxiv categories (as a comma-separated string)
     authors    string   // authors
     title      string   // title
-    journal    string   // journal string
-    doiJSON    string   // DOI in JSON format
+    publJSON   string   // publication string in JSON format
     refs       []*Link  // makes references to
     cites      []*Link  // cited by 
     numCites   uint     // number of times cited
@@ -313,10 +312,10 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     // perform query
     var query string
     if id != 0 {
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,authors,title,jname,jyear,jvol,jpage,doi FROM meta_data WHERE id = %d", id)
+        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,authors,title,publ FROM meta_data WHERE id = %d", id)
     } else if len(arxiv) > 0 {
         // security issue: should make sure arxiv string is sanitised
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,authors,title,jname,jyear,jvol,jpage,doi FROM meta_data WHERE arxiv = '%s'", arxiv)
+        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,authors,title,publ FROM meta_data WHERE arxiv = '%s'", arxiv)
     } else {
         return nil
     }
@@ -354,23 +353,14 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         paper.title = title
     }
     if row[6] == nil {
+        paper.publJSON = "";
+    } else if publ, ok := row[6].([]byte); !ok {
+        fmt.Printf("ERROR: cannot get publ for id=%d; %v\n", paper.id, row[6])
+        paper.publJSON = "";
     } else {
-        if year, ok := row[7].(int64); ok && year != 0 {
-            if row[8] == nil {
-                paper.journal = fmt.Sprintf("%v/%d//", row[6], year)
-            } else if row[9] == nil {
-                paper.journal = fmt.Sprintf("%v/%d/%v/", row[6], year, row[8])
-            } else {
-                paper.journal = fmt.Sprintf("%v/%d/%v/%v", row[6], year, row[8], row[9])
-            }
-        }
-    }
-    if row[10] == nil {
-    } else if doi, ok := row[10].(string); !ok {
-        fmt.Printf("ERROR: cannot get doi for id=%d; %v\n", paper.id, row[10])
-    } else {
-        doi, _ := json.Marshal(doi)
-        paper.doiJSON = string(doi)
+        publ2 := string(publ) // convert to string so marshalling does the correct thing
+        publ3, _ := json.Marshal(publ2)
+        paper.publJSON = string(publ3)
     }
 
     //// Get number of times cited, and change in number of cites
@@ -1320,18 +1310,15 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 }
 
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
-    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.allcats, paper.authors, paper.title, paper.numCites, paper.dNumCites1, paper.dNumCites5, paper.journal, paper.doiJSON)
+    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.allcats, paper.authors, paper.title, paper.numCites, paper.dNumCites1, paper.dNumCites5, paper.publJSON)
 }
 
-func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, authors string, title string, numCites uint, dNumCites1 uint, dNumCites5 uint, journal string, doiJSON string) {
+func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, authors string, title string, numCites uint, dNumCites1 uint, dNumCites5 uint, publJSON string) {
     authorsJSON, _ := json.Marshal(authors)
     titleJSON, _ := json.Marshal(title)
     fmt.Fprintf(w, "{\"id\":%d,\"arxv\":\"%s\",\"cats\":\"%s\",\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", id, arxiv, allcats, authorsJSON, titleJSON, numCites, dNumCites1, dNumCites5)
-    if len(journal) > 0 {
-        fmt.Fprintf(w, ",\"jour\":\"%s\"", journal)
-    }
-    if len(doiJSON) > 0 {
-        fmt.Fprintf(w, ",\"doi\":%s", doiJSON)
+    if len(publJSON) > 0 {
+        fmt.Fprintf(w, ",\"publ\":%s", publJSON)
     }
 }
 
