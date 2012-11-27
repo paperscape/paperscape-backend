@@ -333,8 +333,12 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         paper.id = uint(idNum)
     }
     var ok bool
-    if paper.arxiv, ok = row[1].(string); !ok { return nil }
-    if paper.maincat, ok = row[2].(string); !ok { return nil }
+    if row[1] != nil {
+        if paper.arxiv, ok = row[1].(string); !ok { return nil }
+    }
+    if row[2] != nil {
+        if paper.maincat, ok = row[2].(string); !ok { return nil }
+    }
     if paper.allcats, ok = row[3].(string); !ok { paper.allcats = "" }
     if row[4] == nil {
         paper.authors = "(unknown authors)"
@@ -354,7 +358,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     }
     if row[6] == nil {
         paper.publJSON = "";
-    } else if publ, ok := row[6].([]byte); !ok {
+    } else if publ, ok := row[6].(string); !ok {
         fmt.Printf("ERROR: cannot get publ for id=%d; %v\n", paper.id, row[6])
         paper.publJSON = "";
     } else {
