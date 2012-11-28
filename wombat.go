@@ -1320,7 +1320,13 @@ func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
 func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, authors string, title string, numCites uint, dNumCites1 uint, dNumCites5 uint, publJSON string) {
     authorsJSON, _ := json.Marshal(authors)
     titleJSON, _ := json.Marshal(title)
-    fmt.Fprintf(w, "{\"id\":%d,\"arxv\":\"%s\",\"cats\":\"%s\",\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", id, arxiv, allcats, authorsJSON, titleJSON, numCites, dNumCites1, dNumCites5)
+    fmt.Fprintf(w, "{\"id\":%d,\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", id, authorsJSON, titleJSON, numCites, dNumCites1, dNumCites5)
+    if len(arxiv) > 0 {
+        fmt.Fprintf(w, ",\"arxv\":\"%s\"", arxiv)
+        if len(allcats) > 0 {
+            fmt.Fprintf(w, ",\"cats\":\"%s\"", allcats)
+        }
+    }
     if len(publJSON) > 0 {
         fmt.Fprintf(w, ",\"publ\":%s", publJSON)
     }
