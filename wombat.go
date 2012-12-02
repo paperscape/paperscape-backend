@@ -1878,12 +1878,12 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
 	w := new(bytes.Buffer)
 	fmt.Fprintf(w,"Dear Paperscape user,\n\n");
 	fmt.Fprintf(w,"Someone (probably you) has requested that your Paperscape password be reset. To proceed with reseting your password, please follow the link below. This will result in us sending you a new password to this email address. If you are happy with your current password then please ignore this message.\n\n");
-	fmt.Fprintf(w,"http://pscp.me/?pr=%s\n\n",resetcode);
+	fmt.Fprintf(w,"http://pscp.me/?rp=%s\n\n",resetcode);
 	fmt.Fprintf(w,"Goodluck!\n\n");
 	fmt.Fprintf(w,"The Paperscape team\n");
 
 	// for now print pwd to output (otherwise we lose it)
-	fmt.Printf("Reset link for %s is http://pscp.me/?pr=%s\n",usermail,resetcode)
+	fmt.Printf("Reset link for %s is http://pscp.me/?rp=%s\n",usermail,resetcode)
 	// TODO email it
     //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
     //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
