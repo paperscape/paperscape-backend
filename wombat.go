@@ -23,6 +23,7 @@ import (
 	"crypto/sha256"
 	//"crypto/aes"
     "sort"
+	//"net/smtp"
     //"xiwi"
 )
 
@@ -36,6 +37,9 @@ var flagTestQueryArxiv = flag.String("test-arxiv", "", "run a test query with ar
 var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
 
 func main() {
+	// pick random seed (default is Seed(1)...)
+	rand.Seed(time.Now().UTC().UnixNano())
+
     // parse command line options
     flag.Parse()
 
@@ -403,6 +407,27 @@ func GenerateRandString(minLen int, maxLen int) string {
 		bytes = append(bytes,characters[ind])
 	}
 	return string(bytes)
+}
+
+func GenerateUserPassword() (string, int, int64, string) {
+	password := GenerateRandString(8,8)
+	salt := rand.Int63()
+	// hash+salt password
+	pwdversion := 2 // password hashing strength
+	var userhash string
+	hash1   := sha1.New()
+	hash256 := sha256.New()
+	// first sha1 (relic for compat with pwdv1 in kea)
+	io.WriteString(hash1, password)
+	userhash = fmt.Sprintf("%x",hash1.Sum(nil))
+	// then sha256 
+	io.WriteString(hash256, userhash)
+	userhash = fmt.Sprintf("%x",hash256.Sum(nil))
+	// then sha256 again with salt
+	hash256  = sha256.New()
+	io.WriteString(hash256, fmt.Sprintf("%s%d", userhash, salt))
+	userhash = fmt.Sprintf("%x",hash256.Sum(nil))
+	return password, pwdversion, salt, userhash
 }
 
 func FindNextComma(str string, idx int) (int, int) {
@@ -1148,6 +1173,15 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt), pv = password version
             h.ProfileChangePassword(req.Form["pchpw"][0], req.Form["h"][0], req.Form["p"][0], req.Form["s"][0], req.Form["pv"][0], rw)
+		} else if req.Form["prrp"] != nil {
+            // profile-request-reset-password: request reset link sent to email
+            h.ProfileRequestResetPassword(req.Form["prrp"][0], rw)
+		} else if req.Form["prpw"] != nil {
+            // profile-reset-password: resets password request and sends new one to email
+            h.ProfileResetPassword(req.Form["prpw"][0], rw)
+		} else if req.Form["preg"] != nil {
+            // profile-register: register email address as new user 
+            h.ProfileRegister(req.Form["preg"][0], rw)
 		} else if req.Form["gload"] != nil {
             // graph-load: from a page load
             h.GraphLoad(req.Form["gload"][0], rw)
@@ -1440,12 +1474,12 @@ func PrintJSONNewCites(w io.Writer, paper *Paper, dateBoundary uint) {
     fmt.Fprintf(w, "]")
 }
 
-func (h *MyHTTPHandler) SetChallenge(username string) (challenge int64, success bool) {
+func (h *MyHTTPHandler) SetChallenge(usermail string) (challenge int64, success bool) {
 	// generate random "challenge" code
 	success = false
 	challenge = rand.Int63()
 
-	stmt := h.papers.StatementBegin("UPDATE userdata SET challenge = ? WHERE username = ?",challenge,h.papers.db.Escape(username))
+	stmt := h.papers.StatementBegin("UPDATE userdata SET challenge = ? WHERE usermail = ?",challenge,h.papers.db.Escape(usermail))
 	if !h.papers.StatementEnd(stmt) {
 		return
 	}
@@ -1453,26 +1487,26 @@ func (h *MyHTTPHandler) SetChallenge(username string) (challenge int64, success 
 	return
 }
 
-/* check username exists and get the 'salt' and/or 'version' */
-func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVersion bool, rw http.ResponseWriter) {
+/* check usermail exists and get the 'salt' and/or 'version' */
+func (h *MyHTTPHandler) ProfileChallenge(usermail string, giveSalt bool, giveVersion bool, rw http.ResponseWriter) {
 	var salt uint64
 	var pwdversion uint64
 
-	stmt := h.papers.StatementBegin("SELECT salt,pwdversion FROM userdata WHERE username = ?",h.papers.db.Escape(username))
+	stmt := h.papers.StatementBegin("SELECT salt,pwdversion FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
 	if !h.papers.StatementBindSingleRow(stmt,&salt,&pwdversion) {
 		fmt.Fprintf(rw, "false")
 		return
 	}
 
 	// generate random "challenge" code
-	challenge, success := h.SetChallenge(username)
+	challenge, success := h.SetChallenge(usermail)
 	if success != true {
 		fmt.Fprintf(rw, "false")
 		return
 	}
 
 	// return challenge code
-	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"",username, challenge);
+	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"",usermail, challenge);
 	if giveSalt {
 		fmt.Fprintf(rw, ",\"salt\":\"%d\"", salt)
 	}
@@ -1482,14 +1516,14 @@ func (h *MyHTTPHandler) ProfileChallenge(username string, giveSalt bool, giveVer
 	fmt.Fprintf(rw, "}")
 }
 
-func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (success bool) {
+func (h *MyHTTPHandler) ProfileAuthenticate(usermail string, passhash string) (success bool) {
 	success = false
 
-	// Check for valid username and get the user challenge and hash
+	// Check for valid usermail and get the user challenge and hash
 	var challenge uint64
     var userhash string
 
-	stmt := h.papers.StatementBegin("SELECT challenge,userhash FROM userdata WHERE username = ?",h.papers.db.Escape(username))
+	stmt := h.papers.StatementBegin("SELECT challenge,userhash FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
 	if !h.papers.StatementBindSingleRow(stmt,&challenge,&userhash) {
 		return
 	}
@@ -1500,20 +1534,20 @@ func (h *MyHTTPHandler) ProfileAuthenticate(username string, passhash string) (s
 	tryhash := fmt.Sprintf("%x",hash.Sum(nil))
 
 	if passhash != tryhash {
-		fmt.Printf("ERROR: ProfileAuthenticate for '%s' - invalid password:  %s vs %s\n", username, passhash, tryhash)
+		fmt.Printf("ERROR: ProfileAuthenticate for '%s' - invalid password:  %s vs %s\n", usermail, passhash, tryhash)
 		return
 	}
 
 	// we're THROUGH!!
-	fmt.Printf("Succesfully authenticated user '%s'\n",username)
+	fmt.Printf("Succesfully authenticated user '%s'\n",usermail)
 	success = true
 	return
 }
 
 /* If given papers/tags hashes don't match with db, send user all their papers and tags.
    Login also uses this function by providing empty hashes. */
-func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash string, tagshash string, rw http.ResponseWriter) {
-	if !h.ProfileAuthenticate(username,passhash) {
+func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash string, tagshash string, rw http.ResponseWriter) {
+	if !h.ProfileAuthenticate(usermail,passhash) {
 		return
 	}
 
@@ -1522,7 +1556,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
 	// generate random "challenge", as we expect user to reply
 	// with a sync request if this is an autosave
-	challenge, success := h.SetChallenge(username)
+	challenge, success := h.SetChallenge(usermail)
 	if success != true {
 		return
 	}
@@ -1530,7 +1564,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
     var papers,tags []byte
 	var papershashOld,tagshashOld string
 
-	stmt := h.papers.StatementBegin("SELECT papers,tags,papershash,tagshash FROM userdata WHERE username = ?",h.papers.db.Escape(username))
+	stmt := h.papers.StatementBegin("SELECT papers,tags,papershash,tagshash FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
 	if !h.papers.StatementBindSingleRow(stmt,&papers,&tags,&papershashOld,&tagshashOld) {
 		return
 	}
@@ -1539,12 +1573,12 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	if papershash != "" && tagshash != "" {
 		if (papershashOld == papershash && tagshashOld == tagshash) {
 			// hashes match, 
-			fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",username,challenge,papershashOld,tagshashOld)
+			fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",usermail,challenge,papershashOld,tagshashOld)
 			return
 		}
 	} else {
 		// as no useful papers/tags hashes given, record this load as a LOGIN
-		stmt := h.papers.StatementBegin("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE username = ?",h.papers.db.Escape(username))
+		stmt := h.papers.StatementBegin("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE usermail = ?",h.papers.db.Escape(usermail))
 		if !h.papers.StatementEnd(stmt) {
 			return
 		}
@@ -1555,7 +1589,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
     // build a list of PAPERS and their metadata for this profile 
 	papersList := h.PaperListFromDBString(papers)
-    fmt.Printf("for user %s, read %d papers\n", username, len(papersList))
+    fmt.Printf("for user %s, read %d papers\n", usermail, len(papersList))
     sort.Sort(PaperSliceSortId(papersList))
 	papersStr := h.PaperListToDBString(papersList)
 
@@ -1567,11 +1601,11 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
 	if papershashDb != papershashOld {
-		stmt := h.papers.StatementBegin("UPDATE userdata SET papershash = ?, papers = ? WHERE username = ?",papershashDb,papersStr,h.papers.db.Escape(username))
+		stmt := h.papers.StatementBegin("UPDATE userdata SET papershash = ?, papers = ? WHERE usermail = ?",papershashDb,papersStr,h.papers.db.Escape(usermail))
 		if !h.papers.StatementEnd(stmt) {
-			fmt.Printf("ERROR: failed to set new papers field and hash for user %s\n", username)
+			fmt.Printf("ERROR: failed to set new papers field and hash for user %s\n", usermail)
 		} else {
-			fmt.Printf("for user %s, paper string updated\n", username)
+			fmt.Printf("for user %s, paper string updated\n", usermail)
 		}
 	}
 
@@ -1591,7 +1625,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	}
 
 	// output papers in json format
-	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", username,challenge)
+	fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", usermail,challenge)
     for i, paper := range papersList {
         if i > 0 {
             fmt.Fprintf(rw, ",")
@@ -1613,7 +1647,7 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 
     // build a list of TAGS for this profile
 	tagsList := h.TagListFromDBString(tags)
-    fmt.Printf("for user %s, read %d tags\n", username, len(tagsList))
+    fmt.Printf("for user %s, read %d tags\n", usermail, len(tagsList))
     // Keep in original order!
 	//sort.Sort(TagSliceSortName(tagsList))
 	sort.Sort(TagSliceSortIndex(tagsList))
@@ -1627,11 +1661,11 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 	// compare hash with what was in db, if different update
 	// this is important for users without profile!
 	if tagshashDb != tagshashOld {
-		stmt := h.papers.StatementBegin("UPDATE userdata SET tagshash = ?, tags = ? WHERE username = ?",tagshashDb,tagsStr,h.papers.db.Escape(username))
+		stmt := h.papers.StatementBegin("UPDATE userdata SET tagshash = ?, tags = ? WHERE usermail = ?",tagshashDb,tagsStr,h.papers.db.Escape(usermail))
 		if !h.papers.StatementEnd(stmt) {
-			fmt.Printf("ERROR: failed to set new tags field and hash for user %s\n", username)
+			fmt.Printf("ERROR: failed to set new tags field and hash for user %s\n", usermail)
 		} else {
-			fmt.Printf("for user %s, tag string updated\n", username)
+			fmt.Printf("for user %s, tag string updated\n", usermail)
 		}
 	}
 
@@ -1647,14 +1681,14 @@ func (h *MyHTTPHandler) ProfileLoad(username string, passhash string, papershash
 }
 
 /* Profile Sync */
-func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers string, difftags string, papershash string, tagshash string, rw http.ResponseWriter) {
-	if !h.ProfileAuthenticate(username,passhash) {
+func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers string, difftags string, papershash string, tagshash string, rw http.ResponseWriter) {
+	if !h.ProfileAuthenticate(usermail,passhash) {
 		return
 	}
 
 	var papers,tags []byte
 
-	stmt := h.papers.StatementBegin("SELECT papers,tags FROM userdata WHERE username = ?",h.papers.db.Escape(username))
+	stmt := h.papers.StatementBegin("SELECT papers,tags FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
 	if !h.papers.StatementBindSingleRow(stmt,&papers,&tags) {
 		return
 	}
@@ -1663,11 +1697,11 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	/**********/
 
 	oldpapersList := h.PaperListFromDBString(papers)
-	fmt.Printf("for user %s, read %d papers from db\n", username, len(oldpapersList))
+	fmt.Printf("for user %s, read %d papers from db\n", usermail, len(oldpapersList))
 
 	// papers without details e.g. (id) are flagged with a "remove" 
 	newpapersList := h.PaperListFromDBString([]byte(diffpapers))
-	fmt.Printf("for user %s, read %d diff papers from internets\n", username, len(newpapersList))
+	fmt.Printf("for user %s, read %d diff papers from internets\n", usermail, len(newpapersList))
 
 	// make one super list of unique papers (diffpapers override oldpapers)
 	for _, oldpaper := range oldpapersList {
@@ -1702,7 +1736,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 
 	// compare with hashes we were sent (should match!!)
 	if papershash != papershashDb {
-		fmt.Printf("Error: for user %s, new sync paper hashes don't match those sent from client: %s vs %s\n", username,papershash,papershashDb)
+		fmt.Printf("Error: for user %s, new sync paper hashes don't match those sent from client: %s vs %s\n", usermail,papershash,papershashDb)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
@@ -1711,11 +1745,11 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	/********/
 
 	oldtagsList := h.TagListFromDBString(tags);
-	fmt.Printf("for user %s, read %d tags from db\n", username, len(oldtagsList))
+	fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldtagsList))
 
 	// tags without details e.g. (name) are flagged with a "remove" 
 	newtagsList := h.TagListFromDBString([]byte(difftags))
-	fmt.Printf("for user %s, read %d diff tags from internets\n", username, len(newtagsList))
+	fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(newtagsList))
 
 	// make one super list of unique tags (difftags override oldtags)
 	for _, oldtag := range oldtagsList {
@@ -1751,7 +1785,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 
 	// compare with hashes we were sent (should match!!)
 	if tagshash != tagshashDb {
-		fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", username,tagshash,tagshashDb)
+		fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,tagshash,tagshashDb)
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
 	}
@@ -1759,7 +1793,7 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 	/* MYSQL */
 	/*********/
 
-	stmt = h.papers.StatementBegin("UPDATE userdata SET papers = ?, tags = ?, papershash = ?, tagshash = ?, numsync = numsync + 1, lastsync = NOW() WHERE username = ?", papersStr, tagsStr, papershashDb, tagshashDb, h.papers.db.Escape(username))
+	stmt = h.papers.StatementBegin("UPDATE userdata SET papers = ?, tags = ?, papershash = ?, tagshash = ?, numsync = numsync + 1, lastsync = NOW() WHERE usermail = ?", papersStr, tagsStr, papershashDb, tagshashDb, h.papers.db.Escape(usermail))
 	if !h.papers.StatementEnd(stmt) {
 		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
 		return
@@ -1771,8 +1805,8 @@ func (h *MyHTTPHandler) ProfileSync(username string, passhash string, diffpapers
 }
 
 /* ProfileChangePassword */
-func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, newhash string, salt string, pwdversion string, rw http.ResponseWriter) {
-	if !h.ProfileAuthenticate(username,passhash) {
+func (h *MyHTTPHandler) ProfileChangePassword(usermail string, passhash string, newhash string, salt string, pwdversion string, rw http.ResponseWriter) {
+	if !h.ProfileAuthenticate(usermail,passhash) {
 		return
 	}
 
@@ -1781,7 +1815,7 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 
 	// decrypt newhash
 	//var userhash []byte
-	//stmt := h.papers.StatementBegin("SELECT userhash FROM userdata WHERE username = ?",h.papers.db.Escape(username))
+	//stmt := h.papers.StatementBegin("SELECT userhash FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
 	//if !h.papers.StatementBindSingleRow(stmt,&userhash) {
 	//	return
 	//}
@@ -1789,19 +1823,171 @@ func (h *MyHTTPHandler) ProfileChangePassword(username string, passhash string, 
 	//fmt.Printf("length of userhash %d\n", len(userhash))
 	//cipher, err := aes.NewCipher(userhash[:16])
 	//if err != nil {
-	//	fmt.Printf("ERROR: for user %s, could not create aes cipher to decrypt new password\n", username)
+	//	fmt.Printf("ERROR: for user %s, could not create aes cipher to decrypt new password\n", usermail)
 	//}
 	//output := make([]byte);
 	//cipher.Decrypt([]byte(newhash),output)
 
 
 	success := true
-        stmt := h.papers.StatementBegin("UPDATE userdata SET userhash = ?, salt = ?, pwdversion = ? WHERE username = ?", h.papers.db.Escape(newhash), uint64(saltNum), uint64(pwdvNum), h.papers.db.Escape(username))
+	stmt := h.papers.StatementBegin("UPDATE userdata SET userhash = ?, salt = ?, pwdversion = ? WHERE usermail = ?", h.papers.db.Escape(newhash), uint64(saltNum), uint64(pwdvNum), h.papers.db.Escape(usermail))
 	if !h.papers.StatementEnd(stmt) {
 		success = false
 	}
 
 	fmt.Fprintf(rw, "{\"succ\":\"%t\",\"salt\":\"%d\",\"pwdv\":\"%d\"}",success,uint64(saltNum),uint64(pwdvNum))
+}
+
+/* ProfileRequestResetPassword */
+func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.ResponseWriter) {
+
+	// check if email address exists
+	var foo string
+	stmt := h.papers.StatementBegin("SELECT usermail FROM userdata WHERE usermail = ?", h.papers.db.Escape(usermail))
+	if !h.papers.StatementBindSingleRow(stmt,&foo) {
+		// it doesn't ...
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+		return
+	}
+
+	// generate resetcode for user
+	// the code is 64 characters long, we also record the time it was made
+	// so that it can expire after one hour
+	// just so this can't crash server, only try it N times
+	resetcode := ""
+	N := 50
+	for i := 0; i < N; i++ {
+		code := GenerateRandString(64,64)
+		// ensure resetcode is unique (no other user has this resetcode currently set)
+		stmt := h.papers.StatementBegin("SELECT usermail FROM userdata WHERE resetcode = ?", code)
+		if !h.papers.StatementBindSingleRow(stmt,&foo) {
+			resetcode = code
+			break
+		}
+	}
+	if resetcode == "" {
+		fmt.Printf("ERROR: ProfileRequestResetPassword couldn't generate a resetcode in %d tries!\n",N)
+		return
+	}
+	stmt = h.papers.StatementBegin("UPDATE userdata SET resetcode = ?, resettime = NOW() WHERE usermail = ?", resetcode, h.papers.db.Escape(usermail))
+	if !h.papers.StatementEnd(stmt) {
+		return
+	}
+
+	// generate user message with link
+	w := new(bytes.Buffer)
+	fmt.Fprintf(w,"Dear Paperscape user,\n\n");
+	fmt.Fprintf(w,"Someone (probably you) has requested that your Paperscape password be reset. To proceed with reseting your password, please follow the link below. This will result in us sending you a new password to this email address. If you are happy with your current password then please ignore this message.\n\n");
+	fmt.Fprintf(w,"http://pscp.me/?pr=%s\n\n",resetcode);
+	fmt.Fprintf(w,"Goodluck!\n\n");
+	fmt.Fprintf(w,"The Paperscape team\n");
+
+	// for now print pwd to output (otherwise we lose it)
+	fmt.Printf("Reset link for %s is http://pscp.me/?pr=%s\n",usermail,resetcode)
+	// TODO email it
+    //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
+    //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
+    //if err != nil {
+	//	fmt.Println("ERROR: ProfileRequestResetPassword sendmail:", err)
+	//}
+
+	fmt.Fprintf(rw, "{\"succ\":\"true\"}")
+}
+
+/* ProfileResetPassword */
+func (h *MyHTTPHandler) ProfileResetPassword(resetcode string, rw http.ResponseWriter) {
+
+	// check if the resetcode exists and hasn't expired (must be less than an hour old!)
+	var usermail string
+	stmt := h.papers.StatementBegin("SELECT usermail FROM userdata WHERE resetcode = ? AND resettime > DATE_SUB(NOW(), INTERVAL 1 HOUR)", h.papers.db.Escape(resetcode))
+	if !h.papers.StatementBindSingleRow(stmt,&usermail) {
+		// it doesn't ...
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+		return
+	}
+
+	// Reset password for usermail
+	password, pwdversion, salt, userhash := GenerateUserPassword()
+
+	// load new password into, and remove resetcode 
+	stmt = h.papers.StatementBegin("UPDATE userdata SET userhash = ?, salt = ?, pwdversion = ?, resetcode = NULL WHERE usermail = ?", userhash, salt, pwdversion, usermail)
+	if !h.papers.StatementEnd(stmt) {
+		return
+	}
+
+	// generate user message with link
+	w := new(bytes.Buffer)
+	fmt.Fprintf(w,"Dear Paperscape user,\n\n");
+	fmt.Fprintf(w,"We have reset your password for you. Your new password is:\n\n");
+	fmt.Fprintf(w,"Password: %s\n\n",password);
+	fmt.Fprintf(w,"We recommend that you change this password after logging in.\n\n");
+	fmt.Fprintf(w,"Goodluck!\n\n");
+	fmt.Fprintf(w,"The Paperscape team\n");
+
+	// for now print pwd to output (otherwise we lose it)
+	fmt.Printf("New password for %s is %s\n",usermail,password)
+	// TODO email it
+    //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
+    //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
+    //if err != nil {
+	//	fmt.Println("ERROR: ProfileRequestResetPassword sendmail:", err)
+	//}
+
+	fmt.Fprintf(rw, "{\"succ\":\"true\"}")
+}
+
+/* ProfileRegister */
+func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter) {
+
+	// check if email address exists
+	var foo string
+	stmt := h.papers.StatementBegin("SELECT usermail FROM userdata WHERE usermail = ?", h.papers.db.Escape(usermail))
+	if h.papers.StatementBindSingleRow(stmt,&foo) {
+		// it does ...
+		fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+		return
+	}
+
+	// generate a random password for the user
+	password, pwdversion, salt, userhash := GenerateUserPassword()
+
+	// generate empty papers and tags strings etc.
+	papersStr := "v:4"
+	hash1 := sha1.New()
+	io.WriteString(hash1, fmt.Sprintf("%s", string(papersStr)))
+	papershash := fmt.Sprintf("%x",hash1.Sum(nil))
+	tagsStr := "v:2"
+	hash1 = sha1.New()
+	io.WriteString(hash1, fmt.Sprintf("%s", string(tagsStr)))
+	tagshash := fmt.Sprintf("%x",hash1.Sum(nil))
+
+	// create database entry
+	stmt = h.papers.StatementBegin("INSERT INTO userdata (usermail,userhash,salt,pwdversion,papers,papershash,tags,tagshash,lastlogin) VALUES (?,?,?,?,?,?,?,?,NOW())",h.papers.db.Escape(usermail),userhash,salt,pwdversion,papersStr,papershash,tagsStr,tagshash)
+	if !h.papers.StatementEnd(stmt) {
+		return
+	}
+
+	// generate user message with new password
+	w := new(bytes.Buffer)
+	fmt.Fprintf(w,"Welcome to Paperscape!\n\n");
+	fmt.Fprintf(w,"Thankyou for signing up with us. Your new password is:\n\n");
+	fmt.Fprintf(w,"Password: %s\n\n",password);
+	fmt.Fprintf(w,"We recommend that you change this password after logging in.\n\n");
+	fmt.Fprintf(w,"Now that you are logged in you can benefit from several cool new features such as:\n");
+	fmt.Fprintf(w," - Autosave: ...\n\n"); // TODO
+	fmt.Fprintf(w,"Goodluck!\n\n");
+	fmt.Fprintf(w,"The Paperscape team\n");
+
+	// for now print pwd to output (otherwise we lose it)
+	fmt.Printf("Password for %s is %s\n",usermail,password)
+	// TODO email it
+    //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
+    //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
+    //if err != nil {
+	//	fmt.Println("ERROR: ProfileRequestResetPassword sendmail:", err)
+	//}
+
+	fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 }
 
 /* Serves stored graph on user page load */
@@ -1936,9 +2122,9 @@ func (h *MyHTTPHandler) GraphSave(modcode string, papers string, papershash stri
 		modcode = ""
 		// just so this can't crash server, only try it N times
 		N := 50
-		for i := 0; i < 50; i++ {
+		for i := 0; i < N; i++ {
 			code = GenerateRandString(8,8)
-			modcode = GenerateRandString(8,8)
+			modcode = GenerateRandString(16,16)
 			stmt := h.papers.StatementBegin("SELECT code FROM sharedata WHERE code = ? OR modkey = ? OR code = ? OR modkey = ?",h.papers.db.Escape(code),h.papers.db.Escape(code),h.papers.db.Escape(modcode),h.papers.db.Escape(modcode))
 			var fubar string
 			if !h.papers.StatementBindSingleRow(stmt,&fubar) {
