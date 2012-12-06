@@ -169,20 +169,21 @@ void map_env_forces(map_env_t *map_env, bool do_attr) {
         for (int y = y1; y <= y2; y++) {
             for (int x = x1; x <= x2; x++) {
                 paper_t **g = &map_env->grid[(y * map_env->grid_w + x) * map_env->grid_d];
-                for (; *g != NULL; g++) {
+                // tricky!
+                // the papers at a given depth are sorted, smallest pointer first, and end in a NULL pointer
+                // we only need to check pairs of papers (no double counting), so keep checking until our pointer p is bigger than in g
+                for (; *g != NULL && p > *g; g++) {
                     paper_t *p2 = *g;
-                    if (p < p2) {
-                        double dx = p->x - p2->x;
-                        double dy = p->y - p2->y;
-                        double r = sqrt(dx*dx + dy*dy);
-                        if (r < p->r + p2->r) {
-                            double fx = dx / r;
-                            double fy = dy / r;
-                            p->fx += fx;
-                            p->fy += fy;
-                            p2->fx -= fx;
-                            p2->fy -= fy;
-                        }
+                    double dx = p->x - p2->x;
+                    double dy = p->y - p2->y;
+                    double r = sqrt(dx*dx + dy*dy);
+                    if (r < p->r + p2->r) {
+                        double fx = dx / r;
+                        double fy = dy / r;
+                        p->fx += fx;
+                        p->fy += fy;
+                        p2->fx -= fx;
+                        p2->fy -= fy;
                     }
                 }
             }
@@ -211,7 +212,6 @@ void map_env_forces(map_env_t *map_env, bool do_attr) {
     }
     }
 
-
     /*
     // gravity!
     for (int i = 0; i < map_env->num_papers; i++) {
@@ -222,7 +222,7 @@ void map_env_forces(map_env_t *map_env, bool do_attr) {
             double dy = p1->y - p2->y;
             double r = sqrt(dx*dx + dy*dy);
             if (r > p1->r + p2->r) {
-                double fac = 0.8 * p1->mass * p2->mass / pow(r, 3);
+                double fac = 0.8 * p1->mass * p2->mass / (r*r*r);
                 double fx = dx * fac;
                 double fy = dy * fac;
                 p1->fx -= fx;
