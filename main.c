@@ -8,9 +8,20 @@
 
 GtkWidget *window;
 
-static gboolean on_expose_event(GtkWidget *widget, cairo_t *cr, map_env_t *map_env) {
-    map_env_draw(cr, map_env);
-    return TRUE;
+static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env) {
+    guint width = gtk_widget_get_allocated_width(widget);
+    guint height = gtk_widget_get_allocated_height(widget);
+    map_env_draw(map_env, cr, width, height);
+    return FALSE;
+}
+
+static gboolean button_press_event_callback(GtkWidget *widget, GdkEventButton *event, map_env_t *map_env) {
+    printf("button: %d\n", event->button);
+    if (event->button == GDK_BUTTON_SECONDARY) {
+        gtk_main_quit();
+    }
+
+    return TRUE; // we handled the event, stop processing
 }
 
 static gboolean map_env_update(map_env_t *map_env) {
@@ -22,10 +33,12 @@ static gboolean map_env_update(map_env_t *map_env) {
     map_env_forces(map_env, 0);
     // force a redraw
     gtk_widget_queue_draw(window);
-    return TRUE;
+    return TRUE; // yes, we want to be called again
 }
 
 /****************************************************************/
+
+// for a gtk example, see: http://git.gnome.org/browse/gtk+/tree/demos/gtk-demo/drawingarea.c
 
 int main(int argc, char *argv[]) {
     /*
@@ -55,16 +68,26 @@ int main(int argc, char *argv[]) {
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
     // create the drawing area
-    GtkWidget *darea = gtk_drawing_area_new();
-    gtk_container_add(GTK_CONTAINER(window), darea);
+    GtkWidget *drawing_area = gtk_drawing_area_new();
+    gtk_container_add(GTK_CONTAINER(window), drawing_area);
     gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-    gtk_window_set_default_size(GTK_WINDOW(window), 390, 240);
+    gtk_window_set_default_size(GTK_WINDOW(window), 300, 300);
+
+    g_timeout_add(20 /* milliseconds */, (GSourceFunc)map_env_update, map_env);
+    g_signal_connect(drawing_area, "draw", G_CALLBACK(draw_callback), map_env);
+    g_signal_connect(drawing_area, "button-press-event", G_CALLBACK(button_press_event_callback), map_env);
+
+    /* Ask to receive events the drawing area doesn't normally
+    * subscribe to
+    */
+    gtk_widget_set_events(drawing_area, gtk_widget_get_events(drawing_area)
+        | GDK_LEAVE_NOTIFY_MASK
+        | GDK_BUTTON_PRESS_MASK
+        | GDK_POINTER_MOTION_MASK
+        | GDK_POINTER_MOTION_HINT_MASK);
 
     /* Make sure that everything, window and label, are visible */
     gtk_widget_show_all(window);
-
-    g_timeout_add(20 /* milliseconds */, (GSourceFunc)map_env_update, map_env);
-    g_signal_connect(darea, "draw", G_CALLBACK(on_expose_event), map_env);
 
     /*
     ** Start the main loop, and do nothing (block) until

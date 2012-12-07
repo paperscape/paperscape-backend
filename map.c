@@ -83,8 +83,16 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, double x, double y, double w, u
     cairo_fill(cr);
 }
 
-void map_env_draw(cairo_t *cr, map_env_t *map_env) {
-    double scale = map_env->scale;
+void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height) {
+    double scale_w = 1.0 * width / map_env->grid_w;
+    double scale_h = 1.0 * height / map_env->grid_h;
+    double scale;
+    if (scale_w < scale_h) {
+        scale = scale_w;
+    } else {
+        scale = scale_h;
+    }
+    map_env->scale = scale;
 
     /*
     // grid density
