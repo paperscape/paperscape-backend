@@ -1226,7 +1226,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetRefsCites(ids, dbs, rw)
-        } else if req.Form["gncm"] != nil && (req.Form["nc[]"] != nil && req.Form["nm[]"] != nil) {
+        } else if req.Form["gncm"] != nil && (req.Form["nc[]"] != nil || req.Form["nm[]"] != nil) {
             // get-new-cites-(and update)metas: get the recent citations for given paper ids 
 			// and update given meta ids
             var idsPapers, idsMetas []uint
@@ -1244,7 +1244,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                     fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
             }
-            h.GetNewCitesAndUpdateMetas(idsPapers,idsMetas, rw)
+            h.GetNewCitesAndUpdateMetas(idsPapers, idsMetas, rw)
         } else if req.Form["ga"] != nil {
             // get-abstract: get the abstract for a paper
             var id uint = 0
@@ -1357,6 +1357,14 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
     PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.allcats, paper.authors, paper.title, paper.numCites, paper.dNumCites1, paper.dNumCites5, paper.publJSON)
+}
+
+// Returns possibly updated meta info only (this is called on a date change)
+func PrintJSONUpdateMetaInfo(w io.Writer, paper *Paper) {
+    fmt.Fprintf(w, "{\"id\":%d,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, paper.numCites, paper.dNumCites1, paper.dNumCites5)
+    if len(paper.publJSON) > 0 {
+        fmt.Fprintf(w, ",\"publ\":%s", paper.publJSON)
+    }
 }
 
 func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, authors string, title string, numCites uint, dNumCites1 uint, dNumCites5 uint, publJSON string) {
@@ -2319,7 +2327,26 @@ func (h *MyHTTPHandler) GetNewCitesAndUpdateMetas(idsPapers []uint, idsMetas []u
 		PrintJSONNewCites(rw, paper, uint(db))
 		fmt.Fprintf(rw, "}")
     }
-	fmt.Fprintf(rw, "],\"metas\":[]}")
+	fmt.Fprintf(rw, "],\"metas\":[")
+    first = true
+    for i := 0; i < len(idsMetas); i++ {
+		id := idsMetas[i]
+        paper := h.papers.QueryPaper(id, "")
+        if paper == nil {
+            fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get meta for id %d; skipping\n", id)
+            continue
+        }
+
+        if first {
+            first = false
+        } else {
+            fmt.Fprintf(rw, ",")
+        }
+
+        PrintJSONUpdateMetaInfo(rw, paper)
+        fmt.Fprintf(rw, "}")
+	}
+	fmt.Fprintf(rw,"]}")
 }
 
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
