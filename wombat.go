@@ -1226,17 +1226,25 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetRefsCites(ids, dbs, rw)
-        } else if req.Form["gnc[]"] != nil {
-            // get-new-cites: get the recent citations for given paper ids 
-            var ids []uint
-            for _, strId := range req.Form["gnc[]"] {
+        } else if req.Form["gncm"] != nil && (req.Form["nc[]"] != nil && req.Form["nm[]"] != nil) {
+            // get-new-cites-(and update)metas: get the recent citations for given paper ids 
+			// and update given meta ids
+            var idsPapers, idsMetas []uint
+            for _, strId := range req.Form["nc[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint(preId))
+                    idsPapers = append(idsPapers, uint(preId))
                 } else {
                     fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
             }
-            h.GetNewCites(ids, rw)
+            for _, strId := range req.Form["nm[]"] {
+                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                    idsMetas = append(idsMetas, uint(preId))
+                } else {
+                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                }
+            }
+            h.GetNewCitesAndUpdateMetas(idsPapers,idsMetas, rw)
         } else if req.Form["ga"] != nil {
             // get-abstract: get the abstract for a paper
             var id uint = 0
@@ -2271,32 +2279,32 @@ func (h *MyHTTPHandler) GetRefsCites(ids []uint, dbs []uint, rw http.ResponseWri
     fmt.Fprintf(rw, "]")
 }
 
-func (h *MyHTTPHandler) GetNewCites(ids []uint, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) GetNewCitesAndUpdateMetas(idsPapers []uint, idsMetas []uint, rw http.ResponseWriter) {
 	row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
 	h.papers.QueryEnd()
 	if row == nil {
-		fmt.Printf("ERROR: GetNewCites could not get 5 day boundary from MySQL\n")
+		fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from MySQL\n")
         fmt.Fprintf(rw, "[]")
 		return
 	}
 	var ok bool
 	var db uint64
 	if db, ok = row[0].(uint64); !ok {
-		fmt.Printf("ERROR: GetNewCites could not get 5 day boundary from Row\n")
+		fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from Row\n")
         fmt.Fprintf(rw, "[]")
 		return
 	}
-    fmt.Fprintf(rw, "[")
+	fmt.Fprintf(rw, "{\"cites\":[")
     first := true
-    for i := 0; i < len(ids); i++ {
-		id := ids[i]
+    for i := 0; i < len(idsPapers); i++ {
+		id := idsPapers[i]
 		// query the paper and its refs and cites
 		paper := h.papers.QueryPaper(id, "")
 		h.papers.QueryCites(paper, false)
 
 		// check the paper exists
 		if paper == nil {
-            fmt.Printf("ERROR: GetNewCites could not find paper for id %d; skipping\n", id)
+            fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not find paper for id %d; skipping\n", id)
             continue
 		}
 
@@ -2311,7 +2319,7 @@ func (h *MyHTTPHandler) GetNewCites(ids []uint, rw http.ResponseWriter) {
 		PrintJSONNewCites(rw, paper, uint(db))
 		fmt.Fprintf(rw, "}")
     }
-    fmt.Fprintf(rw, "]")
+	fmt.Fprintf(rw, "],\"metas\":[]}")
 }
 
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
