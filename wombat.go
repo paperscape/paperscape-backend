@@ -1388,6 +1388,8 @@ func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, 
     }
 }
 
+// **OBSOLETE**
+/*
 func PrintJSONContextInfo(w io.Writer, paper *Paper) {
 	fmt.Fprintf(w, ",\"x\":%d,\"rad\":%d,\"note\":%s,", paper.xPos, paper.rMod, paper.notes)
 	fmt.Fprintf(w, "\"layr\":[")
@@ -1413,7 +1415,7 @@ func PrintJSONContextInfo(w io.Writer, paper *Paper) {
 	//	fmt.Fprintf(w, "%s", newTag)
 	//}
 	fmt.Fprintf(w, "]")
-}
+}*/
 
 func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
 	fmt.Fprintf(w, ",\"allrc\":false,\"ref\":[")
@@ -1650,7 +1652,7 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash
             fmt.Fprintf(rw, ",")
         }
         PrintJSONMetaInfo(rw, paper)
-		PrintJSONContextInfo(rw, paper)
+		//PrintJSONContextInfo(rw, paper)
 		PrintJSONRelevantRefs(rw, paper, papersList)
 		if db > 0 {
 			h.papers.QueryCites(paper, false)
@@ -2070,7 +2072,7 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
             fmt.Fprintf(rw, ",")
         }
         PrintJSONMetaInfo(rw, paper)
-		PrintJSONContextInfo(rw, paper)
+		//PrintJSONContextInfo(rw, paper)
 		PrintJSONRelevantRefs(rw, paper, papersList)
 		if db > 0 {
 			h.papers.QueryCites(paper, false)
