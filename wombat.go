@@ -1165,10 +1165,16 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 				giveVersion = true
 			}
 			h.ProfileChallenge(req.Form["pchal"][0], giveSalt, giveVersion, rw)
-		} else if req.Form["pload"] != nil && req.Form["h"] != nil && req.Form["ph"] != nil && req.Form["th"] != nil {
+		} else if req.Form["pload"] != nil && req.Form["h"] != nil {
             // profile-load: either login request or load request from an autosave
-            // h = passHash, ph = papersHash, th = tagsHash
-            h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], req.Form["ph"][0], req.Form["th"][0], rw)
+            // h = passHash, ph = papersHash, gh = graphsHash, th = tagsHash
+			ph := req.Form["ph"]
+			gh := req.Form["gh"]
+			th := req.Form["th"]
+			if ph == nil { ph = "" }
+			if gh == nil { gh = "" }
+			if th == nil { th = "" }
+            h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], ph, gh, th, rw)
 		} else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt), pv = password version
@@ -1562,13 +1568,10 @@ func (h *MyHTTPHandler) ProfileAuthenticate(usermail string, passhash string) (s
 
 /* If given papers/tags hashes don't match with db, send user all their papers and tags.
    Login also uses this function by providing empty hashes. */
-func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash string, tagshash string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash string, graphshash string, tagshash string, rw http.ResponseWriter) {
 	if !h.ProfileAuthenticate(usermail,passhash) {
 		return
 	}
-
-	//var query string
-	//var row mysql.Row
 
 	// generate random "challenge", as we expect user to reply
 	// with a sync request if this is an autosave
@@ -1586,7 +1589,7 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash
 	}
 
 	/* Check if papers/tags hashes up to date if given (else assume this is a login) */
-	if papershash != "" && tagshash != "" {
+	if papershash != "" && graphshash != "" && tagshash != "" {
 		if (papershashOld == papershash && tagshashOld == tagshash) {
 			// hashes match, 
 			fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",usermail,challenge,papershashOld,tagshashOld)
@@ -1691,7 +1694,7 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
-		fmt.Fprintf(rw, "{\"name\":%s,\"index\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
+		fmt.Fprintf(rw, "{\"name\":%s,\"ind\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
     }
 	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
@@ -2098,7 +2101,7 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
-		fmt.Fprintf(rw, "{\"name\":%s,\"index\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
+		fmt.Fprintf(rw, "{\"name\":%s,\"ind\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
     }
 	fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
 }
