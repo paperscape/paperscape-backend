@@ -1168,12 +1168,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 		} else if req.Form["pload"] != nil && req.Form["h"] != nil {
             // profile-load: either login request or load request from an autosave
             // h = passHash, ph = papersHash, gh = graphsHash, th = tagsHash
-			ph := req.Form["ph"]
-			gh := req.Form["gh"]
-			th := req.Form["th"]
-			if ph == nil { ph = "" }
-			if gh == nil { gh = "" }
-			if th == nil { th = "" }
+			var ph, gh, th string
+			if req.Form["ph"] != nil { ph = req.Form["ph"][0] }
+			if req.Form["gh"] != nil { gh = req.Form["gh"][0] }
+			if req.Form["th"] != nil { th = req.Form["th"][0] }
             h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], ph, gh, th, rw)
 		} else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
