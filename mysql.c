@@ -42,9 +42,11 @@ static bool env_set_up(env_t* env) {
     env->close_mysql = true;
 
     // connect to the MySQL server
-    if (mysql_real_connect(&env->mysql, "localhost", "hidden", "hidden", "xiwi", 0, "/home/damien/mysql/mysql.sock", 0) == NULL) {
-        have_error(env);
-        return false;
+    if (mysql_real_connect(&env->mysql, "localhost", "hidden", "hidden", "xiwi", 0, NULL, 0) == NULL) {
+        if (mysql_real_connect(&env->mysql, "localhost", "hidden", "hidden", "xiwi", 0, "/home/damien/mysql/mysql.sock", 0) == NULL) {
+            have_error(env);
+            return false;
+        }
     }
 
     return true;
@@ -141,11 +143,11 @@ static bool env_load_ids(env_t *env, const char *maincat) {
     // get the ids
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,maincat FROM meta_data");
+    vstr_printf(vstr, "SELECT id,maincat,authors,title FROM meta_data");
     if (maincat != NULL && maincat[0] != 0) {
         env->maincat = maincat;
-        vstr_printf(vstr, " WHERE (maincat='%s')", maincat);
-        vstr_printf(vstr, " AND id>=2120000000");
+        vstr_printf(vstr, " WHERE (maincat='%s' or maincat='hep-ph' or maincat='gr-qc')", maincat);
+        vstr_printf(vstr, " AND id>=1992500000 AND id<2000000000");
     } else {
         env->maincat = NULL;
     }
@@ -153,7 +155,7 @@ static bool env_load_ids(env_t *env, const char *maincat) {
         return false;
     }
 
-    if (!env_query_many_rows(env, vstr_str(vstr), 2, &result)) {
+    if (!env_query_many_rows(env, vstr_str(vstr), 4, &result)) {
         return false;
     }
     int i = 0;
@@ -176,6 +178,8 @@ static bool env_load_ids(env_t *env, const char *maincat) {
         } else {
             paper->maincat = 3;
         }
+        paper->authors = strdup(row[2]);
+        paper->title = strdup(row[3]);
         i += 1;
     }
     env->num_papers = i;
@@ -276,6 +280,34 @@ static bool env_load_refs(env_t *env, unsigned int min_id) {
     return true;
 }
 
+static bool env_build_cites(env_t *env) {
+    printf("building citation links\n");
+
+    // allocate memory for cites for each paper
+    for (int i = 0; i < env->num_papers; i++) {
+        paper_t *paper = &env->papers[i];
+        if (paper->num_cites > 0) {
+            paper->cites = m_new(paper_t*, paper->num_cites);
+            if (paper->cites == NULL) {
+                return false;
+            }
+        }
+        // use num cites to count which entry in the array we are up to when inserting cite links
+        paper->num_cites = 0;
+    }
+
+    // link the cites
+    for (int i = 0; i < env->num_papers; i++) {
+        paper_t *paper = &env->papers[i];
+        for (int j = 0; j < paper->num_refs; j++) {
+            paper_t *ref_paper = paper->refs[j];
+            ref_paper->cites[ref_paper->num_cites++] = paper;
+        }
+    }
+
+    return true;
+}
+
 bool load_papers_from_mysql(const char *wanted_maincat, int *num_papers_out, paper_t **papers_out) {
     // set up environment
     env_t env;
@@ -287,6 +319,7 @@ bool load_papers_from_mysql(const char *wanted_maincat, int *num_papers_out, pap
     // load the DB
     env_load_ids(&env, wanted_maincat);
     env_load_refs(&env, 0);
+    env_build_cites(&env);
 
     // pull down the MySQL environment (doesn't free the papers)
     env_finish(&env);
