@@ -105,25 +105,25 @@ func main() {
 /****************************************************************/
 
 type SavedDrawnForm struct {
-    Id             float64
-    X              float64
-    R              float64
+    Id      int64     `json:"id"`
+    X       int64     `json:"x"`
+    R       int64     `json:"r"`
 }
 
 type SavedMultiGraph struct {
-    Name           string
-    Drawn          []SavedDrawnForm
+    Name    string           `json:"name"`
+    Drawn   []SavedDrawnForm `json:"drawn"`
 }
 
 type SavedTag struct {
-    Name           string
-    Ind            float64
-    Blob           bool
-    Ids            []float64
+    Name    string    `json:"name"`
+    Ind     int64   `json:"ind"`
+    Blob    bool      `json:"blob"`
+    Ids     []int64 `json:"ids"`
 }
 
 type SavedPaper struct {
-    Id   float64 `json:"id"`
+    Id      int64 `json:"id"`
     Notes   string  `json:"notes"`
 }
 
