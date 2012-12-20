@@ -12,13 +12,14 @@ import (
     "strconv"
     "unicode"
     "encoding/json"
-    "text/scanner"
+    //"text/scanner"
     "GoMySQL"
     "runtime"
     "bytes"
     "time"
     "strings"
     "math/rand"
+    "hash"
     "crypto/sha1"
     "crypto/sha256"
     //"crypto/aes"
@@ -105,7 +106,7 @@ func main() {
 /****************************************************************/
 
 type SavedDrawnForm struct {
-    Id      int64     `json:"id"`
+    Id      uint64     `json:"id"`
     X       int64     `json:"x"`
     R       int64     `json:"r"`
 }
@@ -117,13 +118,13 @@ type SavedMultiGraph struct {
 
 type SavedTag struct {
     Name    string    `json:"name"`
-    Ind     int64   `json:"ind"`
+    Ind     uint64   `json:"ind"`
     Blob    bool      `json:"blob"`
-    Ids     []int64 `json:"ids"`
+    Ids     []uint64 `json:"ids"`
 }
 
-type SavedPaper struct {
-    Id      int64 `json:"id"`
+type SavedNote struct {
+    Id      uint64 `json:"id"`
     Notes   string  `json:"notes"`
 }
 
@@ -153,15 +154,16 @@ type Paper struct {
     numCites   uint     // number of times cited
     dNumCites1 uint     // change in numCites in past day
     dNumCites5 uint     // change in numCites in past 5 days
-    xPos       int      // for loaded profile
-    rMod       int      // for loaded profile
-    notes      string   // for loaded profile
-    layers     []string // for loaded profile
-    tags       []string // for loaded profile
-    newTags    []string // for loaded profile *obsolete*
-    remove     bool     // for loaded profile, mark to remove from db
+    //xPos       int      // for loaded profile
+    //rMod       int      // for loaded profile
+    //notes      string   // for loaded profile
+    //layers     []string // for loaded profile
+    //tags       []string // for loaded profile
+    //newTags    []string // for loaded profile *obsolete*
+    //remove     bool     // for loaded profile, mark to remove from db
 }
 
+// TODO remove:
 type Tag struct {
     name       string   // unique name
     active     bool     // whether tag is active *obsolete*
@@ -180,21 +182,21 @@ func (ps PaperSliceSortId) Less(i, j int) bool { return ps[i].id < ps[j].id }
 func (ps PaperSliceSortId) Swap(i, j int)      { ps[i], ps[j] = ps[j], ps[i] }
 
 // sort alphabetically 
-type TagSliceSortName []*Tag
-
-func (ts TagSliceSortName) Len() int           { return len(ts) }
-func (ts TagSliceSortName) Less(i, j int) bool {
-    // tag names are wrapped with "", so remove these first before sorting
-    return ts[i].name[1:len(ts[i].name)-1] < ts[j].name[1:len(ts[j].name)-1]
-}
-func (ts TagSliceSortName) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
+//type TagSliceSortName []*Tag
+//
+//func (ts TagSliceSortName) Len() int           { return len(ts) }
+//func (ts TagSliceSortName) Less(i, j int) bool {
+//    // tag names are wrapped with "", so remove these first before sorting
+//    return ts[i].name[1:len(ts[i].name)-1] < ts[j].name[1:len(ts[j].name)-1]
+//}
+//func (ts TagSliceSortName) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
 
 // sort by index 
-type TagSliceSortIndex []*Tag
-
-func (ts TagSliceSortIndex) Len() int           { return len(ts) }
-func (ts TagSliceSortIndex) Less(i, j int) bool { return ts[i].index < ts[j].index }
-func (ts TagSliceSortIndex) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
+//type TagSliceSortIndex []*Tag
+//
+//func (ts TagSliceSortIndex) Len() int           { return len(ts) }
+//func (ts TagSliceSortIndex) Less(i, j int) bool { return ts[i].index < ts[j].index }
+//func (ts TagSliceSortIndex) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
 
 
 /****************************************************************/
@@ -674,6 +676,7 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 /****************************************************************/
 
 // Converts papers list into string and stores this in userdata table's 'papers' field
+/*
 func (h *MyHTTPHandler) PaperListToDBString (paperList []*Paper) string {
 
     // This SHOULD be identical to JS code in kea i.e. it should be parseable
@@ -699,10 +702,33 @@ func (h *MyHTTPHandler) PaperListToDBString (paperList []*Paper) string {
         fmt.Fprintf(w,"])");
     }
     return w.String()
-}
+}*/
 
 
 // Returns a list of papers stored in userdata string field
+func (h *MyHTTPHandler) PaperListFromIDs (paperIds []uint64) []*Paper {
+    var paperList []*Paper
+
+    for _, paperId := range paperIds {
+        // check paperId not already in list
+        exists := false
+        for _, p := range paperList {
+            if p.id == uint(paperId) {
+                exists = true
+                break
+            }
+        }
+        if exists { continue }
+        paper := h.papers.QueryPaper(uint(paperId), "")
+        h.papers.QueryRefs(paper, false)
+        paperList = append(paperList, paper)
+    }
+
+    return paperList
+}
+
+// Returns a list of papers stored in userdata string field
+/*
 func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 
     var paperList []*Paper
@@ -953,8 +979,10 @@ func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
 
     return paperList
 }
+*/
 
 // Converts tag list into database string
+/*
 func (h *MyHTTPHandler) TagListToDBString (tagList []*Tag) string {
 
     // This SHOULD be identical to JS code in kea i.e. it should be parseable
@@ -980,8 +1008,10 @@ func (h *MyHTTPHandler) TagListToDBString (tagList []*Tag) string {
     }
     return w.String()
 }
+*/
 
 // Returns a list of tags stored in userdata string field
+/*
 func (h *MyHTTPHandler) TagListFromDBString (tags []byte) []*Tag {
 
     var tagList []*Tag
@@ -1100,7 +1130,7 @@ func (h *MyHTTPHandler) TagListFromDBString (tags []byte) []*Tag {
 
     return tagList
 }
-
+*/
 
 
 /****************************************************************/
@@ -1212,9 +1242,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["preg"] != nil {
             // profile-register: register email address as new user 
             h.ProfileRegister(req.Form["preg"][0], rw)
-        } else if req.Form["gload"] != nil {
-            // graph-load: from a page load
-            h.GraphLoad(req.Form["gload"][0], rw)
+        } else if req.Form["lload"] != nil {
+            // link-load: from a page load
+            h.LinkLoad(req.Form["lload"][0], rw)
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
@@ -1327,10 +1357,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // profile-sync: sync request
             // h = passHash, p = papersdiff, t = tagsdiff
             h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], req.Form["ph"][0], req.Form["th"][0], rw)
-        } else if req.Form["gsave"] != nil {
-            // graph-save: existing code (or empty string if none)
-            // p = papers, ph = papers hash, g = graphs, gh = graphs hash, t = tags, th = tags hash
-            h.GraphSave(req.Form["gsave"][0], req.Form["p"][0], req.Form["ph"][0],req.Form["g"][0], req.Form["gh"][0], req.Form["t"][0], req.Form["th"][0], rw)
+        } else if req.Form["lsave"] != nil {
+            // link-save: existing code (or empty string if none)
+            // n = notes, nh = notes hash, g = graphs, gh = graphs hash, t = tags, th = tags hash
+            h.LinkSave(req.Form["lsave"][0], req.Form["n"][0], req.Form["nh"][0], req.Form["g"][0], req.Form["gh"][0], req.Form["t"][0], req.Form["th"][0], rw)
         } else if req.Form["gm[]"] != nil {
             // get-metas: get the meta data for given list of paper ids
             // In case user wants many many metas, a POST is sent
@@ -1633,10 +1663,12 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash
     /**********/
 
     // build a list of PAPERS and their metadata for this profile 
-    papersList := h.PaperListFromDBString(papers)
+    var papersList []*Paper // TODO
+    //papersList := h.PaperListFromDBString(papers)
     fmt.Printf("for user %s, read %d papers\n", usermail, len(papersList))
     sort.Sort(PaperSliceSortId(papersList))
-    papersStr := h.PaperListToDBString(papersList)
+    papersStr := ""
+    //papersStr := h.PaperListToDBString(papersList)
 
     // create papershash, and also store this in db
     hash := sha1.New()
@@ -1676,7 +1708,6 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash
             fmt.Fprintf(rw, ",")
         }
         PrintJSONMetaInfo(rw, paper)
-        //PrintJSONContextInfo(rw, paper)
         PrintJSONRelevantRefs(rw, paper, papersList)
         if db > 0 {
             h.papers.QueryCites(paper, false)
@@ -1691,12 +1722,14 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash
     /********/
 
     // build a list of TAGS for this profile
-    tagsList := h.TagListFromDBString(tags)
+    var tagsList []*Tag // TODO
+    //tagsList := h.TagListFromDBString(tags)
     fmt.Printf("for user %s, read %d tags\n", usermail, len(tagsList))
     // Keep in original order!
     //sort.Sort(TagSliceSortName(tagsList))
-    sort.Sort(TagSliceSortIndex(tagsList))
-    tagsStr := h.TagListToDBString(tagsList)
+    //sort.Sort(TagSliceSortIndex(tagsList))
+    tagsStr := ""
+    //tagsStr := h.TagListToDBString(tagsList)
 
     // create tagshash
     hash = sha1.New()
@@ -1741,11 +1774,13 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers
     /* PAPERS */
     /**********/
 
-    oldpapersList := h.PaperListFromDBString(papers)
+    var oldpapersList []*Paper
+    //oldpapersList := h.PaperListFromDBString(papers)
     fmt.Printf("for user %s, read %d papers from db\n", usermail, len(oldpapersList))
 
     // papers without details e.g. (id) are flagged with a "remove" 
-    newpapersList := h.PaperListFromDBString([]byte(diffpapers))
+    var newpapersList []*Paper
+    //newpapersList := h.PaperListFromDBString([]byte(diffpapers))
     fmt.Printf("for user %s, read %d diff papers from internets\n", usermail, len(newpapersList))
 
     // make one super list of unique papers (diffpapers override oldpapers)
@@ -1764,15 +1799,16 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers
 
     var papersList []*Paper
     // remove papers marked with "remove" or those with empty layers and tags!
-    for _, paper := range newpapersList {
-        if !paper.remove && (len(paper.layers) > 0 || len(paper.tags) > 0) {
-            papersList = append(papersList,paper)
-        }
-    }
+    //for _, paper := range newpapersList {
+    //    if !paper.remove && (len(paper.layers) > 0 || len(paper.tags) > 0) {
+    //        papersList = append(papersList,paper)
+    //    }
+    //}
 
     // sort this list
     sort.Sort(PaperSliceSortId(papersList))
-    papersStr := h.PaperListToDBString(papersList)
+    papersStr := "" // TODO
+    //papersStr := h.PaperListToDBString(papersList)
 
     // create new hashes 
     hash := sha1.New()
@@ -1789,11 +1825,13 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers
     /* TAGS */
     /********/
 
-    oldtagsList := h.TagListFromDBString(tags);
+    var oldtagsList []*Tag // TODO
+    //oldtagsList := h.TagListFromDBString(tags);
     fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldtagsList))
 
     // tags without details e.g. (name) are flagged with a "remove" 
-    newtagsList := h.TagListFromDBString([]byte(difftags))
+    var newtagsList []*Tag // TODO
+    //newtagsList := h.TagListFromDBString([]byte(difftags))
     fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(newtagsList))
 
     // make one super list of unique tags (difftags override oldtags)
@@ -1821,8 +1859,9 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers
     // sort this list
     // Keep in original order!
     //sort.Sort(TagSliceSortName(tagsList))
-    sort.Sort(TagSliceSortIndex(tagsList))
-    tagsStr := h.TagListToDBString(tagsList)
+    //sort.Sort(TagSliceSortIndex(tagsList))
+    tagsStr := ""
+    //tagsStr := h.TagListToDBString(tagsList)
 
     hash = sha1.New()
     io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
@@ -2036,20 +2075,22 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
 }
 
 /* Serves stored graph on user page load */
-func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) LinkLoad(code string, rw http.ResponseWriter) {
 
-    var papers,tags []byte
+    var notes, graphs, tags []byte
+    var hash hash.Hash
+    var err error
     modcode := ""
 
     // discover if we've loading code or modcode
     // codes and modcodes are unique
     // first check if its a code
-    stmt := h.papers.StatementBegin("SELECT papers,tags FROM sharedata WHERE code = ?",h.papers.db.Escape(code))
-    if !h.papers.StatementBindSingleRow(stmt,&papers,&tags) {
+    stmt := h.papers.StatementBegin("SELECT notes,graphs,tags FROM sharedata WHERE code = ?",h.papers.db.Escape(code))
+    if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags) {
         // It wasn't, so check if its a modcode
         var modcodeDb, codeDb string
-        stmt := h.papers.StatementBegin("SELECT papers,tags,code,modkey FROM sharedata WHERE modkey = ?",h.papers.db.Escape(code))
-        if !h.papers.StatementBindSingleRow(stmt,&papers,&tags,&codeDb,&modcodeDb) {
+        stmt := h.papers.StatementBegin("SELECT notes,graphs,tags,code,modkey FROM sharedata WHERE modkey = ?",h.papers.db.Escape(code))
+        if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags,&codeDb,&modcodeDb) {
             return
         }
         code = codeDb
@@ -2063,28 +2104,50 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
 
     /* PAPERS */
 
-    // build a list of PAPERS and their metadata for this profile 
-    papersList := h.PaperListFromDBString(papers)
-    fmt.Printf("for graph code %s, read %d papers\n", code, len(papersList))
-    sort.Sort(PaperSliceSortId(papersList))
-    papersStr := h.PaperListToDBString(papersList)
+    // get list of ids that we need Papers for
+    var ids []uint64;
 
-    // create papershash, and also store this in db
-    hash := sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
-    papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
+    var savedNotes []SavedNote
+    err = json.Unmarshal(notes,&savedNotes)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+    var savedGraphs []SavedMultiGraph
+    err = json.Unmarshal(graphs,&savedGraphs)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+    var savedTags []SavedTag
+    err = json.Unmarshal(tags,&savedTags)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+
+    // TODO make sure this list is unique
+    for _, note := range savedNotes {
+        ids = append(ids,note.Id)
+    }
+    for _, graph := range savedGraphs {
+        for _, drawnForm := range graph.Drawn {
+            ids = append(ids,drawnForm.Id)
+        }
+    }
+    for _, tag := range savedTags {
+        for _, id := range tag.Ids {
+            ids = append(ids,id)
+        }
+    }
+
+    // make list of Paper objects for these ids
+    papersList := h.PaperListFromIDs(ids)
+    fmt.Printf("for graph code %s, read %d papers\n", code, len(papersList))
 
     // Get 5 days ago date boundary so we can pass along new cites
+    // TODO maybe handier to simply have this in memory
     row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
     h.papers.QueryEnd()
     var db uint64
     if row == nil {
-        fmt.Printf("ERROR: GraphLoad could not get 5 day boundary from MySQL\n")
+        fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from MySQL\n")
         db = 0
     } else {
         var ok bool
         if db, ok = row[0].(uint64); !ok {
-            fmt.Printf("ERROR: GraphLoad could not get 5 day boundary from Row\n")
+            fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from Row\n")
             db = 0
         }
     }
@@ -2096,7 +2159,6 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
             fmt.Fprintf(rw, ",")
         }
         PrintJSONMetaInfo(rw, paper)
-        //PrintJSONContextInfo(rw, paper)
         PrintJSONRelevantRefs(rw, paper, papersList)
         if db > 0 {
             h.papers.QueryCites(paper, false)
@@ -2105,92 +2167,90 @@ func (h *MyHTTPHandler) GraphLoad(code string, rw http.ResponseWriter) {
         }
         fmt.Fprintf(rw, "}")
     }
-    fmt.Fprintf(rw, "],\"ph\":\"%s\"",papershashDb)
+    fmt.Fprintf(rw, "]")
+
+    /* NOTES */
+    hash = sha1.New()
+    io.WriteString(hash, fmt.Sprintf("%s", string(notes)))
+    noteshash := fmt.Sprintf("%x",hash.Sum(nil))
+    fmt.Fprintf(rw, ",\"note\":%s,\"nh\":\"%s\"",string(notes),noteshash)
+
+    /* GRAPHS */
+    hash = sha1.New()
+    io.WriteString(hash, fmt.Sprintf("%s", string(graphs)))
+    graphshash := fmt.Sprintf("%x",hash.Sum(nil))
+    fmt.Fprintf(rw, ",\"grph\":%s,\"gh\":\"%s\"",string(graphs),graphshash)
 
     /* TAGS */
-
-    // build a list of TAGS for this profile
-    tagsList := h.TagListFromDBString(tags)
-    //fmt.Printf("for graph code %s, read %d tags\n", code, len(tagsList))
-    // Keep in original order!
-    sort.Sort(TagSliceSortIndex(tagsList))
-    tagsStr := h.TagListToDBString(tagsList)
-
-    // create tagshash
     hash = sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
-    tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
+    io.WriteString(hash, fmt.Sprintf("%s", string(tags)))
+    tagshash := fmt.Sprintf("%x",hash.Sum(nil))
+    fmt.Fprintf(rw, ",\"tag\":%s,\"th\":\"%s\"",string(tags),tagshash)
 
-    // output tags in json format
-    fmt.Fprintf(rw, ",\"tag\":[")
-    for i, tag := range tagsList {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"name\":%s,\"ind\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
-    }
-    fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
+    // end
+    fmt.Fprintf(rw, "}")
 }
 
 /* Graph Save */
-func (h *MyHTTPHandler) GraphSave(modcode string, papers string, papershash string, graphs string, graphshash string, tags string, tagshash string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash string, graphsIn string, graphsInHash string, tagsIn string, tagsInHash string, rw http.ResponseWriter) {
 
     fmt.Printf("Try unmarshalling\n")
 
-    fmt.Printf("Papers: %s\n",papers)
-    fmt.Printf("graphs: %s\n",graphs)
-    fmt.Printf("tags: %s\n",tags)
+    // Unmarshal, re-Marshal and hash data strings to ensure consistency
+    var hash hash.Hash
+    var err error
 
-    var savedPapers []SavedPaper
-    err := json.Unmarshal([]byte(papers),&savedPapers)
+    // notes
+    var notesOut []byte
+    var savedNotes []SavedNote
+    err = json.Unmarshal([]byte(notesIn),&savedNotes)
     if err != nil {
-        fmt.Println("error: ",err)
+        fmt.Printf("Unmarshal error: %s\n",err)
     }
-    fmt.Printf("%+v\n", savedPapers)
+    notesOut, err = json.Marshal(savedNotes)
+    fmt.Printf("Marshaled notes: %s\n", notesOut)
+    hash = sha1.New()
+    io.WriteString(hash, string(notesOut))
+    if notesInHash != fmt.Sprintf("%x",hash.Sum(nil)) {
+        fmt.Printf("ERROR: LinkSave notesIn doesn't match notesOut\n")
+        return
+    }
 
+    // graphs
+    var graphsOut []byte
     var savedGraphs []SavedMultiGraph
-    err = json.Unmarshal([]byte(graphs),&savedGraphs)
+    err = json.Unmarshal([]byte(graphsIn),&savedGraphs)
     if err != nil {
-        fmt.Println("error: ",err)
+        fmt.Printf("Unmarshal error: %s\n",err)
     }
-    fmt.Printf("%+v\n", savedGraphs)
+    graphsOut, err = json.Marshal(savedGraphs)
+    fmt.Printf("Marshaled graphs: %s\n", graphsOut)
+    hash = sha1.New()
+    io.WriteString(hash, string(graphsOut))
+    if graphsInHash != fmt.Sprintf("%x",hash.Sum(nil)) {
+        fmt.Printf("ERROR: LinkSave graphsIn doesn't match graphsOut\n")
+        return
+    }
 
+    // tags
+    var tagsOut []byte
     var savedTags []SavedTag
-    err = json.Unmarshal([]byte(tags),&savedTags)
+    err = json.Unmarshal([]byte(tagsIn),&savedTags)
     if err != nil {
-        fmt.Println("error: ",err)
+        fmt.Printf("Unmarshal error: %s\n",err)
     }
-    fmt.Printf("%+v\n", savedTags)
+    tagsOut, err = json.Marshal(savedTags)
+    fmt.Printf("Marshaled tags: %s\n", tagsOut)
+    hash = sha1.New()
+    io.WriteString(hash, string(tagsOut))
+    if tagsInHash != fmt.Sprintf("%x",hash.Sum(nil)) {
+        fmt.Printf("ERROR: LinkSave tagsIn doesn't match tagsOut\n")
+        return
+    }
 
-    fmt.Printf("Try marshalling\n")
-
-    var b []byte
-    b, err = json.Marshal(savedGraphs)
-    fmt.Printf("Marshaled graphs: %s\n", b)
-    hash1   := sha1.New()
-    io.WriteString(hash1, string(graphs))
-    fmt.Printf("%x\n",hash1.Sum(nil))
-    hash1   = sha1.New()
-    io.WriteString(hash1, string(b))
-    fmt.Printf("%x\n",hash1.Sum(nil))
-
-    return
-
-
-    //papersList := h.PaperListFromDBString([]byte(papers))
-    //if len(papersList) == 0 {
-    //    return
-    //}
-    //fmt.Printf("for graph code %s, read %d papers from db\n", modcode, len(papersList))
-    //sort.Sort(PaperSliceSortId(papersList))
-    //papersStr := h.PaperListToDBString(papersList)
-
-    //var tagsList []*Tag // leave empty
-    //tagsStr := h.TagListToDBString(tagsList)
-
-
+    // Check modcode
     if len(modcode) > 16 {
-        fmt.Printf("ERROR: GraphSave given code are too long\n")
+        fmt.Printf("ERROR: LinkSave given code are too long\n")
         return
     }
     var code string
@@ -2219,7 +2279,7 @@ func (h *MyHTTPHandler) GraphSave(modcode string, papers string, papershash stri
             }
         }
         if code == "" || modcode == "" {
-            fmt.Printf("ERROR: GraphSave couldn't generate a code and modcode in %d tries!\n",N)
+            fmt.Printf("ERROR: LinkSave couldn't generate a code and modcode in %d tries!\n",N)
             return
         } else {
             stmt := h.papers.StatementBegin("INSERT INTO sharedata (code,modkey,lastloaded) VALUES (?,?,NOW())",h.papers.db.Escape(code),h.papers.db.Escape(modcode))
@@ -2228,10 +2288,10 @@ func (h *MyHTTPHandler) GraphSave(modcode string, papers string, papershash stri
     }
 
     // save
-    //stmt := h.papers.StatementBegin("UPDATE sharedata SET papers = ?, tags = ? where code = ? AND modkey = ?", papersStr, tagsStr, h.papers.db.Escape(code), h.papers.db.Escape(modcode))
-    //if !h.papers.StatementEnd(stmt) {
-    //    return
-    //}
+    stmt := h.papers.StatementBegin("UPDATE sharedata SET notes = ?, graphs = ?, tags = ? where code = ? AND modkey = ?", string(notesOut), string(graphsOut), string(tagsOut), h.papers.db.Escape(code), h.papers.db.Escape(modcode))
+    if !h.papers.StatementEnd(stmt) {
+        return
+    }
 
     // We succeeded
     fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"}",code,modcode)
