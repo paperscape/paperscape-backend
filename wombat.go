@@ -211,10 +211,10 @@ func MergeSavedNotes (diffSavedNotes []SavedNote, oldSavedNotes []SavedNote) []S
     // Merge oldNotes with diff
     for _, diffNote := range diffSavedNotes {
         // try to find oldNote match
-        var oldNote SavedNote
+        var oldNotePtr *SavedNote
         for i, on := range oldSavedNotes {
             if on.Id == diffNote.Id {
-                oldNote = on
+                oldNotePtr = &on
                 if diffNote.Rm {
                     // splice
                     if i+1 < len(oldSavedNotes) {
@@ -228,14 +228,14 @@ func MergeSavedNotes (diffSavedNotes []SavedNote, oldSavedNotes []SavedNote) []S
         }
         if diffNote.Rm { continue }
         // Check if diff specified
-        if &oldNote == nil {
+        if oldNotePtr == nil {
             oldSavedNotes = append(oldSavedNotes,diffNote)
             continue
         }
         // Check if marked for removal
         // Else ### MERGE ###
         if diffNote.Notes != nil {
-            oldNote.Notes = diffNote.Notes
+            oldNotePtr.Notes = diffNote.Notes
         }
     }
     sort.Sort(SavedNoteSliceSortId(oldSavedNotes))
@@ -246,10 +246,10 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
     // Merge oldMultiGraphs with diff
     for _, diffMultiGraph := range diffSavedMultiGraphs {
         // try to find oldMultiGraph match
-        var oldMultiGraph SavedMultiGraph
+        var oldMultiGraphPtr *SavedMultiGraph
         for i, omg := range oldSavedMultiGraphs {
             if omg.Name == diffMultiGraph.Name {
-                oldMultiGraph = omg
+                oldMultiGraphPtr = &omg
                 // Check if marked for removal
                 if diffMultiGraph.Rm {
                     // splice
@@ -264,7 +264,9 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
         }
         if diffMultiGraph.Rm { continue }
         // if diff doesn't exist yet, add it to the list
-        if &oldMultiGraph == nil {
+        fmt.Printf("1\n")
+        if oldMultiGraphPtr == nil {
+            fmt.Printf("2\n")
             oldSavedMultiGraphs = append(oldSavedMultiGraphs,diffMultiGraph)
             continue
         }
@@ -273,15 +275,15 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
             for _, diffDrawnForm := range diffMultiGraph.Drawn {
                 // try to find oldDrawnForm match
                 var oldDrawnForm *SavedDrawnForm
-                for i, odf := range oldMultiGraph.Drawn {
+                for i, odf := range oldMultiGraphPtr.Drawn {
                     if odf.Id == diffDrawnForm.Id {
                         oldDrawnForm = odf
                         // Check if marked for removal
                         if diffDrawnForm.Rm {
-                            if i+1 < len(oldMultiGraph.Drawn) {
-                                oldMultiGraph.Drawn = append(oldMultiGraph.Drawn[:i],oldMultiGraph.Drawn[i+1:]...)
+                            if i+1 < len(oldMultiGraphPtr.Drawn) {
+                                oldMultiGraphPtr.Drawn = append(oldMultiGraphPtr.Drawn[:i],oldMultiGraphPtr.Drawn[i+1:]...)
                             } else {
-                                oldMultiGraph.Drawn = oldMultiGraph.Drawn[:i]
+                                oldMultiGraphPtr.Drawn = oldMultiGraphPtr.Drawn[:i]
                             }
                         }
                         break
@@ -290,7 +292,7 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
                 if diffDrawnForm.Rm { continue }
                 // if diff doesn't exist yet, add it to the list
                 if oldDrawnForm == nil {
-                    oldMultiGraph.Drawn = append(oldMultiGraph.Drawn,diffDrawnForm)
+                    oldMultiGraphPtr.Drawn = append(oldMultiGraphPtr.Drawn,diffDrawnForm)
                     continue
                 }
                 // merge DrawnForm
@@ -302,7 +304,7 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
                 }
             }
             // TODO sort
-            sort.Sort(SavedDrawnFormSortId(oldMultiGraph.Drawn))
+            sort.Sort(SavedDrawnFormSortId(oldMultiGraphPtr.Drawn))
         }
     }
     sort.Sort(SavedMultiGraphSliceSortName(oldSavedMultiGraphs))
@@ -313,10 +315,10 @@ func MergeSavedTags (diffSavedTags []SavedTag, oldSavedTags []SavedTag) []SavedT
     // Merge oldTags with diff
     for _, diffTag := range diffSavedTags {
         // try to find diffTag match
-        var oldTag SavedTag
+        var oldTagPtr *SavedTag
         for i, oTag := range oldSavedTags {
             if oTag.Name == diffTag.Name {
-                oldTag = oTag
+                oldTagPtr = &oTag
                 if diffTag.Rm {
                     if i+1 < len(oldSavedTags) {
                         oldSavedTags = append(oldSavedTags[:i],oldSavedTags[i+1:]...)
@@ -329,33 +331,33 @@ func MergeSavedTags (diffSavedTags []SavedTag, oldSavedTags []SavedTag) []SavedT
         }
         if diffTag.Rm { continue }
         // if diff doesn't exist yet, add it to the list
-        if &oldTag == nil {
+        if oldTagPtr == nil {
             oldSavedTags = append(oldSavedTags,diffTag)
             continue
         }
         // Check if marked for removal
         // ### MERGE ###
         if diffTag.Blob != nil {
-            oldTag.Blob = diffTag.Blob
+            oldTagPtr.Blob = diffTag.Blob
         }
         if diffTag.Blob != nil {
-            oldTag.Ind = diffTag.Ind
+            oldTagPtr.Ind = diffTag.Ind
         }
         if len(diffTag.Ids) > 0 {
             // compare IDs
             // Sending an ID with a diff object 'toggles' it on the server
             // e.g if sent ID already exists, it is removed, and vice versa
             // This is safe because 'old' and 'new' hashes must also match
-            oldTag.Ids = append(oldTag.Ids,diffTag.Ids...)
-            sort.Sort(IdSliceSort(oldTag.Ids))
+            oldTagPtr.Ids = append(oldTagPtr.Ids,diffTag.Ids...)
+            sort.Sort(IdSliceSort(oldTagPtr.Ids))
             // now remove any id appearing more than once
             prevSet := true
-            for i:= len(oldTag.Ids)-2; i>= 0; i = i-1 {
-                if prevSet && oldTag.Ids[i] == oldTag.Ids[i+1] {
-                    if (i+2 < len(oldTag.Ids)) {
-                        oldTag.Ids = append(oldTag.Ids[:i], oldTag.Ids[i+2:]...)
+            for i:= len(oldTagPtr.Ids)-2; i>= 0; i = i-1 {
+                if prevSet && oldTagPtr.Ids[i] == oldTagPtr.Ids[i+1] {
+                    if (i+2 < len(oldTagPtr.Ids)) {
+                        oldTagPtr.Ids = append(oldTagPtr.Ids[:i], oldTagPtr.Ids[i+2:]...)
                     } else {
-                        oldTag.Ids = oldTag.Ids[:i]
+                        oldTagPtr.Ids = oldTagPtr.Ids[:i]
                     }
                     prevSet = false
                 } else {
@@ -1147,10 +1149,14 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "{\"r\":")
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["n"] != nil && req.Form["nh"] != nil && req.Form["g"] != nil && req.Form["gh"] != nil && req.Form["t"] != nil && req.Form["th"] != nil {
+        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["nh"] != nil && req.Form["gh"] != nil && req.Form["th"] != nil{
             // profile-sync: sync request
             // h = passHash, n = notesdiff, g = graphsdiff, t = tagsdiff (and the end result hashes)
-            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["n"][0], req.Form["nh"][0], req.Form["g"][0], req.Form["gh"][0], req.Form["t"][0], req.Form["th"][0], rw)
+            var n, g, t string
+            if req.Form["n"] != nil { n = req.Form["n"][0] }
+            if req.Form["g"] != nil { g = req.Form["g"][0] }
+            if req.Form["t"] != nil { t = req.Form["t"][0] }
+            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], n, req.Form["nh"][0], g, req.Form["gh"][0], t, req.Form["th"][0], rw)
         } else if req.Form["lsave"] != nil {
             // link-save: existing code (or empty string if none)
             // n = notes, nh = notes hash, g = graphs, gh = graphs hash, t = tags, th = tags hash
@@ -1542,17 +1548,13 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
     password, pwdversion, salt, userhash := GenerateUserPassword()
 
     // generate empty papers and tags strings etc.
-    papersStr := "v:4"
+    emptyJSON := "[]"
     hash1 := sha1.New()
-    io.WriteString(hash1, fmt.Sprintf("%s", string(papersStr)))
-    papershash := fmt.Sprintf("%x",hash1.Sum(nil))
-    tagsStr := "v:2"
-    hash1 = sha1.New()
-    io.WriteString(hash1, fmt.Sprintf("%s", string(tagsStr)))
-    tagshash := fmt.Sprintf("%x",hash1.Sum(nil))
+    io.WriteString(hash1, fmt.Sprintf("%s", string(emptyJSON)))
+    emptyhash := fmt.Sprintf("%x",hash1.Sum(nil))
 
     // create database entry
-    stmt = h.papers.StatementBegin("INSERT INTO userdata (usermail,userhash,salt,pwdversion,papers,papershash,tags,tagshash,lastlogin) VALUES (?,?,?,?,?,?,?,?,NOW())",h.papers.db.Escape(usermail),userhash,salt,pwdversion,papersStr,papershash,tagsStr,tagshash)
+    stmt = h.papers.StatementBegin("INSERT INTO userdata (usermail,userhash,salt,pwdversion,notes,noteshash,graphs,graphshash,tags,tagshash,lastlogin) VALUES (?,?,?,?,?,?,?,?,?,?,NOW())",h.papers.db.Escape(usermail),userhash,salt,pwdversion,emptyJSON,emptyhash,emptyJSON,emptyhash,emptyJSON,emptyhash)
     if !h.papers.StatementEnd(stmt) {
         return
     }
@@ -1596,7 +1598,6 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
 
     var notes,graphs,tags []byte
     var noteshashDb,graphshashDb,tagshashDb string
-
     stmt := h.papers.StatementBegin("SELECT notes,graphs,tags,noteshash,graphshash,tagshash FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
     if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags,&noteshashDb,&graphshashDb,&tagshashDb) {
         return
@@ -1645,97 +1646,112 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
         return
     }
 
-    var notes,graphs,tags string
+    var notes,graphs,tags,noteshashDb,graphshashDb,tagshashDb string
     var err error
     var hash hash.Hash
 
-    stmt := h.papers.StatementBegin("SELECT notes,graphs,tags FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
-    if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags) {
+    stmt := h.papers.StatementBegin("SELECT notes,noteshash,graphs,graphshash,tags,tagshash FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
+    if !h.papers.StatementBindSingleRow(stmt,&notes,&noteshashDb,&graphs,&graphshashDb,&tags,&tagshashDb) {
         return
     }
 
     // NOTES
+    // default:
+    newNotesJSON := []byte(notes)
+    newNoteshash := noteshashDb
+    // see if diff given:
+    if len(diffnotes) > 0 {
+        var oldSavedNotes []SavedNote
+        err = json.Unmarshal([]byte(notes),&oldSavedNotes)
+        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    var oldSavedNotes []SavedNote
-    err = json.Unmarshal([]byte(notes),&oldSavedNotes)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        var diffSavedNotes []SavedNote
+        err = json.Unmarshal([]byte(diffnotes),&diffSavedNotes)
+        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    var diffSavedNotes []SavedNote
-    err = json.Unmarshal([]byte(diffnotes),&diffSavedNotes)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        fmt.Printf("for user %s, read %d notes from db\n", usermail, len(oldSavedNotes))
+        fmt.Printf("for user %s, read %d diff notes from internets\n", usermail, len(diffSavedNotes))
 
-    fmt.Printf("for user %s, read %d notes from db\n", usermail, len(oldSavedNotes))
-    fmt.Printf("for user %s, read %d diff notes from internets\n", usermail, len(diffSavedNotes))
+        // Merge
+        newSavedNotes := MergeSavedNotes(diffSavedNotes, oldSavedNotes)
+        newNotesJSON, err = json.Marshal(newSavedNotes)
+        hash = sha1.New()
+        io.WriteString(hash, fmt.Sprintf("%s", string(newNotesJSON)))
+        newNoteshash = fmt.Sprintf("%x",hash.Sum(nil))
 
-    // Merge
-    newSavedNotes := MergeSavedNotes(diffSavedNotes, oldSavedNotes)
-    var newNotesJSON []byte
-    newNotesJSON, err = json.Marshal(newSavedNotes)
-    hash = sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", string(newNotesJSON)))
-    newNoteshash := fmt.Sprintf("%x",hash.Sum(nil))
-
-    // compare with hashes we were sent (should match!!)
-    if newNoteshash != noteshash {
-        fmt.Printf("Error: for user %s, new sync notes hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
-        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
-        return
+        // compare with hashes we were sent (should match!!)
+        if newNoteshash != noteshash {
+            fmt.Printf("Error: for user %s, new sync notes hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
+            fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+            return
+        }
     }
 
     // GRAPHS
 
-    var oldSavedGraphs []SavedMultiGraph
-    err = json.Unmarshal([]byte(graphs),&oldSavedGraphs)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+    // default:
+    newGraphsJSON := []byte(graphs)
+    newGraphshash := graphshashDb
+    // see if diff given:
+    if len(diffgraphs) > 0 {
+        var oldSavedGraphs []SavedMultiGraph
+        err = json.Unmarshal([]byte(graphs),&oldSavedGraphs)
+        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    var diffSavedGraphs []SavedMultiGraph
-    err = json.Unmarshal([]byte(diffgraphs),&diffSavedGraphs)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        var diffSavedGraphs []SavedMultiGraph
+        err = json.Unmarshal([]byte(diffgraphs),&diffSavedGraphs)
+        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    fmt.Printf("for user %s, read %d graphs from db\n", usermail, len(oldSavedGraphs))
-    fmt.Printf("for user %s, read %d diff graphs from internets\n", usermail, len(diffSavedGraphs))
+        fmt.Printf("for user %s, read %d graphs from db\n", usermail, len(oldSavedGraphs))
+        fmt.Printf("for user %s, read %d diff graphs from internets\n", usermail, len(diffSavedGraphs))
 
-    // Merge
-    newSavedGraphs := MergeSavedMultiGraphs(diffSavedGraphs, oldSavedGraphs)
-    var newGraphsJSON []byte
-    newGraphsJSON, err = json.Marshal(newSavedGraphs)
-    hash = sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", string(newGraphsJSON)))
-    newGraphshash := fmt.Sprintf("%x",hash.Sum(nil))
+        // Merge
+        newSavedGraphs := MergeSavedMultiGraphs(diffSavedGraphs, oldSavedGraphs)
+        newGraphsJSON, err = json.Marshal(newSavedGraphs)
+        fmt.Printf("%s\n",newGraphsJSON)
+        hash = sha1.New()
+        io.WriteString(hash, fmt.Sprintf("%s", string(newGraphsJSON)))
+        newGraphshash = fmt.Sprintf("%x",hash.Sum(nil))
 
-    // compare with hashes we were sent (should match!!)
-    if newGraphshash != graphshash {
-        fmt.Printf("Error: for user %s, new sync notes hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
-        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
-        return
+        // compare with hashes we were sent (should match!!)
+        if newGraphshash != graphshash {
+            fmt.Printf("Error: for user %s, new sync graph hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
+            fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+            return
+        }
     }
 
     // TAGS
 
-    var oldSavedTags []SavedTag
-    err = json.Unmarshal([]byte(tags),&oldSavedTags)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+    // default:
+    newTagsJSON := []byte(tags)
+    newTagshash := tagshashDb
+    // see if diff given:
+    if len(difftags) > 0 {
+        var oldSavedTags []SavedTag
+        err = json.Unmarshal([]byte(tags),&oldSavedTags)
+        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    var diffSavedTags []SavedTag
-    err = json.Unmarshal([]byte(difftags),&diffSavedTags)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        var diffSavedTags []SavedTag
+        err = json.Unmarshal([]byte(difftags),&diffSavedTags)
+        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldSavedTags))
-    fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(diffSavedTags))
+        fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldSavedTags))
+        fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(diffSavedTags))
 
-    // Merge
-    newSavedTags := MergeSavedTags(diffSavedTags, oldSavedTags)
-    var newTagsJSON []byte
-    newTagsJSON, err = json.Marshal(newSavedTags)
-    hash = sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", string(newTagsJSON)))
-    newTagshash := fmt.Sprintf("%x",hash.Sum(nil))
+        // Merge
+        newSavedTags := MergeSavedTags(diffSavedTags, oldSavedTags)
+        newTagsJSON, err = json.Marshal(newSavedTags)
+        hash = sha1.New()
+        io.WriteString(hash, fmt.Sprintf("%s", string(newTagsJSON)))
+        newTagshash = fmt.Sprintf("%x",hash.Sum(nil))
 
-    // compare with hashes we were sent (should match!!)
-    if newTagshash != tagshash {
-        fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,newTagshash,tagshash)
-        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
-        return
+        // compare with hashes we were sent (should match!!)
+        if newTagshash != tagshash {
+            fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,newTagshash,tagshash)
+            fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+            return
+        }
     }
 
     /* MYSQL */
@@ -1789,18 +1805,21 @@ func (h *MyHTTPHandler) LinkLoad(code string, rw http.ResponseWriter) {
     h.PrintJSONPapersList(rw,papersList)
 
     // NOTES
+    if len(notes) == 0 { notes = []byte("[]") }
     hash = sha1.New()
     io.WriteString(hash, fmt.Sprintf("%s", string(notes)))
     noteshash := fmt.Sprintf("%x",hash.Sum(nil))
     fmt.Fprintf(rw, ",\"note\":%s,\"nh\":\"%s\"",string(notes),noteshash)
 
     // GRAPHS
+    if len(graphs) == 0 { graphs =  []byte("[]") }
     hash = sha1.New()
     io.WriteString(hash, fmt.Sprintf("%s", string(graphs)))
     graphshash := fmt.Sprintf("%x",hash.Sum(nil))
     fmt.Fprintf(rw, ",\"grph\":%s,\"gh\":\"%s\"",string(graphs),graphshash)
 
     // TAGS
+    if len(tags) == 0 { tags = []byte("[]") }
     hash = sha1.New()
     io.WriteString(hash, fmt.Sprintf("%s", string(tags)))
     tagshash := fmt.Sprintf("%x",hash.Sum(nil))
