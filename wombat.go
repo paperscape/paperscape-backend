@@ -105,27 +105,34 @@ func main() {
 
 /****************************************************************/
 
+// As these SavedX objects will be unmarshaled, make relevant elements pointers
+// so that if an element is missing it will be nil (instead of 0, "", false etc)
+
 type SavedDrawnForm struct {
-    Id      uint64     `json:"id"`
-    X       int64     `json:"x"`
-    R       int64     `json:"r"`
+    Id      uint     `json:"id"`
+    X       *int     `json:"x"`
+    R       *int     `json:"r"`
+    Rm      bool     `json:"rm,omitempty"`
 }
 
 type SavedMultiGraph struct {
     Name    string           `json:"name"`
-    Drawn   []SavedDrawnForm `json:"drawn"`
+    Drawn   []*SavedDrawnForm `json:"drawn"`
+    Rm      bool             `json:"rm,omitempty"`
 }
 
 type SavedTag struct {
     Name    string    `json:"name"`
-    Ind     uint64   `json:"ind"`
-    Blob    bool      `json:"blob"`
-    Ids     []uint64 `json:"ids"`
+    Ind     *uint     `json:"ind"`
+    Blob    *bool     `json:"blob"`
+    Ids     []uint    `json:"ids"`
+    Rm      bool      `json:"rm,omitempty"`
 }
 
 type SavedNote struct {
-    Id      uint64 `json:"id"`
-    Notes   string  `json:"notes"`
+    Id      uint    `json:"id"`
+    Notes   *string `json:"notes"`
+    Rm      bool    `json:"rm,omitempty"`
 }
 
 type Link struct {
@@ -163,41 +170,168 @@ type Paper struct {
     //remove     bool     // for loaded profile, mark to remove from db
 }
 
-// TODO remove:
-type Tag struct {
-    name       string   // unique name
-    active     bool     // whether tag is active *obsolete*
-    blobbed    bool     // whether tag is blobbed
-    blobCol    int      // index of blob colour array
-    starred    bool     // whether tag is starred
-    remove     bool     // for loaded profile, mark to remove from db
-    index      uint     // its position in tag array (necessary if we send differences rather than whole list)
-}
-
 // first is one with smallest id
 type PaperSliceSortId []*Paper
-
 func (ps PaperSliceSortId) Len() int           { return len(ps) }
 func (ps PaperSliceSortId) Less(i, j int) bool { return ps[i].id < ps[j].id }
 func (ps PaperSliceSortId) Swap(i, j int)      { ps[i], ps[j] = ps[j], ps[i] }
 
-// sort alphabetically 
-//type TagSliceSortName []*Tag
-//
-//func (ts TagSliceSortName) Len() int           { return len(ts) }
-//func (ts TagSliceSortName) Less(i, j int) bool {
-//    // tag names are wrapped with "", so remove these first before sorting
-//    return ts[i].name[1:len(ts[i].name)-1] < ts[j].name[1:len(ts[j].name)-1]
-//}
-//func (ts TagSliceSortName) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
+type IdSliceSort []uint
+func (id IdSliceSort) Len() int           { return len(id) }
+func (id IdSliceSort) Less(i, j int) bool { return id[i] < id[j] }
+func (id IdSliceSort) Swap(i, j int)      { id[i], id[j] = id[j], id[i] }
 
-// sort by index 
-//type TagSliceSortIndex []*Tag
-//
-//func (ts TagSliceSortIndex) Len() int           { return len(ts) }
-//func (ts TagSliceSortIndex) Less(i, j int) bool { return ts[i].index < ts[j].index }
-//func (ts TagSliceSortIndex) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
+type SavedNoteSliceSortId []SavedNote
+func (sn SavedNoteSliceSortId) Len() int           { return len(sn) }
+func (sn SavedNoteSliceSortId) Less(i, j int) bool { return sn[i].Id < sn[j].Id }
+func (sn SavedNoteSliceSortId) Swap(i, j int)      { sn[i], sn[j] = sn[j], sn[i] }
 
+type SavedMultiGraphSliceSortName []SavedMultiGraph
+func (mg SavedMultiGraphSliceSortName) Len() int           { return len(mg) }
+func (mg SavedMultiGraphSliceSortName) Less(i, j int) bool {
+    // graph names are wrapped with "", so remove these first before sorting
+    //return mg[i].Name[1:len(mg[i].name)-1] < mg[j].Name[1:len(mg[i].name)-1]
+    return mg[i].Name < mg[j].Name
+}
+func (mg SavedMultiGraphSliceSortName) Swap(i, j int)      { mg[i], mg[j] = mg[j], mg[i] }
+
+type SavedTagSliceSortIndex []SavedTag
+func (ts SavedTagSliceSortIndex) Len() int           { return len(ts) }
+func (ts SavedTagSliceSortIndex) Less(i, j int) bool { return *ts[i].Ind < *ts[j].Ind }
+func (ts SavedTagSliceSortIndex) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
+
+/****************************************************************/
+
+func MergeSavedNotes (diffSavedNotes []SavedNote, oldSavedNotes []SavedNote) []SavedNote {
+    var newSavedNotes []SavedNote
+    // Merge oldNotes with diff
+    for _, oldNote := range oldSavedNotes {
+        // try to find diffNote match
+        var diffNote SavedNote
+        for _, dn := range diffSavedNotes {
+            if dn.Id == oldNote.Id {
+                diffNote = dn
+                break
+            }
+        }
+        // Check if diff specified
+        if &diffNote == nil {
+            newSavedNotes = append(newSavedNotes,oldNote)
+            continue
+        }
+        // Check if marked for removal
+        if diffNote.Rm {
+            continue
+        }
+        // Else ### MERGE ###
+        if diffNote.Notes != nil {
+            oldNote.Notes = diffNote.Notes
+        }
+        newSavedNotes = append(newSavedNotes,oldNote)
+    }
+    // Add new diffNotes
+    for _, diffNote := range diffSavedNotes {
+        // Check if marked for removal
+        if diffNote.Rm {
+            continue
+        }
+        // Check if new
+        exists := false
+        for _, oldNote := range oldSavedNotes {
+            if diffNote.Id == oldNote.Id {
+                exists = true
+                break
+            }
+        }
+        if !exists {
+            newSavedNotes = append(newSavedNotes,diffNote)
+        }
+    }
+    sort.Sort(SavedNoteSliceSortId(newSavedNotes))
+    return newSavedNotes
+}
+
+func MergeSavedMultiGraphs (diffSavedGraphs []SavedMultiGraph, oldSavedGraphs []SavedMultiGraph) []SavedMultiGraph {
+    var newSavedGraphs []SavedMultiGraph
+    // TODO
+    
+    sort.Sort(SavedMultiGraphSliceSortName(newSavedGraphs))
+    return newSavedGraphs
+}
+
+func MergeSavedTags (diffSavedTags []SavedTag, oldSavedTags []SavedTag) []SavedTag {
+    var newSavedTags []SavedTag
+    // Merge oldTags with diff
+    for _, oldTag := range oldSavedTags {
+        // try to find diffTag match
+        var diffTag SavedTag
+        for _, dTag := range diffSavedTags {
+            if dTag.Name == oldTag.Name {
+                diffTag = dTag
+                break
+            }
+        }
+        // Check if diff specified
+        if &diffTag == nil {
+            newSavedTags = append(newSavedTags,oldTag)
+            continue
+        }
+        // Check if marked for removal
+        if diffTag.Rm {
+            continue
+        }
+        // Else ### MERGE ###
+        if diffTag.Blob != nil {
+            oldTag.Blob = diffTag.Blob
+        }
+        if diffTag.Blob != nil {
+            oldTag.Ind = diffTag.Ind
+        }
+        if len(diffTag.Ids) > 0 {
+            // compare IDs
+            // Sending an ID with a diff object 'toggles' it on the server
+            // e.g if sent ID already exists, it is removed, and vice versa
+            // This is safe because 'old' and 'new' hashes must also match
+            oldTag.Ids = append(oldTag.Ids,diffTag.Ids...)
+            sort.Sort(IdSliceSort(oldTag.Ids))
+            // now remove any id appearing more than once
+            prevSet := true
+            for i:= len(oldTag.Ids)-2; i>= 0; i = i-1 {
+                if prevSet && oldTag.Ids[i] == oldTag.Ids[i+1] {
+                    if (i+2 < len(oldTag.Ids)) {
+                        oldTag.Ids = append(oldTag.Ids[:i], oldTag.Ids[i+2:]...)
+                    } else {
+                        oldTag.Ids = oldTag.Ids[:i]
+                    }
+                    prevSet = false
+                } else {
+                    prevSet = true
+                }
+            }
+        }
+        newSavedTags = append(newSavedTags,oldTag)
+    }
+    // Add new diffTags
+    for _, diffTag := range diffSavedTags {
+        // Check if marked for removal
+        if diffTag.Rm {
+            continue
+        }
+        // Check if new
+        exists := false
+        for _, oldTag := range oldSavedTags {
+            if diffTag.Name == oldTag.Name {
+                exists = true
+                break
+            }
+        }
+        if !exists {
+            newSavedTags = append(newSavedTags,diffTag)
+        }
+    }
+    sort.Sort(SavedTagSliceSortIndex(newSavedTags))
+    return newSavedTags
+}
 
 /****************************************************************/
 
@@ -692,7 +826,7 @@ func (h *MyHTTPHandler) PaperListFromDatabaseJSON (notesJSON []byte, graphsJSON 
     if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
     // This list can have duplicates, as we check for them below
-    var ids []uint64;
+    var ids []uint;
     for _, note := range savedNotes {
         ids = append(ids,note.Id)
     }
@@ -731,10 +865,10 @@ func (h *MyHTTPHandler) PrintJSONPapersList(w io.Writer, papersList []*Paper) {
     // TODO maybe handier to simply have this in memory
     row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
     h.papers.QueryEnd()
-    var db uint
+    var db uint64
     if row != nil {
         var ok bool
-        if db, ok = row[0].(uint); !ok {
+        if db, ok = row[0].(uint64); !ok {
             fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from Row\n")
             db = 0
         }
@@ -751,7 +885,7 @@ func (h *MyHTTPHandler) PrintJSONPapersList(w io.Writer, papersList []*Paper) {
             // This is expensive operation
             h.papers.QueryCites(paper, false)
             fmt.Fprintf(w, ",")
-            PrintJSONNewCites(w, paper, db)
+            PrintJSONNewCites(w, paper, uint(db))
         }
         fmt.Fprintf(w, "}")
     }
@@ -978,10 +1112,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "{\"r\":")
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["t"] != nil && req.Form["ph"] != nil && req.Form["th"] != nil {
+        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["n"] != nil && req.Form["nh"] != nil && req.Form["g"] != nil && req.Form["gh"] != nil && req.Form["t"] != nil && req.Form["th"] != nil {
             // profile-sync: sync request
-            // h = passHash, p = papersdiff, t = tagsdiff
-            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["p"][0], req.Form["t"][0], req.Form["ph"][0], req.Form["th"][0], rw)
+            // h = passHash, n = notesdiff, g = graphsdiff, t = tagsdiff (and the end result hashes)
+            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], req.Form["n"][0], req.Form["nh"][0], req.Form["g"][0], req.Form["gh"][0], req.Form["t"][0], req.Form["th"][0], rw)
         } else if req.Form["lsave"] != nil {
             // link-save: existing code (or empty string if none)
             // n = notes, nh = notes hash, g = graphs, gh = graphs hash, t = tags, th = tags hash
@@ -1471,117 +1605,100 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
 }
 
 /* Profile Sync */
-func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers string, difftags string, papershash string, tagshash string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes string, noteshash string, diffgraphs string, graphshash string, difftags string, tagshash string, rw http.ResponseWriter) {
     if !h.ProfileAuthenticate(usermail,passhash) {
         return
     }
 
-    var papers,tags []byte
+    var notes,graphs,tags string
+    var err error
+    var hash hash.Hash
 
-    stmt := h.papers.StatementBegin("SELECT papers,tags FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
-    if !h.papers.StatementBindSingleRow(stmt,&papers,&tags) {
+    stmt := h.papers.StatementBegin("SELECT notes,graphs,tags FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
+    if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags) {
         return
     }
 
-    /* PAPERS */
-    /**********/
+    // NOTES
 
-    var oldpapersList []*Paper
-    //oldpapersList := h.PaperListFromDBString(papers)
-    fmt.Printf("for user %s, read %d papers from db\n", usermail, len(oldpapersList))
+    var oldSavedNotes []SavedNote
+    err = json.Unmarshal([]byte(notes),&oldSavedNotes)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    // papers without details e.g. (id) are flagged with a "remove" 
-    var newpapersList []*Paper
-    //newpapersList := h.PaperListFromDBString([]byte(diffpapers))
-    fmt.Printf("for user %s, read %d diff papers from internets\n", usermail, len(newpapersList))
+    var diffSavedNotes []SavedNote
+    err = json.Unmarshal([]byte(diffnotes),&diffSavedNotes)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    // make one super list of unique papers (diffpapers override oldpapers)
-    for _, oldpaper := range oldpapersList {
-        exists := false
-        for _, diffpaper := range newpapersList {
-            if diffpaper.id == oldpaper.id {
-                exists = true
-                break
-            }
-        }
-        if !exists {
-            newpapersList = append(newpapersList,oldpaper)
-        }
-    }
+    fmt.Printf("for user %s, read %d notes from db\n", usermail, len(oldSavedNotes))
+    fmt.Printf("for user %s, read %d diff notes from internets\n", usermail, len(diffSavedNotes))
 
-    var papersList []*Paper
-    // remove papers marked with "remove" or those with empty layers and tags!
-    //for _, paper := range newpapersList {
-    //    if !paper.remove && (len(paper.layers) > 0 || len(paper.tags) > 0) {
-    //        papersList = append(papersList,paper)
-    //    }
-    //}
-
-    // sort this list
-    sort.Sort(PaperSliceSortId(papersList))
-    papersStr := "" // TODO
-    //papersStr := h.PaperListToDBString(papersList)
-
-    // create new hashes 
-    hash := sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
-    papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
+    // Merge
+    newSavedNotes := MergeSavedNotes(diffSavedNotes, oldSavedNotes)
+    var newNotesJSON []byte
+    newNotesJSON, err = json.Marshal(newSavedNotes)
+    hash = sha1.New()
+    io.WriteString(hash, fmt.Sprintf("%s", string(newNotesJSON)))
+    newNoteshash := fmt.Sprintf("%x",hash.Sum(nil))
 
     // compare with hashes we were sent (should match!!)
-    if papershash != papershashDb {
-        fmt.Printf("Error: for user %s, new sync paper hashes don't match those sent from client: %s vs %s\n", usermail,papershash,papershashDb)
+    if newNoteshash != noteshash {
+        fmt.Printf("Error: for user %s, new sync notes hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
         fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
 
-    /* TAGS */
-    /********/
+    // GRAPHS
 
-    var oldtagsList []*Tag // TODO
-    //oldtagsList := h.TagListFromDBString(tags);
-    fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldtagsList))
+    var oldSavedGraphs []SavedMultiGraph
+    err = json.Unmarshal([]byte(graphs),&oldSavedGraphs)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    // tags without details e.g. (name) are flagged with a "remove" 
-    var newtagsList []*Tag // TODO
-    //newtagsList := h.TagListFromDBString([]byte(difftags))
-    fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(newtagsList))
+    var diffSavedGraphs []SavedMultiGraph
+    err = json.Unmarshal([]byte(diffgraphs),&diffSavedGraphs)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
 
-    // make one super list of unique tags (difftags override oldtags)
-    for _, oldtag := range oldtagsList {
-        exists := false
-        for _, difftag := range newtagsList {
-            if difftag.name == oldtag.name {
-                exists = true
-                break
-            }
-        }
-        if !exists {
-            newtagsList = append(newtagsList,oldtag)
-        }
-    }
+    fmt.Printf("for user %s, read %d graphs from db\n", usermail, len(oldSavedGraphs))
+    fmt.Printf("for user %s, read %d diff graphs from internets\n", usermail, len(diffSavedGraphs))
 
-    var tagsList []*Tag
-    // remove tags marked with "remove" 
-    for _, tag := range newtagsList {
-        if !tag.remove {
-            tagsList = append(tagsList,tag)
-        }
-    }
-
-    // sort this list
-    // Keep in original order!
-    //sort.Sort(TagSliceSortName(tagsList))
-    //sort.Sort(TagSliceSortIndex(tagsList))
-    tagsStr := ""
-    //tagsStr := h.TagListToDBString(tagsList)
-
+    // Merge
+    newSavedGraphs := MergeSavedMultiGraphs(diffSavedGraphs, oldSavedGraphs)
+    var newGraphsJSON []byte
+    newGraphsJSON, err = json.Marshal(newSavedGraphs)
     hash = sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
-    tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
+    io.WriteString(hash, fmt.Sprintf("%s", string(newGraphsJSON)))
+    newGraphshash := fmt.Sprintf("%x",hash.Sum(nil))
 
     // compare with hashes we were sent (should match!!)
-    if tagshash != tagshashDb {
-        fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,tagshash,tagshashDb)
+    if newGraphshash != graphshash {
+        fmt.Printf("Error: for user %s, new sync notes hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
+        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+        return
+    }
+
+    // TAGS
+
+    var oldSavedTags []SavedTag
+    err = json.Unmarshal([]byte(tags),&oldSavedTags)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+
+    var diffSavedTags []SavedTag
+    err = json.Unmarshal([]byte(difftags),&diffSavedTags)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+
+    fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldSavedTags))
+    fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(diffSavedTags))
+
+    // Merge
+    newSavedTags := MergeSavedTags(diffSavedTags, oldSavedTags)
+    var newTagsJSON []byte
+    newTagsJSON, err = json.Marshal(newSavedTags)
+    hash = sha1.New()
+    io.WriteString(hash, fmt.Sprintf("%s", string(newTagsJSON)))
+    newTagshash := fmt.Sprintf("%x",hash.Sum(nil))
+
+    // compare with hashes we were sent (should match!!)
+    if newTagshash != tagshash {
+        fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,newTagshash,tagshash)
         fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
@@ -1589,14 +1706,14 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers
     /* MYSQL */
     /*********/
 
-    stmt = h.papers.StatementBegin("UPDATE userdata SET papers = ?, tags = ?, papershash = ?, tagshash = ?, numsync = numsync + 1, lastsync = NOW() WHERE usermail = ?", papersStr, tagsStr, papershashDb, tagshashDb, h.papers.db.Escape(usermail))
+    stmt = h.papers.StatementBegin("UPDATE userdata SET notes = ?, graphs = ?, tags = ?, noteshash = ?, graphshash = ?, tagshash = ?, numsync = numsync + 1, lastsync = NOW() WHERE usermail = ?", newNotesJSON, newGraphsJSON, newTagsJSON, newNoteshash, newGraphshash, newTagshash, h.papers.db.Escape(usermail))
     if !h.papers.StatementEnd(stmt) {
         fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
 
     // We succeeded
-    fmt.Fprintf(rw, "{\"succ\":\"true\",\"ph\":\"%s\",\"th\":\"%s\"}",papershashDb,tagshashDb)
+    fmt.Fprintf(rw, "{\"succ\":\"true\",\"nh\":\"%s\",\"gh\":\"%s\",\"th\":\"%s\"}",newNoteshash,newGraphshash,newTagshash)
 
 }
 
