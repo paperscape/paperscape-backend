@@ -181,6 +181,11 @@ func (id IdSliceSort) Len() int           { return len(id) }
 func (id IdSliceSort) Less(i, j int) bool { return id[i] < id[j] }
 func (id IdSliceSort) Swap(i, j int)      { id[i], id[j] = id[j], id[i] }
 
+type SavedDrawnFormSortId []*SavedDrawnForm
+func (df SavedDrawnFormSortId) Len() int           { return len(df) }
+func (df SavedDrawnFormSortId) Less(i, j int) bool { return df[i].Id < df[j].Id }
+func (df SavedDrawnFormSortId) Swap(i, j int)      { df[i], df[j] = df[j], df[i] }
+
 type SavedNoteSliceSortId []SavedNote
 func (sn SavedNoteSliceSortId) Len() int           { return len(sn) }
 func (sn SavedNoteSliceSortId) Less(i, j int) bool { return sn[i].Id < sn[j].Id }
@@ -203,84 +208,133 @@ func (ts SavedTagSliceSortIndex) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[
 /****************************************************************/
 
 func MergeSavedNotes (diffSavedNotes []SavedNote, oldSavedNotes []SavedNote) []SavedNote {
-    var newSavedNotes []SavedNote
     // Merge oldNotes with diff
-    for _, oldNote := range oldSavedNotes {
-        // try to find diffNote match
-        var diffNote SavedNote
-        for _, dn := range diffSavedNotes {
-            if dn.Id == oldNote.Id {
-                diffNote = dn
+    for _, diffNote := range diffSavedNotes {
+        // try to find oldNote match
+        var oldNote SavedNote
+        for i, on := range oldSavedNotes {
+            if on.Id == diffNote.Id {
+                oldNote = on
+                if diffNote.Rm {
+                    // splice
+                    if i+1 < len(oldSavedNotes) {
+                        oldSavedNotes = append(oldSavedNotes[:i],oldSavedNotes[i+1:]...)
+                    } else {
+                        oldSavedNotes = oldSavedNotes[:i]
+                    }
+                }
                 break
             }
         }
+        if diffNote.Rm { continue }
         // Check if diff specified
-        if &diffNote == nil {
-            newSavedNotes = append(newSavedNotes,oldNote)
+        if &oldNote == nil {
+            oldSavedNotes = append(oldSavedNotes,diffNote)
             continue
         }
         // Check if marked for removal
-        if diffNote.Rm {
-            continue
-        }
         // Else ### MERGE ###
         if diffNote.Notes != nil {
             oldNote.Notes = diffNote.Notes
         }
-        newSavedNotes = append(newSavedNotes,oldNote)
     }
-    // Add new diffNotes
-    for _, diffNote := range diffSavedNotes {
-        // Check if marked for removal
-        if diffNote.Rm {
-            continue
-        }
-        // Check if new
-        exists := false
-        for _, oldNote := range oldSavedNotes {
-            if diffNote.Id == oldNote.Id {
-                exists = true
+    sort.Sort(SavedNoteSliceSortId(oldSavedNotes))
+    return oldSavedNotes
+}
+
+func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMultiGraphs []SavedMultiGraph) []SavedMultiGraph {
+    // Merge oldMultiGraphs with diff
+    for _, diffMultiGraph := range diffSavedMultiGraphs {
+        // try to find oldMultiGraph match
+        var oldMultiGraph SavedMultiGraph
+        for i, omg := range oldSavedMultiGraphs {
+            if omg.Name == diffMultiGraph.Name {
+                oldMultiGraph = omg
+                // Check if marked for removal
+                if diffMultiGraph.Rm {
+                    // splice
+                    if i+1 < len(oldSavedMultiGraphs) {
+                        oldSavedMultiGraphs = append(oldSavedMultiGraphs[:i],oldSavedMultiGraphs[i+1:]...)
+                    } else {
+                        oldSavedMultiGraphs = oldSavedMultiGraphs[:i]
+                    }
+                }
                 break
             }
         }
-        if !exists {
-            newSavedNotes = append(newSavedNotes,diffNote)
+        if diffMultiGraph.Rm { continue }
+        // if diff doesn't exist yet, add it to the list
+        if &oldMultiGraph == nil {
+            oldSavedMultiGraphs = append(oldSavedMultiGraphs,diffMultiGraph)
+            continue
+        }
+        // ### MERGE ###
+        if len(diffMultiGraph.Drawn) > 0 {
+            for _, diffDrawnForm := range diffMultiGraph.Drawn {
+                // try to find oldDrawnForm match
+                var oldDrawnForm *SavedDrawnForm
+                for i, odf := range oldMultiGraph.Drawn {
+                    if odf.Id == diffDrawnForm.Id {
+                        oldDrawnForm = odf
+                        // Check if marked for removal
+                        if diffDrawnForm.Rm {
+                            if i+1 < len(oldMultiGraph.Drawn) {
+                                oldMultiGraph.Drawn = append(oldMultiGraph.Drawn[:i],oldMultiGraph.Drawn[i+1:]...)
+                            } else {
+                                oldMultiGraph.Drawn = oldMultiGraph.Drawn[:i]
+                            }
+                        }
+                        break
+                    }
+                }
+                if diffDrawnForm.Rm { continue }
+                // if diff doesn't exist yet, add it to the list
+                if oldDrawnForm == nil {
+                    oldMultiGraph.Drawn = append(oldMultiGraph.Drawn,diffDrawnForm)
+                    continue
+                }
+                // merge DrawnForm
+                if diffDrawnForm.X != nil {
+                    oldDrawnForm.X = diffDrawnForm.X
+                }
+                if diffDrawnForm.R != nil {
+                    oldDrawnForm.R = diffDrawnForm.R
+                }
+            }
+            // TODO sort
+            sort.Sort(SavedDrawnFormSortId(oldMultiGraph.Drawn))
         }
     }
-    sort.Sort(SavedNoteSliceSortId(newSavedNotes))
-    return newSavedNotes
-}
-
-func MergeSavedMultiGraphs (diffSavedGraphs []SavedMultiGraph, oldSavedGraphs []SavedMultiGraph) []SavedMultiGraph {
-    var newSavedGraphs []SavedMultiGraph
-    // TODO
-    
-    sort.Sort(SavedMultiGraphSliceSortName(newSavedGraphs))
-    return newSavedGraphs
+    sort.Sort(SavedMultiGraphSliceSortName(oldSavedMultiGraphs))
+    return oldSavedMultiGraphs
 }
 
 func MergeSavedTags (diffSavedTags []SavedTag, oldSavedTags []SavedTag) []SavedTag {
-    var newSavedTags []SavedTag
     // Merge oldTags with diff
-    for _, oldTag := range oldSavedTags {
+    for _, diffTag := range diffSavedTags {
         // try to find diffTag match
-        var diffTag SavedTag
-        for _, dTag := range diffSavedTags {
-            if dTag.Name == oldTag.Name {
-                diffTag = dTag
+        var oldTag SavedTag
+        for i, oTag := range oldSavedTags {
+            if oTag.Name == diffTag.Name {
+                oldTag = oTag
+                if diffTag.Rm {
+                    if i+1 < len(oldSavedTags) {
+                        oldSavedTags = append(oldSavedTags[:i],oldSavedTags[i+1:]...)
+                    } else {
+                        oldSavedTags = oldSavedTags[:i]
+                    }
+                }
                 break
             }
         }
-        // Check if diff specified
-        if &diffTag == nil {
-            newSavedTags = append(newSavedTags,oldTag)
+        if diffTag.Rm { continue }
+        // if diff doesn't exist yet, add it to the list
+        if &oldTag == nil {
+            oldSavedTags = append(oldSavedTags,diffTag)
             continue
         }
         // Check if marked for removal
-        if diffTag.Rm {
-            continue
-        }
-        // Else ### MERGE ###
+        // ### MERGE ###
         if diffTag.Blob != nil {
             oldTag.Blob = diffTag.Blob
         }
@@ -309,28 +363,9 @@ func MergeSavedTags (diffSavedTags []SavedTag, oldSavedTags []SavedTag) []SavedT
                 }
             }
         }
-        newSavedTags = append(newSavedTags,oldTag)
     }
-    // Add new diffTags
-    for _, diffTag := range diffSavedTags {
-        // Check if marked for removal
-        if diffTag.Rm {
-            continue
-        }
-        // Check if new
-        exists := false
-        for _, oldTag := range oldSavedTags {
-            if diffTag.Name == oldTag.Name {
-                exists = true
-                break
-            }
-        }
-        if !exists {
-            newSavedTags = append(newSavedTags,diffTag)
-        }
-    }
-    sort.Sort(SavedTagSliceSortIndex(newSavedTags))
-    return newSavedTags
+    sort.Sort(SavedTagSliceSortIndex(oldSavedTags))
+    return oldSavedTags
 }
 
 /****************************************************************/
