@@ -675,41 +675,39 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 
 /****************************************************************/
 
-// Converts papers list into string and stores this in userdata table's 'papers' field
-/*
-func (h *MyHTTPHandler) PaperListToDBString (paperList []*Paper) string {
-
-    // This SHOULD be identical to JS code in kea i.e. it should be parseable
-    // by the PaperListFromDBString code below
-    w := new(bytes.Buffer)
-    fmt.Fprintf(w,"v:4"); // PAPERS VERSION 4
-    for _, paper := range paperList {
-        fmt.Fprintf(w,"(%d,%d,%d,%s,l[",paper.id,paper.xPos,paper.rMod,paper.notes);
-        for i, layer := range paper.layers {
-            if i > 0 { fmt.Fprintf(w,","); }
-            fmt.Fprintf(w,"%s",layer);
-        }
-        fmt.Fprintf(w,"],t[");
-        for i, tag := range paper.tags {
-            if i > 0 { fmt.Fprintf(w,","); }
-            fmt.Fprintf(w,"%s",tag);
-        }
-        //fmt.Fprintf(w,"],n[");
-        //for i, newTag := range paper.newTags {
-        //  if i > 0 { fmt.Fprintf(w,","); }
-        //  fmt.Fprintf(w,"%s",newTag);
-        //}
-        fmt.Fprintf(w,"])");
-    }
-    return w.String()
-}*/
-
-
-// Returns a list of papers stored in userdata string field
-func (h *MyHTTPHandler) PaperListFromIDs (paperIds []uint64) []*Paper {
+// Returns a list of papers Objects built from ids extracted from DB JSON strings
+func (h *MyHTTPHandler) PaperListFromDatabaseJSON (notesJSON []byte, graphsJSON []byte, tagsJSON []byte) []*Paper {
     var paperList []*Paper
+    var err error
 
-    for _, paperId := range paperIds {
+    // get list of ids that we need Papers for
+    var savedNotes []SavedNote
+    err = json.Unmarshal(notesJSON,&savedNotes)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+    var savedGraphs []SavedMultiGraph
+    err = json.Unmarshal(graphsJSON,&savedGraphs)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+    var savedTags []SavedTag
+    err = json.Unmarshal(tagsJSON,&savedTags)
+    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+
+    // This list can have duplicates, as we check for them below
+    var ids []uint64;
+    for _, note := range savedNotes {
+        ids = append(ids,note.Id)
+    }
+    for _, graph := range savedGraphs {
+        for _, drawnForm := range graph.Drawn {
+            ids = append(ids,drawnForm.Id)
+        }
+    }
+    for _, tag := range savedTags {
+        for _, id := range tag.Ids {
+            ids = append(ids,id)
+        }
+    }
+
+    for _, paperId := range ids {
         // check paperId not already in list
         exists := false
         for _, p := range paperList {
@@ -727,411 +725,38 @@ func (h *MyHTTPHandler) PaperListFromIDs (paperIds []uint64) []*Paper {
     return paperList
 }
 
-// Returns a list of papers stored in userdata string field
-/*
-func (h *MyHTTPHandler) PaperListFromDBString (papers []byte) []*Paper {
+func (h *MyHTTPHandler) PrintJSONPapersList(w io.Writer, papersList []*Paper) {
 
-    var paperList []*Paper
-    var s scanner.Scanner
-    s.Init(bytes.NewReader(papers))
-    s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
-    tok := s.Scan()
-    papersVersion := 0 // there is no zero version
-
-    // Firstly discover format of saved data
-    if tok == '(' {
-        papersVersion = 1;
-    } else if tok == scanner.Ident && s.TokenText() == "v" {
-        if tok = s.Scan(); tok == ':' {
-            if tok = s.Scan(); tok == scanner.Int {
-                version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-                papersVersion = int(version)
-                tok = s.Scan()
-            }
+    // Get 5 days ago date boundary so we can pass along new cites
+    // TODO maybe handier to simply have this in memory
+    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
+    h.papers.QueryEnd()
+    var db uint
+    if row != nil {
+        var ok bool
+        if db, ok = row[0].(uint); !ok {
+            fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from Row\n")
+            db = 0
         }
     }
 
-    if papersVersion == 1 {
-        // VERSION 1 (deprecated)
-        for tok != scanner.EOF {
-            if tok != '(' { break }
-            if tok = s.Scan(); tok != scanner.Int { break }
-            paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-            if tok = s.Scan(); tok != ',' { break }
-            tok = s.Scan()
-            negate := false;
-            if tok == '-' { negate = true; tok = s.Scan() }
-            if tok != scanner.Int { break }
-            xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-            if negate { xPos = -xPos }
-            if tok = s.Scan(); tok != ',' { break }
-            // pinned is obsolete, but we need to parse it for backwards compat
-            if tok = s.Scan(); tok == scanner.Ident && (s.TokenText() == "pinned" || s.TokenText() == "unpinned") {
-                if tok = s.Scan(); tok != ',' { break }
-                tok = s.Scan()
-            }
-            if tok != scanner.String { break }
-            notes := s.TokenText()
-            var tags []string
-            for tok = s.Scan(); tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                tags = append(tags, s.TokenText())
-            }
-            if tok != ')' { break }
-            paper := h.papers.QueryPaper(uint(paperId), "")
-            h.papers.QueryRefs(paper, false)
-            paper.xPos = int(xPos)
-            paper.rMod = 0
-            paper.notes = notes
-            paper.tags = tags
-            tok = s.Scan()
-            paperList = append(paperList, paper)
+    fmt.Fprintf(w, "[")
+    for i, paper := range papersList {
+        if i > 0 {
+            fmt.Fprintf(w, ",")
         }
-    } else if papersVersion == 2 {
-        // PAPERS VERSION 2 (deprecated)
-        for tok != scanner.EOF {
-            if tok != '(' { break }
-            if tok = s.Scan(); tok != scanner.Int { break }
-            paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-            if tok = s.Scan(); tok != ',' { break }
-            tok = s.Scan()
-            negate := false;
-            if tok == '-' { negate = true; tok = s.Scan() }
-            if tok != scanner.Int { break }
-            xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-            if negate { xPos = -xPos }
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok != scanner.String { break }
-            notes := s.TokenText()
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "l" { break }
-            var layers []string
-            for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                layers = append(layers, s.TokenText())
-            }
-            if tok != ']' { break }
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "t" { break }
-            var tags []string
-            for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                tags = append(tags, s.TokenText())
-            }
-            if tok != ']' { break }
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "n" { break }
-            var newTags []string
-            for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                newTags = append(newTags, s.TokenText())
-            }
-            if tok != ']' { break }
-            if tok = s.Scan(); tok != ')' { break }
-            paper := h.papers.QueryPaper(uint(paperId), "")
-            h.papers.QueryRefs(paper, false)
-            paper.xPos = int(xPos)
-            paper.rMod = 0
-            paper.notes = notes
-            paper.tags = tags
-            paper.layers = layers
-            paper.newTags = newTags
-            tok = s.Scan()
-            paperList = append(paperList, paper)
+        PrintJSONMetaInfo(w, paper)
+        PrintJSONRelevantRefs(w, paper, papersList)
+        if db > 0 {
+            // This is expensive operation
+            h.papers.QueryCites(paper, false)
+            fmt.Fprintf(w, ",")
+            PrintJSONNewCites(w, paper, db)
         }
-    } else if papersVersion == 3 {
-        // PAPERS VERSION 3 (deprecated)
-        for tok != scanner.EOF {
-            if tok != '(' { break }
-            if tok = s.Scan(); tok != scanner.Int { break }
-            paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-            tok = s.Scan()
-            if tok == ')' {
-                // this paper was marked for deletion
-                // so fill it with empty data 
-                // and mark it as so
-                paper := h.papers.QueryPaper(uint(paperId), "")
-                paper.remove = true
-                paperList = append(paperList, paper)
-                tok = s.Scan()
-                continue
-            } else if tok != ',' { break }
-            tok = s.Scan()
-            negate := false
-            if tok == '-' { negate = true; tok = s.Scan() }
-            if tok != scanner.Int { break }
-            xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-            if negate { xPos = -xPos }
-            if tok = s.Scan(); tok != ',' { break }
-            tok = s.Scan()
-            negate = false
-            if tok == '-' { negate = true; tok = s.Scan() }
-            if tok != scanner.Int { break }
-            rMod, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-            if negate { rMod = -rMod }
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok != scanner.String { break }
-            notes := s.TokenText()
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "l" { break }
-            var layers []string
-            for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                layers = append(layers, s.TokenText())
-            }
-            if tok != ']' { break }
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "t" { break }
-            var tags []string
-            for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                tags = append(tags, s.TokenText())
-            }
-            if tok != ']' { break }
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "n" { break }
-            var newTags []string
-            for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                newTags = append(newTags, s.TokenText())
-            }
-            if tok != ']' { break }
-            if tok = s.Scan(); tok != ')' { break }
-            paper := h.papers.QueryPaper(uint(paperId), "")
-            h.papers.QueryRefs(paper, false)
-            paper.xPos = int(xPos)
-            paper.rMod = int(rMod)
-            paper.notes = notes
-            paper.tags = tags
-            paper.layers = layers
-            paper.newTags = newTags
-            paper.remove = false
-            tok = s.Scan()
-            paperList = append(paperList, paper)
-        }
-    } else if papersVersion == 4 {
-        // PAPERS VERSION 4
-        // this version removes "new" tags from version 3
-        for tok != scanner.EOF {
-            if tok != '(' { break }
-            if tok = s.Scan(); tok != scanner.Int { break }
-            paperId, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-            tok = s.Scan()
-            if tok == ')' {
-                // this paper was marked for deletion
-                // so fill it with empty data 
-                // and mark it as so
-                paper := h.papers.QueryPaper(uint(paperId), "")
-                paper.remove = true
-                paperList = append(paperList, paper)
-                tok = s.Scan()
-                continue
-            } else if tok != ',' { break }
-            tok = s.Scan()
-            negate := false
-            if tok == '-' { negate = true; tok = s.Scan() }
-            if tok != scanner.Int { break }
-            xPos, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-            if negate { xPos = -xPos }
-            if tok = s.Scan(); tok != ',' { break }
-            tok = s.Scan()
-            negate = false
-            if tok == '-' { negate = true; tok = s.Scan() }
-            if tok != scanner.Int { break }
-            rMod, _ := strconv.ParseInt(s.TokenText(), 10, 0)
-            if negate { rMod = -rMod }
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok != scanner.String { break }
-            notes := s.TokenText()
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "l" { break }
-            var layers []string
-            for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                layers = append(layers, s.TokenText())
-            }
-            if tok != ']' { break }
-            if tok = s.Scan(); tok != ',' { break }
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "t" { break }
-            var tags []string
-            for tok = s.Scan(); tok == '[' || tok == ','; tok = s.Scan() {
-                if tok = s.Scan(); tok != scanner.String { break }
-                tags = append(tags, s.TokenText())
-            }
-            if tok != ']' { break }
-            if tok = s.Scan(); tok != ')' { break }
-            paper := h.papers.QueryPaper(uint(paperId), "")
-            h.papers.QueryRefs(paper, false)
-            paper.xPos = int(xPos)
-            paper.rMod = int(rMod)
-            paper.notes = notes
-            paper.tags = tags
-            paper.layers = layers
-            paper.remove = false
-            tok = s.Scan()
-            paperList = append(paperList, paper)
-        }
+        fmt.Fprintf(w, "}")
     }
-
-    if tok != scanner.EOF {
-        fmt.Printf("PaperListFromDBString scan error, unexpected token '%v'\n", tok)
-    }
-
-    return paperList
+    fmt.Fprintf(w, "]")
 }
-*/
-
-// Converts tag list into database string
-/*
-func (h *MyHTTPHandler) TagListToDBString (tagList []*Tag) string {
-
-    // This SHOULD be identical to JS code in kea i.e. it should be parseable
-    // by the TagListFromDBString code below
-    w := new(bytes.Buffer)
-    fmt.Fprintf(w,"v:2"); // TAGS VERSION 2
-    for _, tag := range tagList {
-        fmt.Fprintf(w,"(%s,%d",tag.name,tag.index);
-        fmt.Fprintf(w,",a!");
-        // tag.active is obsolete
-        //if !tag.active {
-        //  fmt.Fprintf(w,"!");
-        //}
-        fmt.Fprintf(w,",s");
-        if !tag.starred {
-            fmt.Fprintf(w,"!");
-        }
-        fmt.Fprintf(w,",b");
-        if !tag.blobbed {
-            fmt.Fprintf(w,"!");
-        }
-        fmt.Fprintf(w,")");
-    }
-    return w.String()
-}
-*/
-
-// Returns a list of tags stored in userdata string field
-/*
-func (h *MyHTTPHandler) TagListFromDBString (tags []byte) []*Tag {
-
-    var tagList []*Tag
-    var s scanner.Scanner
-    s.Init(bytes.NewReader(tags)) // user scanner from above
-    s.Mode = scanner.ScanInts | scanner.ScanStrings | scanner.ScanIdents
-    tok := s.Scan()
-    tagsVersion := 0 // there is no zero version
-
-    // Firstly discover format of saved data
-    if tok == scanner.Ident && s.TokenText() == "v" {
-        if tok = s.Scan(); tok == ':' {
-            if tok = s.Scan(); tok == scanner.Int {
-                version, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-                tagsVersion = int(version)
-                tok = s.Scan()
-            }
-        }
-    }
-
-    if tagsVersion == 1 {
-        // TAGS VERSION 1
-        for tok != scanner.EOF {
-            if tok != '(' { break }
-            tag := new(Tag)
-            tag.index = 0; // for compatability with V2
-            tag.active  = false
-            tag.starred = true
-            tag.blobbed = true
-            tag.remove = false
-            // tag name
-            if tok = s.Scan(); tok != scanner.String { break }
-            tag.name = s.TokenText()
-            tok = s.Scan()
-            if tok == ')' {
-                // this tag was marked for deletion
-                // so fill it with empty data 
-                // and mark it as so
-                tag.remove = true
-                tagList = append(tagList, tag)
-                tok = s.Scan()
-                continue
-            } else if tok != ',' { break }
-            // tag starred?
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "s" { break }
-            if tok = s.Scan(); tok == '!' {
-                tag.starred = false
-                tok = s.Scan()
-            }
-            if tok != ',' { break }
-            // tag blobbed?
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "b" { break }
-            if tok = s.Scan(); tok == '!' {
-                tag.blobbed = false
-                tok = s.Scan()
-            }
-            //tag.blobCol = int(blobCol)
-            if tok != ')' { break }
-            tok = s.Scan()
-            tagList = append(tagList, tag)
-        }
-    } else if tagsVersion == 2 {
-        // TAGS VERSION 2
-        // this version adds a tag index for ranking and saves which tags are active
-        for tok != scanner.EOF {
-            if tok != '(' { break }
-            tag := new(Tag)
-            tag.active  = false // as obsolete now
-            tag.starred = true
-            tag.blobbed = true
-            tag.remove = false
-            // tag name
-            if tok = s.Scan(); tok != scanner.String { break }
-            tag.name = s.TokenText()
-            tok = s.Scan()
-            if tok == ')' {
-                // this tag was marked for deletion
-                // so fill it with empty data 
-                // and mark it as so
-                tag.remove = true
-                tagList = append(tagList, tag)
-                tok = s.Scan()
-                continue
-            } else if tok != ',' { break }
-            // tag index (rank)
-            if tok = s.Scan(); tok != scanner.Int { break }
-            rank, _ := strconv.ParseUint(s.TokenText(), 10, 0)
-            tag.index = uint(rank)
-            if tok = s.Scan(); tok != ',' { break }
-            // tag active?
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "a" { break }
-            if tok = s.Scan(); tok == '!' {
-                tag.active = false
-                tok = s.Scan()
-            }
-            if tok != ',' { break }
-            // tag starred?
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "s" { break }
-            if tok = s.Scan(); tok == '!' {
-                tag.starred = false
-                tok = s.Scan()
-            }
-            if tok != ',' { break }
-            // tag blobbed?
-            if tok = s.Scan(); tok == scanner.Ident && s.TokenText() != "b" { break }
-            if tok = s.Scan(); tok == '!' {
-                tag.blobbed = false
-                tok = s.Scan()
-            }
-            //tag.blobCol = int(blobCol)
-            if tok != ')' { break }
-            tok = s.Scan()
-            tagList = append(tagList, tag)
-        }
-    }
-
-    return tagList
-}
-*/
-
 
 /****************************************************************/
 
@@ -1223,12 +848,12 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             h.ProfileChallenge(req.Form["pchal"][0], giveSalt, giveVersion, rw)
         } else if req.Form["pload"] != nil && req.Form["h"] != nil {
             // profile-load: either login request or load request from an autosave
-            // h = passHash, ph = papersHash, gh = graphsHash, th = tagsHash
-            var ph, gh, th string
-            if req.Form["ph"] != nil { ph = req.Form["ph"][0] }
+            // h = passHash, nh = notessHash, gh = graphsHash, th = tagsHash
+            var nh, gh, th string
+            if req.Form["nh"] != nil { nh = req.Form["nh"][0] }
             if req.Form["gh"] != nil { gh = req.Form["gh"][0] }
             if req.Form["th"] != nil { th = req.Form["th"][0] }
-            h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], ph, gh, th, rw)
+            h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], nh, gh, th, rw)
         } else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt), pv = password version
@@ -1415,6 +1040,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
     runtime.GC()
 }
 
+/****************************************************************/
+
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
     PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.allcats, paper.authors, paper.title, paper.numCites, paper.dNumCites1, paper.dNumCites5, paper.publJSON)
 }
@@ -1441,35 +1068,6 @@ func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, 
         fmt.Fprintf(w, ",\"publ\":%s", publJSON)
     }
 }
-
-// **OBSOLETE**
-/*
-func PrintJSONContextInfo(w io.Writer, paper *Paper) {
-    fmt.Fprintf(w, ",\"x\":%d,\"rad\":%d,\"note\":%s,", paper.xPos, paper.rMod, paper.notes)
-    fmt.Fprintf(w, "\"layr\":[")
-    for j, layer := range paper.layers {
-        if j > 0 {
-            fmt.Fprintf(w, ",")
-        }
-        fmt.Fprintf(w, "%s", layer)
-    }
-    fmt.Fprintf(w, "],\"tag\":[")
-    for j, tag := range paper.tags {
-        if j > 0 {
-            fmt.Fprintf(w, ",")
-        }
-        fmt.Fprintf(w, "%s", tag)
-    }
-    // new tags are *obsolete*
-    //fmt.Fprintf(w, "],\"ntag\":[")
-    //for j, newTag := range paper.newTags {
-    //  if j > 0 {
-    //      fmt.Fprintf(w, ",")
-    //  }
-    //  fmt.Fprintf(w, "%s", newTag)
-    //}
-    fmt.Fprintf(w, "]")
-}*/
 
 func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
     fmt.Fprintf(w, ",\"allrc\":false,\"ref\":[")
@@ -1552,6 +1150,9 @@ func PrintJSONNewCites(w io.Writer, paper *Paper, dateBoundary uint) {
     fmt.Fprintf(w, "]")
 }
 
+/****************************************************************/
+
+/* SetChallenge */
 func (h *MyHTTPHandler) SetChallenge(usermail string) (challenge int64, success bool) {
     // generate random "challenge" code
     success = false
@@ -1565,6 +1166,7 @@ func (h *MyHTTPHandler) SetChallenge(usermail string) (challenge int64, success 
     return
 }
 
+/* ProfileChallenge */
 /* check usermail exists and get the 'salt' and/or 'version' */
 func (h *MyHTTPHandler) ProfileChallenge(usermail string, giveSalt bool, giveVersion bool, rw http.ResponseWriter) {
     var salt uint64
@@ -1594,6 +1196,7 @@ func (h *MyHTTPHandler) ProfileChallenge(usermail string, giveSalt bool, giveVer
     fmt.Fprintf(rw, "}")
 }
 
+/* ProfileAuthenticate */
 func (h *MyHTTPHandler) ProfileAuthenticate(usermail string, passhash string) (success bool) {
     success = false
 
@@ -1620,272 +1223,6 @@ func (h *MyHTTPHandler) ProfileAuthenticate(usermail string, passhash string) (s
     fmt.Printf("Succesfully authenticated user '%s'\n",usermail)
     success = true
     return
-}
-
-/* If given papers/tags hashes don't match with db, send user all their papers and tags.
-   Login also uses this function by providing empty hashes. */
-func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, papershash string, graphshash string, tagshash string, rw http.ResponseWriter) {
-    if !h.ProfileAuthenticate(usermail,passhash) {
-        return
-    }
-
-    // generate random "challenge", as we expect user to reply
-    // with a sync request if this is an autosave
-    challenge, success := h.SetChallenge(usermail)
-    if success != true {
-        return
-    }
-
-    var papers,tags []byte
-    var papershashOld,tagshashOld string
-
-    stmt := h.papers.StatementBegin("SELECT papers,tags,papershash,tagshash FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
-    if !h.papers.StatementBindSingleRow(stmt,&papers,&tags,&papershashOld,&tagshashOld) {
-        return
-    }
-
-    /* Check if papers/tags hashes up to date if given (else assume this is a login) */
-    if papershash != "" && graphshash != "" && tagshash != "" {
-        if (papershashOld == papershash && tagshashOld == tagshash) {
-            // hashes match, 
-            fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[],\"tag\":[],\"ph\":\"%s\",\"th\":\"%s\"}",usermail,challenge,papershashOld,tagshashOld)
-            return
-        }
-    } else {
-        // as no useful papers/tags hashes given, record this load as a LOGIN
-        stmt := h.papers.StatementBegin("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE usermail = ?",h.papers.db.Escape(usermail))
-        if !h.papers.StatementEnd(stmt) {
-            return
-        }
-    }
-
-    /* PAPERS */
-    /**********/
-
-    // build a list of PAPERS and their metadata for this profile 
-    var papersList []*Paper // TODO
-    //papersList := h.PaperListFromDBString(papers)
-    fmt.Printf("for user %s, read %d papers\n", usermail, len(papersList))
-    sort.Sort(PaperSliceSortId(papersList))
-    papersStr := ""
-    //papersStr := h.PaperListToDBString(papersList)
-
-    // create papershash, and also store this in db
-    hash := sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
-    papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
-
-    // compare hash with what was in db, if different update
-    // this is important for users without profile!
-    if papershashDb != papershashOld {
-        stmt := h.papers.StatementBegin("UPDATE userdata SET papershash = ?, papers = ? WHERE usermail = ?",papershashDb,papersStr,h.papers.db.Escape(usermail))
-        if !h.papers.StatementEnd(stmt) {
-            fmt.Printf("ERROR: failed to set new papers field and hash for user %s\n", usermail)
-        } else {
-            fmt.Printf("for user %s, paper string updated\n", usermail)
-        }
-    }
-
-    // Get 5 days ago date boundary so we can pass along new cites
-    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
-    h.papers.QueryEnd()
-    var db uint64
-    if row == nil {
-        fmt.Printf("ERROR: ProfileLoad could not get 5 day boundary from MySQL\n")
-        db = 0
-    } else {
-        var ok bool
-        if db, ok = row[0].(uint64); !ok {
-            fmt.Printf("ERROR: ProfileLoad could not get 5 day boundary from Row\n")
-            db = 0
-        }
-    }
-
-    // output papers in json format
-    fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"papr\":[", usermail,challenge)
-    for i, paper := range papersList {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        PrintJSONMetaInfo(rw, paper)
-        PrintJSONRelevantRefs(rw, paper, papersList)
-        if db > 0 {
-            h.papers.QueryCites(paper, false)
-            fmt.Fprintf(rw, ",")
-            PrintJSONNewCites(rw, paper, uint(db))
-        }
-        fmt.Fprintf(rw, "}")
-    }
-    fmt.Fprintf(rw, "],\"ph\":\"%s\"",papershashDb)
-
-    /* TAGS */
-    /********/
-
-    // build a list of TAGS for this profile
-    var tagsList []*Tag // TODO
-    //tagsList := h.TagListFromDBString(tags)
-    fmt.Printf("for user %s, read %d tags\n", usermail, len(tagsList))
-    // Keep in original order!
-    //sort.Sort(TagSliceSortName(tagsList))
-    //sort.Sort(TagSliceSortIndex(tagsList))
-    tagsStr := ""
-    //tagsStr := h.TagListToDBString(tagsList)
-
-    // create tagshash
-    hash = sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
-    tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
-
-    // compare hash with what was in db, if different update
-    // this is important for users without profile!
-    if tagshashDb != tagshashOld {
-        stmt := h.papers.StatementBegin("UPDATE userdata SET tagshash = ?, tags = ? WHERE usermail = ?",tagshashDb,tagsStr,h.papers.db.Escape(usermail))
-        if !h.papers.StatementEnd(stmt) {
-            fmt.Printf("ERROR: failed to set new tags field and hash for user %s\n", usermail)
-        } else {
-            fmt.Printf("for user %s, tag string updated\n", usermail)
-        }
-    }
-
-    // output tags in json format
-    fmt.Fprintf(rw, ",\"tag\":[")
-    for i, tag := range tagsList {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "{\"name\":%s,\"ind\":%d,\"star\":\"%t\",\"blob\":\"%t\"}", tag.name, tag.index, tag.starred, tag.blobbed)
-    }
-    fmt.Fprintf(rw, "],\"th\":\"%s\"}",tagshashDb)
-}
-
-/* Profile Sync */
-func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers string, difftags string, papershash string, tagshash string, rw http.ResponseWriter) {
-    if !h.ProfileAuthenticate(usermail,passhash) {
-        return
-    }
-
-    var papers,tags []byte
-
-    stmt := h.papers.StatementBegin("SELECT papers,tags FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
-    if !h.papers.StatementBindSingleRow(stmt,&papers,&tags) {
-        return
-    }
-
-    /* PAPERS */
-    /**********/
-
-    var oldpapersList []*Paper
-    //oldpapersList := h.PaperListFromDBString(papers)
-    fmt.Printf("for user %s, read %d papers from db\n", usermail, len(oldpapersList))
-
-    // papers without details e.g. (id) are flagged with a "remove" 
-    var newpapersList []*Paper
-    //newpapersList := h.PaperListFromDBString([]byte(diffpapers))
-    fmt.Printf("for user %s, read %d diff papers from internets\n", usermail, len(newpapersList))
-
-    // make one super list of unique papers (diffpapers override oldpapers)
-    for _, oldpaper := range oldpapersList {
-        exists := false
-        for _, diffpaper := range newpapersList {
-            if diffpaper.id == oldpaper.id {
-                exists = true
-                break
-            }
-        }
-        if !exists {
-            newpapersList = append(newpapersList,oldpaper)
-        }
-    }
-
-    var papersList []*Paper
-    // remove papers marked with "remove" or those with empty layers and tags!
-    //for _, paper := range newpapersList {
-    //    if !paper.remove && (len(paper.layers) > 0 || len(paper.tags) > 0) {
-    //        papersList = append(papersList,paper)
-    //    }
-    //}
-
-    // sort this list
-    sort.Sort(PaperSliceSortId(papersList))
-    papersStr := "" // TODO
-    //papersStr := h.PaperListToDBString(papersList)
-
-    // create new hashes 
-    hash := sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
-    papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
-
-    // compare with hashes we were sent (should match!!)
-    if papershash != papershashDb {
-        fmt.Printf("Error: for user %s, new sync paper hashes don't match those sent from client: %s vs %s\n", usermail,papershash,papershashDb)
-        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
-        return
-    }
-
-    /* TAGS */
-    /********/
-
-    var oldtagsList []*Tag // TODO
-    //oldtagsList := h.TagListFromDBString(tags);
-    fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldtagsList))
-
-    // tags without details e.g. (name) are flagged with a "remove" 
-    var newtagsList []*Tag // TODO
-    //newtagsList := h.TagListFromDBString([]byte(difftags))
-    fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(newtagsList))
-
-    // make one super list of unique tags (difftags override oldtags)
-    for _, oldtag := range oldtagsList {
-        exists := false
-        for _, difftag := range newtagsList {
-            if difftag.name == oldtag.name {
-                exists = true
-                break
-            }
-        }
-        if !exists {
-            newtagsList = append(newtagsList,oldtag)
-        }
-    }
-
-    var tagsList []*Tag
-    // remove tags marked with "remove" 
-    for _, tag := range newtagsList {
-        if !tag.remove {
-            tagsList = append(tagsList,tag)
-        }
-    }
-
-    // sort this list
-    // Keep in original order!
-    //sort.Sort(TagSliceSortName(tagsList))
-    //sort.Sort(TagSliceSortIndex(tagsList))
-    tagsStr := ""
-    //tagsStr := h.TagListToDBString(tagsList)
-
-    hash = sha1.New()
-    io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
-    tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
-
-    // compare with hashes we were sent (should match!!)
-    if tagshash != tagshashDb {
-        fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,tagshash,tagshashDb)
-        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
-        return
-    }
-
-    /* MYSQL */
-    /*********/
-
-    stmt = h.papers.StatementBegin("UPDATE userdata SET papers = ?, tags = ?, papershash = ?, tagshash = ?, numsync = numsync + 1, lastsync = NOW() WHERE usermail = ?", papersStr, tagsStr, papershashDb, tagshashDb, h.papers.db.Escape(usermail))
-    if !h.papers.StatementEnd(stmt) {
-        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
-        return
-    }
-
-    // We succeeded
-    fmt.Fprintf(rw, "{\"succ\":\"true\",\"ph\":\"%s\",\"th\":\"%s\"}",papershashDb,tagshashDb)
-
 }
 
 /* ProfileChangePassword */
@@ -2074,12 +1411,201 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 }
 
+/* If given papers/tags hashes don't match with db, send user all their papers and tags.
+   Login also uses this function by providing empty hashes. */
+func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash string, graphshash string, tagshash string, rw http.ResponseWriter) {
+    if !h.ProfileAuthenticate(usermail,passhash) {
+        return
+    }
+
+    // generate random "challenge", as we expect user to reply
+    // with a sync request if this is an autosave
+    challenge, success := h.SetChallenge(usermail)
+    if success != true {
+        return
+    }
+
+    var notes,graphs,tags []byte
+    var noteshashDb,graphshashDb,tagshashDb string
+
+    stmt := h.papers.StatementBegin("SELECT notes,graphs,tags,noteshash,graphshash,tagshash FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
+    if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags,&noteshashDb,&graphshashDb,&tagshashDb) {
+        return
+    }
+
+    // If nonzero hashes given, check if they match those stored in db
+    // If so, client can proceed with sync without needing load data,
+    // just return the hashes
+    if noteshash != "" && graphshash != "" && tagshash != "" && noteshashDb == noteshash && graphshashDb == graphshash && tagshashDb == tagshash {
+        fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"nh\":\"%s\",\"gh\":\"%s\",\"th\":\"%s\"}",usermail,challenge,noteshashDb,graphshashDb,tagshashDb)
+        return
+    }
+
+    // Either this is a regular login, or hashes didn't match during a sync
+    // Either way, proceed as if this were a login
+    stmt = h.papers.StatementBegin("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE usermail = ?",h.papers.db.Escape(usermail))
+    if !h.papers.StatementEnd(stmt) {
+        return
+    }
+
+    // output papers in json format
+    fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"", usermail,challenge)
+
+    // PAPERS
+    papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
+    fmt.Printf("for profile %s, read %d papers\n", usermail, len(papersList)) // TEMP
+    fmt.Fprintf(rw, ",\"papr\":")
+    h.PrintJSONPapersList(rw,papersList)
+
+    // NOTES
+    fmt.Fprintf(rw, ",\"note\":%s,\"nh\":\"%s\"",string(notes),noteshashDb)
+
+    // GRAPHS
+    fmt.Fprintf(rw, ",\"grph\":%s,\"gh\":\"%s\"",string(graphs),graphshashDb)
+
+    // TAGS
+    fmt.Fprintf(rw, ",\"tag\":%s,\"th\":\"%s\"",string(tags),tagshashDb)
+
+    // end
+    fmt.Fprintf(rw, "}")
+}
+
+/* Profile Sync */
+func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffpapers string, difftags string, papershash string, tagshash string, rw http.ResponseWriter) {
+    if !h.ProfileAuthenticate(usermail,passhash) {
+        return
+    }
+
+    var papers,tags []byte
+
+    stmt := h.papers.StatementBegin("SELECT papers,tags FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
+    if !h.papers.StatementBindSingleRow(stmt,&papers,&tags) {
+        return
+    }
+
+    /* PAPERS */
+    /**********/
+
+    var oldpapersList []*Paper
+    //oldpapersList := h.PaperListFromDBString(papers)
+    fmt.Printf("for user %s, read %d papers from db\n", usermail, len(oldpapersList))
+
+    // papers without details e.g. (id) are flagged with a "remove" 
+    var newpapersList []*Paper
+    //newpapersList := h.PaperListFromDBString([]byte(diffpapers))
+    fmt.Printf("for user %s, read %d diff papers from internets\n", usermail, len(newpapersList))
+
+    // make one super list of unique papers (diffpapers override oldpapers)
+    for _, oldpaper := range oldpapersList {
+        exists := false
+        for _, diffpaper := range newpapersList {
+            if diffpaper.id == oldpaper.id {
+                exists = true
+                break
+            }
+        }
+        if !exists {
+            newpapersList = append(newpapersList,oldpaper)
+        }
+    }
+
+    var papersList []*Paper
+    // remove papers marked with "remove" or those with empty layers and tags!
+    //for _, paper := range newpapersList {
+    //    if !paper.remove && (len(paper.layers) > 0 || len(paper.tags) > 0) {
+    //        papersList = append(papersList,paper)
+    //    }
+    //}
+
+    // sort this list
+    sort.Sort(PaperSliceSortId(papersList))
+    papersStr := "" // TODO
+    //papersStr := h.PaperListToDBString(papersList)
+
+    // create new hashes 
+    hash := sha1.New()
+    io.WriteString(hash, fmt.Sprintf("%s", string(papersStr)))
+    papershashDb := fmt.Sprintf("%x",hash.Sum(nil))
+
+    // compare with hashes we were sent (should match!!)
+    if papershash != papershashDb {
+        fmt.Printf("Error: for user %s, new sync paper hashes don't match those sent from client: %s vs %s\n", usermail,papershash,papershashDb)
+        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+        return
+    }
+
+    /* TAGS */
+    /********/
+
+    var oldtagsList []*Tag // TODO
+    //oldtagsList := h.TagListFromDBString(tags);
+    fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldtagsList))
+
+    // tags without details e.g. (name) are flagged with a "remove" 
+    var newtagsList []*Tag // TODO
+    //newtagsList := h.TagListFromDBString([]byte(difftags))
+    fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(newtagsList))
+
+    // make one super list of unique tags (difftags override oldtags)
+    for _, oldtag := range oldtagsList {
+        exists := false
+        for _, difftag := range newtagsList {
+            if difftag.name == oldtag.name {
+                exists = true
+                break
+            }
+        }
+        if !exists {
+            newtagsList = append(newtagsList,oldtag)
+        }
+    }
+
+    var tagsList []*Tag
+    // remove tags marked with "remove" 
+    for _, tag := range newtagsList {
+        if !tag.remove {
+            tagsList = append(tagsList,tag)
+        }
+    }
+
+    // sort this list
+    // Keep in original order!
+    //sort.Sort(TagSliceSortName(tagsList))
+    //sort.Sort(TagSliceSortIndex(tagsList))
+    tagsStr := ""
+    //tagsStr := h.TagListToDBString(tagsList)
+
+    hash = sha1.New()
+    io.WriteString(hash, fmt.Sprintf("%s", tagsStr))
+    tagshashDb := fmt.Sprintf("%x",hash.Sum(nil))
+
+    // compare with hashes we were sent (should match!!)
+    if tagshash != tagshashDb {
+        fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,tagshash,tagshashDb)
+        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+        return
+    }
+
+    /* MYSQL */
+    /*********/
+
+    stmt = h.papers.StatementBegin("UPDATE userdata SET papers = ?, tags = ?, papershash = ?, tagshash = ?, numsync = numsync + 1, lastsync = NOW() WHERE usermail = ?", papersStr, tagsStr, papershashDb, tagshashDb, h.papers.db.Escape(usermail))
+    if !h.papers.StatementEnd(stmt) {
+        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+        return
+    }
+
+    // We succeeded
+    fmt.Fprintf(rw, "{\"succ\":\"true\",\"ph\":\"%s\",\"th\":\"%s\"}",papershashDb,tagshashDb)
+
+}
+
+
 /* Serves stored graph on user page load */
 func (h *MyHTTPHandler) LinkLoad(code string, rw http.ResponseWriter) {
 
     var notes, graphs, tags []byte
     var hash hash.Hash
-    var err error
     modcode := ""
 
     // discover if we've loading code or modcode
@@ -2102,86 +1628,27 @@ func (h *MyHTTPHandler) LinkLoad(code string, rw http.ResponseWriter) {
         return
     }
 
-    /* PAPERS */
+    fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"", code, modcode)
 
-    // get list of ids that we need Papers for
-    var ids []uint64;
+    // PAPERS
+    papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
+    fmt.Printf("for graph code %s, read %d papers\n", code, len(papersList)) // TEMP
+    fmt.Fprintf(rw, ",\"papr\":")
+    h.PrintJSONPapersList(rw,papersList)
 
-    var savedNotes []SavedNote
-    err = json.Unmarshal(notes,&savedNotes)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
-    var savedGraphs []SavedMultiGraph
-    err = json.Unmarshal(graphs,&savedGraphs)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
-    var savedTags []SavedTag
-    err = json.Unmarshal(tags,&savedTags)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
-
-    // TODO make sure this list is unique
-    for _, note := range savedNotes {
-        ids = append(ids,note.Id)
-    }
-    for _, graph := range savedGraphs {
-        for _, drawnForm := range graph.Drawn {
-            ids = append(ids,drawnForm.Id)
-        }
-    }
-    for _, tag := range savedTags {
-        for _, id := range tag.Ids {
-            ids = append(ids,id)
-        }
-    }
-
-    // make list of Paper objects for these ids
-    papersList := h.PaperListFromIDs(ids)
-    fmt.Printf("for graph code %s, read %d papers\n", code, len(papersList))
-
-    // Get 5 days ago date boundary so we can pass along new cites
-    // TODO maybe handier to simply have this in memory
-    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
-    h.papers.QueryEnd()
-    var db uint64
-    if row == nil {
-        fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from MySQL\n")
-        db = 0
-    } else {
-        var ok bool
-        if db, ok = row[0].(uint64); !ok {
-            fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from Row\n")
-            db = 0
-        }
-    }
-
-    // output papers in json format
-    fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\",\"papr\":[", code, modcode)
-    for i, paper := range papersList {
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        PrintJSONMetaInfo(rw, paper)
-        PrintJSONRelevantRefs(rw, paper, papersList)
-        if db > 0 {
-            h.papers.QueryCites(paper, false)
-            fmt.Fprintf(rw, ",")
-            PrintJSONNewCites(rw, paper, uint(db))
-        }
-        fmt.Fprintf(rw, "}")
-    }
-    fmt.Fprintf(rw, "]")
-
-    /* NOTES */
+    // NOTES
     hash = sha1.New()
     io.WriteString(hash, fmt.Sprintf("%s", string(notes)))
     noteshash := fmt.Sprintf("%x",hash.Sum(nil))
     fmt.Fprintf(rw, ",\"note\":%s,\"nh\":\"%s\"",string(notes),noteshash)
 
-    /* GRAPHS */
+    // GRAPHS
     hash = sha1.New()
     io.WriteString(hash, fmt.Sprintf("%s", string(graphs)))
     graphshash := fmt.Sprintf("%x",hash.Sum(nil))
     fmt.Fprintf(rw, ",\"grph\":%s,\"gh\":\"%s\"",string(graphs),graphshash)
 
-    /* TAGS */
+    // TAGS
     hash = sha1.New()
     io.WriteString(hash, fmt.Sprintf("%s", string(tags)))
     tagshash := fmt.Sprintf("%x",hash.Sum(nil))
@@ -2299,7 +1766,6 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
     // perform query
-    // TODO convert to Prepared Statements, or keep as normal query, which is faster
     if !h.papers.QueryBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5") {
         return
     }
