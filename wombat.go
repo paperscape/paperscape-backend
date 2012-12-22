@@ -212,9 +212,9 @@ func MergeSavedNotes (diffSavedNotes []SavedNote, oldSavedNotes []SavedNote) []S
     for _, diffNote := range diffSavedNotes {
         // try to find oldNote match
         var oldNotePtr *SavedNote
-        for i, on := range oldSavedNotes {
-            if on.Id == diffNote.Id {
-                oldNotePtr = &on
+        for i, _ := range oldSavedNotes {
+            if oldSavedNotes[i].Id == diffNote.Id {
+                oldNotePtr = &oldSavedNotes[i]
                 if diffNote.Rm {
                     // splice
                     if i+1 < len(oldSavedNotes) {
@@ -247,9 +247,9 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
     for _, diffMultiGraph := range diffSavedMultiGraphs {
         // try to find oldMultiGraph match
         var oldMultiGraphPtr *SavedMultiGraph
-        for i, omg := range oldSavedMultiGraphs {
-            if omg.Name == diffMultiGraph.Name {
-                oldMultiGraphPtr = &omg
+        for i, _ := range oldSavedMultiGraphs {
+            if oldSavedMultiGraphs[i].Name == diffMultiGraph.Name {
+                oldMultiGraphPtr = &oldSavedMultiGraphs[i]
                 // Check if marked for removal
                 if diffMultiGraph.Rm {
                     // splice
@@ -264,9 +264,7 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
         }
         if diffMultiGraph.Rm { continue }
         // if diff doesn't exist yet, add it to the list
-        fmt.Printf("1\n")
         if oldMultiGraphPtr == nil {
-            fmt.Printf("2\n")
             oldSavedMultiGraphs = append(oldSavedMultiGraphs,diffMultiGraph)
             continue
         }
@@ -274,10 +272,10 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
         if len(diffMultiGraph.Drawn) > 0 {
             for _, diffDrawnForm := range diffMultiGraph.Drawn {
                 // try to find oldDrawnForm match
-                var oldDrawnForm *SavedDrawnForm
+                var oldDrawnFormPtr *SavedDrawnForm
                 for i, odf := range oldMultiGraphPtr.Drawn {
                     if odf.Id == diffDrawnForm.Id {
-                        oldDrawnForm = odf
+                        oldDrawnFormPtr = odf
                         // Check if marked for removal
                         if diffDrawnForm.Rm {
                             if i+1 < len(oldMultiGraphPtr.Drawn) {
@@ -291,16 +289,16 @@ func MergeSavedMultiGraphs (diffSavedMultiGraphs []SavedMultiGraph, oldSavedMult
                 }
                 if diffDrawnForm.Rm { continue }
                 // if diff doesn't exist yet, add it to the list
-                if oldDrawnForm == nil {
+                if oldDrawnFormPtr == nil {
                     oldMultiGraphPtr.Drawn = append(oldMultiGraphPtr.Drawn,diffDrawnForm)
                     continue
                 }
                 // merge DrawnForm
                 if diffDrawnForm.X != nil {
-                    oldDrawnForm.X = diffDrawnForm.X
+                    oldDrawnFormPtr.X = diffDrawnForm.X
                 }
                 if diffDrawnForm.R != nil {
-                    oldDrawnForm.R = diffDrawnForm.R
+                    oldDrawnFormPtr.R = diffDrawnForm.R
                 }
             }
             // TODO sort
@@ -316,9 +314,9 @@ func MergeSavedTags (diffSavedTags []SavedTag, oldSavedTags []SavedTag) []SavedT
     for _, diffTag := range diffSavedTags {
         // try to find diffTag match
         var oldTagPtr *SavedTag
-        for i, oTag := range oldSavedTags {
-            if oTag.Name == diffTag.Name {
-                oldTagPtr = &oTag
+        for i, _ := range oldSavedTags {
+            if oldSavedTags[i].Name == diffTag.Name {
+                oldTagPtr = &oldSavedTags[i]
                 if diffTag.Rm {
                     if i+1 < len(oldSavedTags) {
                         oldSavedTags = append(oldSavedTags[:i],oldSavedTags[i+1:]...)
@@ -1715,7 +1713,7 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
 
         // compare with hashes we were sent (should match!!)
         if newGraphshash != graphshash {
-            fmt.Printf("Error: for user %s, new sync graph hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
+            fmt.Printf("Error: for user %s, new sync graph hashes don't match those sent from client: %s vs %s\n", usermail,newGraphshash,graphshash)
             fmt.Fprintf(rw, "{\"succ\":\"false\"}")
             return
         }
