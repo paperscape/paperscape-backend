@@ -1042,13 +1042,18 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
-        } else if req.Form["gmrc"] != nil {
-            // get-meta-refs-cites: get the meta data, refs and cites for the given paper id
-            var id uint = 0
-            if idNum, er := strconv.ParseUint(req.Form["gmrc"][0], 10, 0); er == nil {
-                id = uint(idNum)
+        } else if req.Form["gmrc[]"] != nil {
+            // get-meta-refs-cites: get the meta data, refs and cites for the given paper ids
+            // if only single paper it gives everything, otherwise gives relevant refs-cites
+            var ids []uint
+            for _, strId := range req.Form["gmrc[]"] {
+                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                    ids = append(ids, uint(preId))
+                } else {
+                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                }
             }
-            h.GetMetaRefsCites(id, rw)
+            h.GetMetaRefsCites(ids, rw)
         } else if req.Form["gm[]"] != nil {
             // get-metas: get the meta data for given list of paper ids
             var ids []uint
@@ -1950,23 +1955,57 @@ func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "}")
 }
 
-func (h *MyHTTPHandler) GetMetaRefsCites(id uint, rw http.ResponseWriter) {
-    // query the paper and its refs and cites
-    paper := h.papers.QueryPaper(id, "")
-    h.papers.QueryRefs(paper, false)
-    h.papers.QueryCites(paper, false)
+func (h *MyHTTPHandler) GetMetaRefsCites(ids []uint, rw http.ResponseWriter) {
+    fmt.Fprintf(rw, "[")
+    if len(ids) == 1 {
+        // query the paper and its refs and cites
+        paper := h.papers.QueryPaper(ids[0], "")
+        h.papers.QueryRefs(paper, false)
+        h.papers.QueryCites(paper, false)
 
-    // check the paper exists
-    if paper == nil {
-        fmt.Fprintf(rw, "null")
-        return
+        // check the paper exists
+        if paper == nil {
+            fmt.Fprintf(rw, "null")
+            return
+        }
+
+        // print the json output
+        PrintJSONMetaInfo(rw, paper)
+        fmt.Fprintf(rw, ",")
+        PrintJSONAllRefsCites(rw, paper, 0)
+        fmt.Fprintf(rw, "}")
+    } else {
+        first := true
+        // TODO if we want to give "selective" refs and cites:
+        // first build paper list that we can give to 
+        // BUT we also need to receive list of all IDs already in graph
+        // to be drawn into
+        for _, id := range ids {
+            if !first {
+                fmt.Fprintf(rw, ",")
+            } else {
+                first = false
+            }
+            // query the paper and its refs and cites
+            paper := h.papers.QueryPaper(id, "")
+            h.papers.QueryRefs(paper, false)
+            h.papers.QueryCites(paper, false)
+
+            // check the paper exists
+            if paper == nil {
+                fmt.Fprintf(rw, "null")
+                return
+            }
+
+            // print the json output
+            PrintJSONMetaInfo(rw, paper)
+            fmt.Fprintf(rw, ",")
+            PrintJSONAllRefsCites(rw, paper, 0)
+            //PrintJSONRelevantRefs(w, paper, papersList)
+            fmt.Fprintf(rw, "}")
+        }
     }
-
-    // print the json output
-    PrintJSONMetaInfo(rw, paper)
-    fmt.Fprintf(rw, ",")
-    PrintJSONAllRefsCites(rw, paper, 0)
-    fmt.Fprintf(rw, "}")
+    fmt.Fprintf(rw, "]")
 }
 
 func (h *MyHTTPHandler) GetMetas(ids []uint, rw http.ResponseWriter) {
