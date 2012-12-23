@@ -1297,6 +1297,7 @@ func PrintJSONLinkFutureInfo(w io.Writer, link *Link) {
     fmt.Fprintf(w, "{\"id\":%d,\"o\":%d,\"f\":%d,\"nc\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
 }
 
+/*
 func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
     fmt.Fprintf(w, "\"allc\":true,\"cite\":[")
     first := true
