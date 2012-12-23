@@ -1042,28 +1042,17 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
-        } else if req.Form["gmrc[]"] != nil {
-            // get-meta-refs-cites: get the meta data, refs and cites for the given paper ids
-            // if only single paper it gives everything, otherwise gives relevant refs-cites
-            var ids, gids []uint
-            for _, strId := range req.Form["gmrc[]"] {
+        } else if req.Form["gmr[]"] != nil {
+            // get-meta-refs: get the meta data and refs for the given paper ids
+            var ids []uint
+            for _, strId := range req.Form["gmr[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
                     ids = append(ids, uint(preId))
                 } else {
                     fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
             }
-            // gids : existing graph ids
-            if req.Form["gids[]"] != nil {
-                for _, strId := range req.Form["gids[]"] {
-                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                        gids = append(gids, uint(preId))
-                    } else {
-                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
-                    }
-                }
-            }
-            h.GetMetaRefsCites(ids, gids, rw)
+            h.GetMetaRefs(ids, rw)
         } else if req.Form["gm[]"] != nil {
             // get-metas: get the meta data for given list of paper ids
             var ids []uint
@@ -1075,26 +1064,38 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetMetas(ids, rw)
-        } else if req.Form["grc[]"] != nil {
+        } else if req.Form["grc"] != nil {
             // get-refs-cites: get the references and citations for given paper ids 
             // and date-boundaries
-            var ids []uint
-            for _, strId := range req.Form["grc[]"] {
-                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint(preId))
-                } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+            var rIds, cIds, cDbs []uint
+            if req.Form["rIds[]"] != nil {
+                for _, strId := range req.Form["rIds[]"] {
+                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                        rIds = append(rIds, uint(preId))
+                    } else {
+                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                    }
                 }
             }
-            var dbs []uint
-            for _, strDb := range req.Form["dbs[]"] {
-                if preDb, er := strconv.ParseUint(strDb, 10, 0); er == nil {
-                    dbs = append(dbs, uint(preDb))
-                } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strDb)
+            if req.Form["cIds[]"] != nil {
+                for _, strId := range req.Form["cIds[]"] {
+                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                        cIds = append(cIds, uint(preId))
+                    } else {
+                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                    }
                 }
             }
-            h.GetRefsCites(ids, dbs, rw)
+            if req.Form["cDbs[]"] != nil {
+                for _, strDb := range req.Form["cDbs[]"] {
+                    if preDb, er := strconv.ParseUint(strDb, 10, 0); er == nil {
+                        cDbs = append(cDbs, uint(preDb))
+                    } else {
+                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strDb)
+                    }
+                }
+            }
+            h.GetRefsCites(rIds, cIds, cDbs, rw)
         } else if req.Form["gncm"] != nil && (req.Form["nc[]"] != nil || req.Form["nm[]"] != nil) {
             // get-new-cites-(and update)metas: get the recent citations for given paper ids 
             // and update given meta ids
@@ -1186,27 +1187,38 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetMetas(ids, rw)
-        } else if req.Form["grc[]"] != nil {
-            // get-refs-cites: get the references and citations for a given paper ids 
+        } else if req.Form["grc"] != nil {
+            // get-refs-cites: get the references and citations for given paper ids 
             // and date-boundaries
-            // If user wants many many ids, a POST is sent
-            var ids []uint
-            for _, strId := range req.Form["grc[]"] {
-                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint(preId))
-                } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+            var rIds, cIds, cDbs []uint
+            if req.Form["rIds[]"] != nil {
+                for _, strId := range req.Form["rIds[]"] {
+                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                        rIds = append(rIds, uint(preId))
+                    } else {
+                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                    }
                 }
             }
-            var dbs []uint
-            for _, strDb := range req.Form["dbs[]"] {
-                if preDb, er := strconv.ParseUint(strDb, 10, 0); er == nil {
-                    dbs = append(dbs, uint(preDb))
-                } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strDb)
+            if req.Form["cIds[]"] != nil {
+                for _, strId := range req.Form["cIds[]"] {
+                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                        cIds = append(cIds, uint(preId))
+                    } else {
+                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                    }
                 }
             }
-            h.GetRefsCites(ids, dbs, rw)
+            if req.Form["cDbs[]"] != nil {
+                for _, strDb := range req.Form["cDbs[]"] {
+                    if preDb, er := strconv.ParseUint(strDb, 10, 0); er == nil {
+                        cDbs = append(cDbs, uint(preDb))
+                    } else {
+                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strDb)
+                    }
+                }
+            }
+            h.GetRefsCites(rIds, cIds, cDbs, rw)
         } else {
             // unknown ajax request
         }
@@ -1278,37 +1290,21 @@ func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
 }
 
 func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
-    fmt.Fprintf(w, "{\"id\":%d,\"rord\":%d,\"rfrq\":%d,\"nc\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
+    fmt.Fprintf(w, "{\"id\":%d,\"o\":%d,\"f\":%d,\"nc\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
 }
 
 func PrintJSONLinkFutureInfo(w io.Writer, link *Link) {
-    fmt.Fprintf(w, "{\"id\":%d,\"rord\":%d,\"rfrq\":%d,\"nc\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
+    fmt.Fprintf(w, "{\"id\":%d,\"o\":%d,\"f\":%d,\"nc\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
 }
 
-func PrintJSONAllRefsCites(w io.Writer, paper *Paper, dateBoundary uint) {
-    fmt.Fprintf(w, "\"allrc\":true,\"ref\":[")
-
-    // output the refs (future -> past)
-    // If non-zero date boundary given, we already have the 
-    // refs
-    if dateBoundary == 0 {
-        for i, link := range paper.refs {
-            if i > 0 {
-                fmt.Fprintf(w, ",")
-            }
-            PrintJSONLinkPastInfo(w, link)
-        }
-    }
-
-    // output the cites (past -> future)
-    fmt.Fprintf(w, "],\"cite\":[")
+func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
+    fmt.Fprintf(w, "\"allc\":true,\"cite\":[")
     first := true
     for _, link := range paper.cites {
         if link.futureId < dateBoundary  {
             continue
         }
         if !first {
-
             fmt.Fprintf(w, ",")
         }
         PrintJSONLinkFutureInfo(w, link)
@@ -1318,6 +1314,17 @@ func PrintJSONAllRefsCites(w io.Writer, paper *Paper, dateBoundary uint) {
     fmt.Fprintf(w, "]")
 }
 
+func PrintJSONAllRefs(w io.Writer, paper *Paper) {
+    fmt.Fprintf(w, "\"allr\":true,\"ref\":[")
+    // output the refs (future -> past)
+    for i, link := range paper.refs {
+        if i > 0 {
+            fmt.Fprintf(w, ",")
+        }
+        PrintJSONLinkPastInfo(w, link)
+    }
+    fmt.Fprintf(w, "]")
+}
 
 func PrintJSONNewCites(w io.Writer, paper *Paper, dateBoundary uint) {
     fmt.Fprintf(w, "\"allnc\":true,\"cite\":[")
@@ -1965,13 +1972,19 @@ func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "}")
 }
 
-func (h *MyHTTPHandler) GetMetaRefsCites(ids []uint, gids []uint, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) GetMetaRefs(ids []uint, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "[")
-    if len(ids) == 1 {
+    first := true
+    for _, id := range ids {
+        if !first {
+            fmt.Fprintf(rw, ",")
+        } else {
+            first = false
+        }
         // query the paper and its refs and cites
-        paper := h.papers.QueryPaper(ids[0], "")
+        paper := h.papers.QueryPaper(id, "")
         h.papers.QueryRefs(paper, false)
-        h.papers.QueryCites(paper, false)
+        //h.papers.QueryCites(paper, false)
 
         // check the paper exists
         if paper == nil {
@@ -1982,42 +1995,8 @@ func (h *MyHTTPHandler) GetMetaRefsCites(ids []uint, gids []uint, rw http.Respon
         // print the json output
         PrintJSONMetaInfo(rw, paper)
         fmt.Fprintf(rw, ",")
-        // simply send everything:
-        PrintJSONAllRefsCites(rw, paper, 0)
+        PrintJSONAllRefs(rw, paper)
         fmt.Fprintf(rw, "}")
-    } else {
-        first := true
-        // TODO if we want to give "selective" refs and cites:
-        // first build paper list that we can give to 
-        // BUT we also need to receive list of all IDs already in graph
-        // to be drawn into
-
-        // TODO don't convert to paperList (stick with ids), 
-        // but also include relevant cites
-        for _, id := range ids {
-            if !first {
-                fmt.Fprintf(rw, ",")
-            } else {
-                first = false
-            }
-            // query the paper and its refs and cites
-            paper := h.papers.QueryPaper(id, "")
-            h.papers.QueryRefs(paper, false)
-            h.papers.QueryCites(paper, false)
-
-            // check the paper exists
-            if paper == nil {
-                fmt.Fprintf(rw, "null")
-                return
-            }
-
-            // print the json output
-            PrintJSONMetaInfo(rw, paper)
-            fmt.Fprintf(rw, ",")
-            PrintJSONAllRefsCites(rw, paper, 0)
-            //PrintJSONRelevantRefs(w, paper, papersList)
-            fmt.Fprintf(rw, "}")
-        }
     }
     fmt.Fprintf(rw, "]")
 }
@@ -2044,19 +2023,42 @@ func (h *MyHTTPHandler) GetMetas(ids []uint, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "]")
 }
 
-func (h *MyHTTPHandler) GetRefsCites(ids []uint, dbs []uint, rw http.ResponseWriter) {
+// TODO handle refs/cite separately
+func (h *MyHTTPHandler) GetRefsCites(rIds []uint, cIds []uint, dbs []uint, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "[")
     first := true
-    if len(ids) != len(dbs) {
-        fmt.Printf("ERROR: GetRefsCites had incompatible length for ids and their dates\n")
+    if len(cIds) != len(dbs) {
+        fmt.Printf("ERROR: GetRefsCites had incompatible length for cIds and their dates\n")
         return
     }
-    for i := 0; i < len(ids); i++ {
-        id := ids[i]
-        db := dbs[i] // date boundary for this id (we have everything before it)
+    // TODO combine refs and cites if possible with same ID
+    for i := 0; i < len(rIds); i++ {
+        id := rIds[i]
         // query the paper and its refs and cites
         paper := h.papers.QueryPaper(id, "")
         h.papers.QueryRefs(paper, false)
+
+        // check the paper exists
+        if paper == nil {
+            fmt.Printf("ERROR: GetRefsCites could not find paper for id %d; skipping\n", id)
+            continue
+        }
+        if first {
+            first = false
+        } else {
+            fmt.Fprintf(rw, ",")
+        }
+
+        // print the json output
+        fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
+        PrintJSONAllRefs(rw, paper)
+        fmt.Fprintf(rw, "}")
+    }
+    for i := 0; i < len(cIds); i++ {
+        id := cIds[i]
+        db := dbs[i] // date boundary for this id (we have everything before it)
+        // query the paper and its refs and cites
+        paper := h.papers.QueryPaper(id, "")
         h.papers.QueryCites(paper, false)
 
         // check the paper exists
@@ -2073,7 +2075,7 @@ func (h *MyHTTPHandler) GetRefsCites(ids []uint, dbs []uint, rw http.ResponseWri
 
         // print the json output
         fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
-        PrintJSONAllRefsCites(rw, paper, db)
+        PrintJSONAllCites(rw, paper, db)
         fmt.Fprintf(rw, "}")
     }
     fmt.Fprintf(rw, "]")
@@ -2163,7 +2165,9 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     // print the json output
     PrintJSONMetaInfo(rw, paper)
     fmt.Fprintf(rw, ",")
-    PrintJSONAllRefsCites(rw, paper, 0)
+    PrintJSONAllRefs(rw, paper)
+    fmt.Fprintf(rw, ",")
+    PrintJSONAllCites(rw, paper, 0)
     fmt.Fprintf(rw, "}")
 }
 
