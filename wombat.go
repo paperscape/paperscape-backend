@@ -1312,6 +1312,23 @@ func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
     }
 
     fmt.Fprintf(w, "]")
+}*/
+
+func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
+    fmt.Fprintf(w, "\"allc\":true,\"cite\":[")
+    first := true
+    for _, link := range paper.cites {
+        if link.futureId < dateBoundary  {
+            continue
+        }
+        if !first {
+            fmt.Fprintf(w, ",")
+        }
+        PrintJSONLinkFutureInfo(w, link)
+        first = false
+    }
+
+    fmt.Fprintf(w, "]")
 }
 
 func PrintJSONAllRefs(w io.Writer, paper *Paper) {
