@@ -887,7 +887,7 @@ func (h *MyHTTPHandler) PaperListFromDatabaseJSON (notesJSON []byte, graphsJSON 
         }
         if exists { continue }
         paper := h.papers.QueryPaper(uint(paperId), "")
-        h.papers.QueryRefs(paper, false)
+        //h.papers.QueryRefs(paper, false) // do this later (if at all)
         paperList = append(paperList, paper)
     }
 
@@ -915,7 +915,10 @@ func (h *MyHTTPHandler) PrintJSONPapersList(w io.Writer, papersList []*Paper) {
             fmt.Fprintf(w, ",")
         }
         PrintJSONMetaInfo(w, paper)
-        PrintJSONRelevantRefs(w, paper, papersList)
+        // Don't include ref info, let this be loaded upon switching to graphs
+        //fmt.Fprintf(w, ",")
+        //h.papers.QueryRefs(paper, false)
+        //PrintJSONRelevantRefs(w, paper, papersList)
         if db > 0 {
             // This is expensive operation
             h.papers.QueryCites(paper, false)
@@ -1042,17 +1045,18 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
-        } else if req.Form["gmr[]"] != nil {
-            // get-meta-refs: get the meta data and refs for the given paper ids
+        } else if req.Form["gmrc[]"] != nil {
+            // get-meta-refs-cites: get the meta data, refs and cites for the given paper ids
+            // if cites > 26, only gives the new cites
             var ids []uint
-            for _, strId := range req.Form["gmr[]"] {
+            for _, strId := range req.Form["gmrc[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
                     ids = append(ids, uint(preId))
                 } else {
                     fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
             }
-            h.GetMetaRefs(ids, rw)
+            h.GetMetaRefsCites(ids, rw)
         } else if req.Form["gm[]"] != nil {
             // get-metas: get the meta data for given list of paper ids
             var ids []uint
@@ -1270,7 +1274,7 @@ func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, 
 }
 
 func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
-    fmt.Fprintf(w, ",\"allrc\":false,\"ref\":[")
+    fmt.Fprintf(w, "\"allr\":false,\"ref\":[")
     first := true
     for _, link := range paper.refs {
         // only return links that point to other papers in this profile
@@ -1315,6 +1319,18 @@ func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
     fmt.Fprintf(w, "]")
 }*/
 
+func PrintJSONAllRefs(w io.Writer, paper *Paper) {
+    fmt.Fprintf(w, "\"allr\":true,\"ref\":[")
+    // output the refs (future -> past)
+    for i, link := range paper.refs {
+        if i > 0 {
+            fmt.Fprintf(w, ",")
+        }
+        PrintJSONLinkPastInfo(w, link)
+    }
+    fmt.Fprintf(w, "]")
+}
+
 func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
     fmt.Fprintf(w, "\"allc\":true,\"cite\":[")
     first := true
@@ -1329,18 +1345,6 @@ func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
         first = false
     }
 
-    fmt.Fprintf(w, "]")
-}
-
-func PrintJSONAllRefs(w io.Writer, paper *Paper) {
-    fmt.Fprintf(w, "\"allr\":true,\"ref\":[")
-    // output the refs (future -> past)
-    for i, link := range paper.refs {
-        if i > 0 {
-            fmt.Fprintf(w, ",")
-        }
-        PrintJSONLinkPastInfo(w, link)
-    }
     fmt.Fprintf(w, "]")
 }
 
@@ -1990,7 +1994,21 @@ func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "}")
 }
 
-func (h *MyHTTPHandler) GetMetaRefs(ids []uint, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) GetMetaRefsCites(ids []uint, rw http.ResponseWriter) {
+
+    // Get 5 days ago date boundary so we can pass along new cites
+    // TODO maybe handier to simply have this in memory
+    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
+    h.papers.QueryEnd()
+    var db uint64
+    if row != nil {
+        var ok bool
+        if db, ok = row[0].(uint64); !ok {
+            fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from Row\n")
+            db = 0
+        }
+    }
+
     fmt.Fprintf(rw, "[")
     first := true
     for _, id := range ids {
@@ -2002,7 +2020,7 @@ func (h *MyHTTPHandler) GetMetaRefs(ids []uint, rw http.ResponseWriter) {
         // query the paper and its refs and cites
         paper := h.papers.QueryPaper(id, "")
         h.papers.QueryRefs(paper, false)
-        //h.papers.QueryCites(paper, false)
+        h.papers.QueryCites(paper, false)
 
         // check the paper exists
         if paper == nil {
@@ -2014,6 +2032,12 @@ func (h *MyHTTPHandler) GetMetaRefs(ids []uint, rw http.ResponseWriter) {
         PrintJSONMetaInfo(rw, paper)
         fmt.Fprintf(rw, ",")
         PrintJSONAllRefs(rw, paper)
+        fmt.Fprintf(rw, ",")
+        if len(paper.cites) < 26 {
+            PrintJSONAllCites(rw, paper, 0)
+        } else {
+            PrintJSONNewCites(rw, paper, uint(db))
+        }
         fmt.Fprintf(rw, "}")
     }
     fmt.Fprintf(rw, "]")
