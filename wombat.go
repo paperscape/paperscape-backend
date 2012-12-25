@@ -111,28 +111,36 @@ type SavedDrawnForm struct {
     Id      uint     `json:"id"`
     X       *int     `json:"x"`
     R       *int     `json:"r"`
-    Rm      bool     `json:"rm,omitempty"`
+    Rm      bool     `json:"rm,omitempty"` // remove
 }
 
 type SavedMultiGraph struct {
     Name    string            `json:"name"`
-    Ind     *uint             `json:"ind"`
+    Ind     *uint             `json:"ind"` // index of graph in array
     Drawn   []*SavedDrawnForm `json:"drawn"`
-    Rm      bool              `json:"rm,omitempty"`
+    Rm      bool              `json:"rm,omitempty"` // remove
 }
 
 type SavedTag struct {
     Name    string    `json:"name"`
-    Ind     *uint     `json:"ind"`
+    Ind     *uint     `json:"ind"` // index of graph in array
     Blob    *bool     `json:"blob"`
     Ids     []uint    `json:"ids"`
-    Rm      bool      `json:"rm,omitempty"`
+    Rm      bool      `json:"rm,omitempty"` // remove
 }
 
 type SavedNote struct {
     Id      uint    `json:"id"`
     Notes   *string `json:"notes"`
-    Rm      bool    `json:"rm,omitempty"`
+    Rm      bool    `json:"rm,omitempty"` // remove
+}
+
+// NOTE: If you change this, also change the default entry for new user row in ProfileRegister
+type SavedUserSettings struct {
+    // Paper Vertical Ordering:
+    Pvo     *uint    `json:"pvo"`
+    // New papers if this many Days Ago
+    Nda     *uint    `json:"nda"`
 }
 
 type Link struct {
@@ -365,6 +373,17 @@ func MergeSavedTags (diffSavedTags []SavedTag, oldSavedTags []SavedTag) []SavedT
     }
     sort.Sort(SavedTagSliceSortIndex(oldSavedTags))
     return oldSavedTags
+}
+
+func MergeSavedSettings(diffSettings SavedUserSettings, oldSettings SavedUserSettings) SavedUserSettings {
+    // ### MERGE ###
+    if diffSettings.Pvo != nil {
+        oldSettings.Pvo = diffSettings.Pvo
+    }
+    if diffSettings.Nda != nil {
+        oldSettings.Nda = diffSettings.Nda
+    }
+    return oldSettings
 }
 
 /****************************************************************/
@@ -1020,12 +1039,13 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             h.ProfileChallenge(req.Form["pchal"][0], giveSalt, giveVersion, rw)
         } else if req.Form["pload"] != nil && req.Form["h"] != nil {
             // profile-load: either login request or load request from an autosave
-            // h = passHash, nh = notessHash, gh = graphsHash, th = tagsHash
-            var nh, gh, th string
+            // h = passHash, nh = notessHash, gh = graphsHash, th = tagsHash, sh = settingshash
+            var nh, gh, th, sh string
             if req.Form["nh"] != nil { nh = req.Form["nh"][0] }
             if req.Form["gh"] != nil { gh = req.Form["gh"][0] }
             if req.Form["th"] != nil { th = req.Form["th"][0] }
-            h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], nh, gh, th, rw)
+            if req.Form["sh"] != nil { th = req.Form["sh"][0] }
+            h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], nh, gh, th, sh, rw)
         } else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt), pv = password version
@@ -1167,14 +1187,15 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "{\"r\":")
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["nh"] != nil && req.Form["gh"] != nil && req.Form["th"] != nil{
+        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["nh"] != nil && req.Form["gh"] != nil && req.Form["th"] != nil && req.Form["sh"] != nil {
             // profile-sync: sync request
-            // h = passHash, n = notesdiff, g = graphsdiff, t = tagsdiff (and the end result hashes)
-            var n, g, t string
+            // h = passHash, n = notesdiff, g = graphsdiff, t = tagsdiff, s = settingsdiff (and the end result hashes)
+            var n, g, t, s string
             if req.Form["n"] != nil { n = req.Form["n"][0] }
             if req.Form["g"] != nil { g = req.Form["g"][0] }
             if req.Form["t"] != nil { t = req.Form["t"][0] }
-            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], n, req.Form["nh"][0], g, req.Form["gh"][0], t, req.Form["th"][0], rw)
+            if req.Form["s"] != nil { s = req.Form["s"][0] }
+            h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], n, req.Form["nh"][0], g, req.Form["gh"][0], t, req.Form["th"][0], s, req.Form["sh"][0], rw)
         } else if req.Form["lsave"] != nil {
             // link-save: existing code (or empty string if none)
             // n = notes, nh = notes hash, g = graphs, gh = graphs hash, t = tags, th = tags hash
@@ -1589,10 +1610,10 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
 
     // generate empty papers and tags strings etc.
     emptyJSON := "[]"
-    //emptyhash := Sha1(string(emptyJSON))
+    settingsJSON := "{\"pvo\":0,\"nda\":1}"
 
     // create database entry
-    stmt = h.papers.StatementBegin("INSERT INTO userdata (usermail,userhash,salt,pwdversion,notes,graphs,tags,lastlogin) VALUES (?,?,?,?,?,?,?,?,?,?,NOW())",h.papers.db.Escape(usermail),userhash,salt,pwdversion,emptyJSON,emptyJSON,emptyJSON)
+    stmt = h.papers.StatementBegin("INSERT INTO userdata (usermail,userhash,salt,pwdversion,notes,graphs,tags,settings,lastlogin) VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW())",h.papers.db.Escape(usermail),userhash,salt,pwdversion,emptyJSON,emptyJSON,emptyJSON,settingsJSON)
     if !h.papers.StatementEnd(stmt) {
         return
     }
@@ -1622,7 +1643,7 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
 
 /* If given papers/tags hashes don't match with db, send user all their papers and tags.
    Login also uses this function by providing empty hashes. */
-func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash string, graphshash string, tagshash string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash string, graphshash string, tagshash string, settingshash string, rw http.ResponseWriter) {
     if !h.ProfileAuthenticate(usermail,passhash) {
         return
     }
@@ -1634,20 +1655,21 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
         return
     }
 
-    var notes,graphs,tags []byte
-    stmt := h.papers.StatementBegin("SELECT notes,graphs,tags FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
-    if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags) {
+    var notes,graphs,tags,settings []byte
+    stmt := h.papers.StatementBegin("SELECT notes,graphs,tags,settings FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
+    if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags,&settings) {
         return
     }
     noteshashDb := Sha1(string(notes))
     graphshashDb := Sha1(string(graphs))
     tagshashDb := Sha1(string(tags))
+    settingshashDb := Sha1(string(settings))
 
     // If nonzero hashes given, check if they match those stored in db
     // If so, client can proceed with sync without needing load data,
     // just return the hashes
-    if noteshash != "" && graphshash != "" && tagshash != "" && noteshashDb == noteshash && graphshashDb == graphshash && tagshashDb == tagshash {
-        fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"nh\":\"%s\",\"gh\":\"%s\",\"th\":\"%s\"}",usermail,challenge,noteshashDb,graphshashDb,tagshashDb)
+    if noteshash != "" && graphshash != "" && tagshash != "" && settingshash != "" && noteshashDb == noteshash && graphshashDb == graphshash && tagshashDb == tagshash && settingshashDb == settingshash {
+        fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"nh\":\"%s\",\"gh\":\"%s\",\"th\":\"%s\",\"sh\":\"%s\"}",usermail,challenge,noteshashDb,graphshashDb,tagshashDb,settingshashDb)
         return
     }
 
@@ -1676,21 +1698,24 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
     // TAGS
     fmt.Fprintf(rw, ",\"tag\":%s,\"th\":\"%s\"",string(tags),tagshashDb)
 
+    // SETTINGS
+    fmt.Fprintf(rw, ",\"set\":%s,\"sh\":\"%s\"",string(settings),settingshashDb)
+
     // end
     fmt.Fprintf(rw, "}")
 }
 
 /* Profile Sync */
-func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes string, noteshash string, diffgraphs string, graphshash string, difftags string, tagshash string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes string, noteshash string, diffgraphs string, graphshash string, difftags string, tagshash string, diffsettings string, settingshash string, rw http.ResponseWriter) {
     if !h.ProfileAuthenticate(usermail,passhash) {
         return
     }
 
-    var notes,graphs,tags string
+    var notes,graphs,tags,settings string
     var err error
 
-    stmt := h.papers.StatementBegin("SELECT notes,graphs,tags FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
-    if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags) {
+    stmt := h.papers.StatementBegin("SELECT notes,graphs,tags,settings FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
+    if !h.papers.StatementBindSingleRow(stmt,&notes,&graphs,&tags,&settings) {
         return
     }
 
@@ -1784,17 +1809,44 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
         return
     }
 
+    // SETTINGS
+
+    // default:
+    newSettingsJSON := []byte(settings)
+    newSettingshash := Sha1(settings)
+    // see if diff given:
+    if len(diffsettings) > 0 {
+        var oldSavedSettings SavedUserSettings
+        err = json.Unmarshal([]byte(settings),&oldSavedSettings)
+        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+
+        var diffSavedSettings SavedUserSettings
+        err = json.Unmarshal([]byte(diffsettings),&diffSavedSettings)
+        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+
+        // Merge
+        newSavedSettings := MergeSavedSettings(diffSavedSettings, oldSavedSettings)
+        newSettingsJSON, err = json.Marshal(newSavedSettings)
+        newSettingshash = Sha1(string(newSettingsJSON))
+    }
+    // compare with hashes we were sent (should match!!)
+    if newSettingshash != settingshash {
+        fmt.Printf("ERROR: for user %s, new sync settings hashes don't match those sent from client: %s vs %s\n", usermail,newSettingshash,settingshash)
+        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
+        return
+    }
+
     /* MYSQL */
     /*********/
 
-    stmt = h.papers.StatementBegin("UPDATE userdata SET notes = ?, graphs = ?, tags = ?, numsync = numsync + 1, lastsync = NOW() WHERE usermail = ?", newNotesJSON, newGraphsJSON, newTagsJSON, h.papers.db.Escape(usermail))
+    stmt = h.papers.StatementBegin("UPDATE userdata SET notes = ?, graphs = ?, tags = ?, settings = ?, numsync = numsync + 1, lastsync = NOW() WHERE usermail = ?", newNotesJSON, newGraphsJSON, newTagsJSON, newSettingsJSON, h.papers.db.Escape(usermail))
     if !h.papers.StatementEnd(stmt) {
         fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
 
     // We succeeded
-    fmt.Fprintf(rw, "{\"succ\":\"true\",\"nh\":\"%s\",\"gh\":\"%s\",\"th\":\"%s\"}",newNoteshash,newGraphshash,newTagshash)
+    fmt.Fprintf(rw, "{\"succ\":\"true\",\"nh\":\"%s\",\"gh\":\"%s\",\"th\":\"%s\",\"sh\":\"%s\"}",newNoteshash,newGraphshash,newTagshash,newSettingshash)
 }
 
 
