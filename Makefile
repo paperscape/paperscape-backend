@@ -5,8 +5,10 @@ LDFLAGS = $(shell pkg-config --libs gtk+-3.0)
 SRC = \
 	common.c \
 	tred.c \
+	quadtree.c \
 	map.c \
 	mysql.c \
+	gui.c \
 	main.c \
 
 OBJ = $(SRC:.c=.o)

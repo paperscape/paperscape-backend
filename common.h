@@ -20,6 +20,8 @@ typedef struct _paper_t {
     // stuff for tred
     int tred_visit_index;
     int *refs_tred_computed;
+    struct _paper_t *tred_follow_back_paper;
+    int tred_follow_back_ref;
 
     // stuff for the placement of papers
     int kind;
