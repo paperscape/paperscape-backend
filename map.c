@@ -201,6 +201,21 @@ void map_env_adjust_link_strength(map_env_t *map_env, double amt) {
     link_strength *= amt;
 }
 
+void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+    double x = p->x;
+    double y = p->y;
+    double w = 2*p->r;
+    if (p->kind == 1) {
+        cairo_set_source_rgba(cr, 0.85, 0.85, 1, 1);
+    } else if (p->kind == 2) {
+        cairo_set_source_rgba(cr, 1, 0.85, 0.85, 1);
+    } else {
+        cairo_set_source_rgba(cr, 0.85, 1, 0.85, 1);
+    }
+    cairo_arc(cr, x, y, w, 0, 2 * M_PI);
+    cairo_fill(cr);
+}
+
 void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double shade) {
     /*
     double h = w * 1.41;
@@ -225,7 +240,7 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double shade) {
         cairo_set_source_rgba(cr, 0, 0.8, 0, 0.7);
     }
     */
-    cairo_set_source_rgba(cr, shade, 1-shade, 0, 0.7);
+    cairo_set_source_rgba(cr, shade, 1-shade, 0, 1);
 
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
@@ -253,6 +268,11 @@ void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double 
 }
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bool do_tred) {
+    // clear bg
+    cairo_set_source_rgb(cr, 1, 1, 1);
+    cairo_rectangle(cr, 0, 0, width, height);
+    cairo_fill(cr);
+
     double line_width_1px = 1.0 / map_env->tr_matrix.xx;
     cairo_set_matrix(cr, &map_env->tr_matrix);
 
@@ -329,6 +349,12 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
             }
             cairo_stroke(cr);
         }
+    }
+
+    // papers background halo
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        draw_paper_bg(cr, map_env, p);
     }
 
     // papers
