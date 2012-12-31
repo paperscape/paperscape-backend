@@ -22,16 +22,6 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
     guint width = gtk_widget_get_allocated_width(widget);
     guint height = gtk_widget_get_allocated_height(widget);
     map_env_draw(map_env, cr, width, height, do_tred);
-    if (mouse_paper != NULL) {
-        cairo_set_line_width(cr, 1);
-        cairo_set_source_rgba(cr, 0, 0, 0, 0.8);
-        double x = 0;
-        double y = 0.02 * mouse_paper->index;
-        map_env_world_to_screen(map_env, &x, &y);
-        cairo_move_to(cr, 0, y);
-        cairo_line_to(cr, width, y);
-        cairo_stroke(cr);
-    }
     return FALSE;
 }
 
@@ -151,7 +141,7 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
 }
 
 static gboolean map_env_update(map_env_t *map_env) {
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         if (map_env_forces(map_env, 1, 1, do_tred, mouse_paper)) {
             break;
         }

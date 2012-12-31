@@ -253,11 +253,11 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
     double line_width_1px = 1.0 / map_env->tr_matrix.xx;
     cairo_set_matrix(cr, &map_env->tr_matrix);
 
-    cairo_set_line_width(cr, line_width_1px);
-    cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
-    //quad_tree_draw_grid(cr, map_env->quad_tree->root, map_env->quad_tree->min_x, map_env->quad_tree->min_y, map_env->quad_tree->max_x, map_env->quad_tree->max_y);
-
     if (map_env->draw_grid) {
+        cairo_set_line_width(cr, line_width_1px);
+        cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
+        quad_tree_draw_grid(cr, map_env->quad_tree->root, map_env->quad_tree->min_x, map_env->quad_tree->min_y, map_env->quad_tree->max_x, map_env->quad_tree->max_y);
+
         /*
         // grid density
         for (int j = 0; j < map_env->grid_h; j++) {
@@ -273,6 +273,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
         */
 
         // grid lines
+        /*
         cairo_set_line_width(cr, line_width_1px);
         cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
         for (int i = 0; i <= map_env->grid_w; i++) {
@@ -284,12 +285,15 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
             cairo_line_to(cr, map_env->grid_w, i);
         }
         cairo_stroke(cr);
+        */
     } else {
         // just draw the border of the grid
+        /*
         cairo_set_line_width(cr, line_width_1px);
         cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
         cairo_rectangle(cr, 0, 0, map_env->grid_w, map_env->grid_h);
         cairo_stroke(cr);
+        */
     }
 
     // paper links
