@@ -201,7 +201,7 @@ void map_env_adjust_link_strength(map_env_t *map_env, double amt) {
     link_strength *= amt;
 }
 
-void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double shade) {
     /*
     double h = w * 1.41;
     cairo_set_source_rgba(cr, 0.9, 0.9, 0.8, 0.9);
@@ -214,6 +214,7 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     double x = p->x;
     double y = p->y;
     double w = p->r;
+    /*
     if (p->id == 1992546899 || p->id == 1993234723) {
         cairo_set_source_rgba(cr, 0.8, 0.8, 0, 0.7);
     } else if (p->kind == 1) {
@@ -223,6 +224,8 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     } else {
         cairo_set_source_rgba(cr, 0, 0.8, 0, 0.7);
     }
+    */
+    cairo_set_source_rgba(cr, shade, 1-shade, 0, 0.7);
 
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
@@ -331,7 +334,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
     // papers
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
-        draw_paper(cr, map_env, p);
+        draw_paper(cr, map_env, p, 1.0 * i / map_env->num_papers);
     }
 
     // info
@@ -775,7 +778,7 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
     map_env->num_papers = 0;
     for (int i = 0; i < map_env->cur_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        if (p->num_with_my_colour > 100) {
+        if (p->num_with_my_colour > 10) {
             map_env->papers[map_env->num_papers++] = p;
         }
     }
