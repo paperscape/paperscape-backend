@@ -141,18 +141,9 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
 }
 
 static gboolean map_env_update(map_env_t *map_env) {
-    for (int i = 0; i < 6; i++) {
-        if (map_env_forces(map_env, 1, 1, do_tred, mouse_paper)) {
-            break;
-        }
+    for (int i = 0; i < 5; i++) {
+        map_env_iterate(map_env, do_tred, mouse_paper);
     }
-    /*
-    for (int i = 0; i < 4; i++) {
-        if (map_env_forces(map_env, 1, 0, do_tred, mouse_paper)) {
-            break;
-        }
-    }
-    */
     // force a redraw
     gtk_widget_queue_draw(window);
     return TRUE; // yes, we want to be called again

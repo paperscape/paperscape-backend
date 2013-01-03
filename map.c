@@ -451,7 +451,7 @@ void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2, double q
 
         if (q2->num_papers == 1) {
             // q2 is leaf node
-            double fac = q1->mass * q2->mass * anti_gravity_strength / (r*r*r);
+            double fac = q1->mass * q2->mass * anti_gravity_strength / (r*r);
             double fx = dx * fac;
             double fy = dy * fac;
             q1->fx += fx;
@@ -464,7 +464,7 @@ void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2, double q
             if (q2_cell_side_length / r < 0.7) {
                 // q1 and the cell q2 are "well separated"
                 // approximate force by centroid of q2
-                double fac = q1->mass * q2->mass * anti_gravity_strength / (r*r*r);
+                double fac = q1->mass * q2->mass * anti_gravity_strength / (r*r);
                 double fx = dx * fac;
                 double fy = dy * fac;
                 q1->fx += fx;
@@ -539,7 +539,7 @@ void quad_tree_forces(quad_tree_t *qt) {
     quad_tree_node_forces_propagate(qt->root, 0, 0);
 }
 
-bool map_env_forces(map_env_t *map_env, bool do_touch, bool do_attr, bool do_tred, paper_t *hold_still) {
+void map_env_compute_forces(map_env_t *map_env, bool do_tred) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
 
@@ -548,13 +548,35 @@ bool map_env_forces(map_env_t *map_env, bool do_touch, bool do_attr, bool do_tre
         p->fy = 0;
     }
 
-    //map_env_init_forces(map_env);
-
+    // compute paper-paper forces using a quad tree
     quad_tree_build(map_env->num_papers, map_env->papers, map_env->quad_tree);
     quad_tree_forces(map_env->quad_tree);
 
+    /*
+    // naive gravity/anti-gravity
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p1 = map_env->papers[i];
+        for (int j = i + 1; j < map_env->num_papers; j++) {
+            paper_t *p2 = map_env->papers[j];
+            double dx = p1->x - p2->x;
+            double dy = p1->y - p2->y;
+            double r = sqrt(dx*dx + dy*dy);
+            if (r > p1->r + p2->r) {
+                double fac = 0.8 * p1->mass * p2->mass / (r*r*r);
+                double fx = dx * fac;
+                double fy = dy * fac;
+                p1->fx -= fx;
+                p1->fy -= fy;
+                p2->fx += fx;
+                p2->fy += fy;
+            }
+        }
+    }
+    */
+
     #if 0
     // repulsion from touching
+    map_env_init_forces(map_env);
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         int x1 = floor(p->x - p->r);
@@ -593,7 +615,6 @@ bool map_env_forces(map_env_t *map_env, bool do_touch, bool do_attr, bool do_tre
     }
 
     // repulsion from all others
-    if (0 && do_attr) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p1 = map_env->papers[i];
         for (int j = i + 1; j < map_env->num_papers; j++) {
@@ -616,7 +637,6 @@ bool map_env_forces(map_env_t *map_env, bool do_touch, bool do_attr, bool do_tre
             }
         }
     }
-    }
     #endif
 
     /*
@@ -631,7 +651,6 @@ bool map_env_forces(map_env_t *map_env, bool do_touch, bool do_attr, bool do_tre
     */
 
     // attraction due to links
-    if (do_attr) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p1 = map_env->papers[i];
         for (int j = 0; j < p1->num_refs; j++) {
@@ -673,29 +692,10 @@ bool map_env_forces(map_env_t *map_env, bool do_touch, bool do_attr, bool do_tre
             }
         }
     }
-    }
+}
 
-    /*
-    // gravity!
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p1 = map_env->papers[i];
-        for (int j = i + 1; j < map_env->num_papers; j++) {
-            paper_t *p2 = map_env->papers[j];
-            double dx = p1->x - p2->x;
-            double dy = p1->y - p2->y;
-            double r = sqrt(dx*dx + dy*dy);
-            if (r > p1->r + p2->r) {
-                double fac = 0.8 * p1->mass * p2->mass / (r*r*r);
-                double fx = dx * fac;
-                double fy = dy * fac;
-                p1->fx -= fx;
-                p1->fy -= fy;
-                p2->fx += fx;
-                p2->fy += fy;
-            }
-        }
-    }
-    */
+void map_env_iterate(map_env_t *map_env, bool do_tred, paper_t *hold_still) {
+    map_env_compute_forces(map_env, do_tred);
 
     // work out maximum force
     double fmax = 0;
@@ -709,11 +709,6 @@ bool map_env_forces(map_env_t *map_env, bool do_touch, bool do_attr, bool do_tre
         if (fabs(p->fy) > fmax) {
             fmax = fabs(p->fy);
         }
-    }
-
-    if (fmax < 1e-3) {
-        // we have converged
-        return true;
     }
 
     // apply forces
@@ -749,8 +744,6 @@ bool map_env_forces(map_env_t *map_env, bool do_touch, bool do_attr, bool do_tre
         // force y-position
         //p->y = 1 + 0.05 * p->index;
     }
-
-    return false;
 }
 
 void map_env_grow(map_env_t *map_env, double amt) {
