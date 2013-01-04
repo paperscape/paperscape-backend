@@ -146,8 +146,9 @@ static bool env_load_ids(env_t *env, const char *maincat) {
     vstr_printf(vstr, "SELECT id,maincat,authors,title FROM meta_data");
     if (maincat != NULL && maincat[0] != 0) {
         env->maincat = maincat;
-        vstr_printf(vstr, " WHERE (maincat='%s' or maincat='hep-ph' or maincat='gr-qc')", maincat);
-        vstr_printf(vstr, " AND id>=1992500000 AND id<2000000000");
+        vstr_printf(vstr, " WHERE (maincat='%s' or maincat='hep-ph' or maincat='gr-qc' or maincat='hep-ex')", maincat);
+        //vstr_printf(vstr, " AND id>=1992500000 AND id<2000000000");
+        vstr_printf(vstr, " AND id>=2110000000");
     } else {
         env->maincat = NULL;
     }

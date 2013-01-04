@@ -35,6 +35,10 @@ struct _map_env_t {
     bool draw_paper_links;
 
     cairo_matrix_t tr_matrix;
+
+    double energy;
+    int progress;
+    double step_size;
 };
 
 map_env_t *map_env_new() {
@@ -57,6 +61,10 @@ map_env_t *map_env_new() {
     cairo_matrix_init_identity(&map_env->tr_matrix);
     map_env->tr_matrix.xx = 8;
     map_env->tr_matrix.yy = 8;
+
+    map_env->energy = 0;
+    map_env->progress = 0;
+    map_env->step_size = 0.1;
 
     return map_env;
 }
@@ -246,6 +254,18 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double shade) {
     cairo_fill(cr);
 }
 
+void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+    if (p->r * map_env->tr_matrix.xx > 20) {
+        double x = p->x;
+        double y = p->y;
+        map_env_world_to_screen(map_env, &x, &y);
+        cairo_text_extents_t extents;
+        cairo_text_extents(cr, p->title, &extents);
+        cairo_move_to(cr, x - 0.5 * extents.width, y + 0.5 * extents.height);
+        cairo_show_text(cr, p->title);
+    }
+}
+
 void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double min_y, double max_x, double max_y) {
     if (q != NULL) {
         if (q->num_papers == 1) {
@@ -363,9 +383,19 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
         draw_paper(cr, map_env, p, 1.0 * i / map_env->num_papers);
     }
 
+    // paper text
+    cairo_identity_matrix(cr);
+    cairo_set_source_rgb(cr, 0, 0, 0);
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        draw_paper_text(cr, map_env, p);
+    }
+
     // info
 
     vstr_reset(map_env->vstr);
+    vstr_printf(map_env->vstr, "energy: %.3g\n", map_env->energy);
+    vstr_printf(map_env->vstr, "step size: %.3g\n", map_env->step_size);
     vstr_printf(map_env->vstr, "anti-gravity strength: %.3f\n", anti_gravity_strength);
     vstr_printf(map_env->vstr, "link strength: %.3f\n", link_strength);
     vstr_printf(map_env->vstr, "transitive reduction: %d\n", do_tred);
@@ -694,9 +724,58 @@ void map_env_compute_forces(map_env_t *map_env, bool do_tred) {
     }
 }
 
-void map_env_iterate(map_env_t *map_env, bool do_tred, paper_t *hold_still) {
+bool map_env_iterate(map_env_t *map_env, bool do_tred, paper_t *hold_still) {
     map_env_compute_forces(map_env, do_tred);
 
+    double energy = 0;
+
+    // work out maximum force
+    double fmax = 0;
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        p->fx /= p->mass;
+        p->fy /= p->mass;
+        double fmagsq = p->fx * p->fx + p->fy * p->fy;
+        energy += fmagsq;
+        if (fmagsq > fmax) {
+            fmax = fmagsq;
+        }
+    }
+
+    //double dt = map_env->step_size / sqrt(fmax);
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        if (p == hold_still) {
+            continue;
+        }
+
+        double fmagsq = p->fx*p->fx + p->fy*p->fy;
+        double dt = map_env->step_size / sqrt(fmagsq);
+        p->x += dt * p->fx;
+        p->y += dt * p->fy;
+    }
+
+    if (energy < map_env->energy) {
+        // energy went down
+        if (map_env->progress < 3) {
+            map_env->progress += 1;
+        } else {
+            if (map_env->step_size < 5) {
+                map_env->step_size *= 1.1;
+            }
+        }
+    } else {
+        // energy went up
+        map_env->progress = 0;
+        if (map_env->step_size > 1e-2) {
+            map_env->step_size *= 0.9;
+        }
+    }
+    map_env->energy = energy;
+
+    return map_env->step_size <= 1e-2;
+
+    #if 0
     // work out maximum force
     double fmax = 0;
     for (int i = 0; i < map_env->num_papers; i++) {
@@ -744,6 +823,7 @@ void map_env_iterate(map_env_t *map_env, bool do_tred, paper_t *hold_still) {
         // force y-position
         //p->y = 1 + 0.05 * p->index;
     }
+    #endif
 }
 
 void map_env_grow(map_env_t *map_env, double amt) {
@@ -755,13 +835,17 @@ void map_env_grow(map_env_t *map_env, double amt) {
 }
 
 void map_env_inc_num_papers(map_env_t *map_env, int amt) {
+    if (map_env->cur_num_papers >= map_env->max_num_papers) {
+        // already have maximum number of papers in graph
+        return;
+    }
     int old_num_papers = map_env->cur_num_papers;
     map_env->cur_num_papers += amt;
     if (map_env->cur_num_papers > map_env->max_num_papers) {
         map_env->cur_num_papers = map_env->max_num_papers;
     }
     recompute_num_cites(map_env->cur_num_papers, map_env->all_papers);
-    recompute_colours(map_env->cur_num_papers, map_env->all_papers, true);
+    recompute_colours(map_env->cur_num_papers, map_env->all_papers, false);
     compute_tred(map_env->cur_num_papers, map_env->all_papers);
     for (int i = 0; i < map_env->cur_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
@@ -802,7 +886,11 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
         }
     }
 
-    printf("now have %d papers, %d connected and included in graph, maximum id is %d\n", map_env->cur_num_papers, map_env->num_papers, map_env->all_papers[map_env->cur_num_papers - 1].id);
+    if (amt > 10) {
+        map_env->step_size = 1;
+    }
+
+    //printf("now have %d papers, %d connected and included in graph, maximum id is %d\n", map_env->cur_num_papers, map_env->num_papers, map_env->all_papers[map_env->cur_num_papers - 1].id);
 }
 
 void map_env_jolt(map_env_t *map_env, double amt) {

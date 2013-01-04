@@ -18,6 +18,9 @@ PROG = mapgen
 $(PROG): $(OBJ)
 	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LIB)
 
+clean:
+	/bin/rm $(OBJ)
+
 depend:
 	makedepend -Y $(SRC) 2>/dev/null
 

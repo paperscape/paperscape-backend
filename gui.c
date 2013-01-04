@@ -11,12 +11,34 @@
 vstr_t *vstr;
 GtkWidget *window;
 GtkTextBuffer *text_buf;
+GtkWidget *statusbar;
+guint statusbar_context_id;
 int do_tred = 1;
 
-bool mouse_held = FALSE;
+bool update_running = true;
+bool mouse_held = false;
 bool mouse_dragged;
 double mouse_last_x = 0, mouse_last_y = 0;
 paper_t *mouse_paper = NULL;
+
+static int add_counter = 0;
+static gboolean map_env_update(map_env_t *map_env) {
+    if (add_counter > 0) {
+        add_counter -= 1;
+    }
+    for (int i = 0; i < 5; i++) {
+        if (map_env_iterate(map_env, do_tred, mouse_paper)) {
+            if (add_counter == 0) {
+                add_counter = 10;
+                map_env_inc_num_papers(map_env, 100);
+            }
+            break;
+        }
+    }
+    // force a redraw
+    gtk_widget_queue_draw(window);
+    return TRUE; // yes, we want to be called again
+}
 
 static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env) {
     guint width = gtk_widget_get_allocated_width(widget);
@@ -31,12 +53,26 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     guint width = gtk_widget_get_allocated_width(widget);
     guint height = gtk_widget_get_allocated_height(widget);
 
-    if (event->keyval == GDK_KEY_a) {
+    if (event->keyval == GDK_KEY_space) {
+        if (update_running) {
+            g_idle_remove_by_data(map_env);
+            update_running = false;
+            printf("update not running\n");
+        } else {
+            g_idle_add((GSourceFunc)map_env_update, map_env);
+            update_running = true;
+            printf("update running\n");
+        }
+
+    } else if (event->keyval == GDK_KEY_a) {
         map_env_inc_num_papers(map_env, 1);
     } else if (event->keyval == GDK_KEY_b) {
         map_env_inc_num_papers(map_env, 10);
     } else if (event->keyval == GDK_KEY_c) {
         map_env_inc_num_papers(map_env, 100);
+    } else if (event->keyval == GDK_KEY_d) {
+        map_env_inc_num_papers(map_env, 1000);
+
     } else if (event->keyval == GDK_KEY_j) {
         map_env_jolt(map_env, 0.5);
     } else if (event->keyval == GDK_KEY_k) {
@@ -71,6 +107,10 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         gtk_main_quit();
     }
 
+    if (!update_running) {
+        gtk_widget_queue_draw(window);
+    }
+
     return TRUE; // we handled the event, stop processing
 }
 
@@ -94,7 +134,8 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
                 paper_t *p = mouse_paper;
                 vstr_reset(vstr);
                 vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites) %s -- %s\n", p->index, p->id, p->num_refs, p->num_cites, p->authors, p->title);
-                gtk_text_buffer_insert_at_cursor(text_buf, vstr_str(vstr), vstr_len(vstr));
+                //gtk_text_buffer_insert_at_cursor(text_buf, vstr_str(vstr), vstr_len(vstr));
+                gtk_statusbar_push(GTK_STATUSBAR(statusbar), statusbar_context_id, vstr_str(vstr));
             }
         }
         mouse_paper = NULL;
@@ -108,6 +149,10 @@ static gboolean scroll_event_callback(GtkWidget *widget, GdkEventScroll *event, 
         map_env_zoom(map_env, event->x, event->y, 1.2);
     } else if (event->direction == GDK_SCROLL_DOWN) {
         map_env_zoom(map_env, event->x, event->y, 0.8);
+    }
+
+    if (!update_running) {
+        gtk_widget_queue_draw(window);
     }
 
     return TRUE; // we handled the event, stop processing
@@ -136,17 +181,12 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
             mouse_last_x = event->x;
             mouse_last_y = event->y;
         }
+
+        if (!update_running) {
+            gtk_widget_queue_draw(window);
+        }
     }
     return TRUE;
-}
-
-static gboolean map_env_update(map_env_t *map_env) {
-    for (int i = 0; i < 5; i++) {
-        map_env_iterate(map_env, do_tred, mouse_paper);
-    }
-    // force a redraw
-    gtk_widget_queue_draw(window);
-    return TRUE; // yes, we want to be called again
 }
 
 // for a gtk example, see: http://git.gnome.org/browse/gtk+/tree/demos/gtk-demo/drawingarea.c
@@ -181,22 +221,16 @@ void build_gui(map_env_t *map_env) {
     gtk_box_pack_start(GTK_BOX(box), xxx, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box_outer), box, FALSE, FALSE, 0);
 
-    // create the inner grid container which will layout all our widgets
-    GtkWidget *paned = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
-    gtk_widget_set_size_request(paned, -1, 200);
-    gtk_box_pack_start(GTK_BOX(box_outer), paned, TRUE, TRUE, 0);
-    //gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER); // ?
-    //gtk_window_set_default_size(GTK_WINDOW(window), 300, 300); // ?
-
     // create the drawing area
     GtkWidget *drawing_area = gtk_drawing_area_new();
     GtkWidget *drawing_area_frame = gtk_frame_new(NULL);
     gtk_container_add(GTK_CONTAINER(drawing_area_frame), drawing_area);
     gtk_frame_set_shadow_type(GTK_FRAME(drawing_area_frame), GTK_SHADOW_IN);
-    gtk_widget_set_size_request(drawing_area_frame, 50, -1);
-    gtk_paned_pack1(GTK_PANED(paned), drawing_area_frame, TRUE, FALSE);
+    //gtk_widget_set_size_request(drawing_area_frame, 50, -1);
+    gtk_box_pack_start(GTK_BOX(box_outer), drawing_area_frame, TRUE, TRUE, 0);
 
     // create the console box
+    /*
     GtkWidget *text_area = gtk_text_view_new();
     GtkWidget *scrolled_text_area = gtk_scrolled_window_new(NULL, NULL);
     GtkWidget *console_frame = gtk_frame_new("Output console");
@@ -207,6 +241,12 @@ void build_gui(map_env_t *map_env) {
     gtk_paned_pack2(GTK_PANED(paned), console_frame, FALSE, FALSE);
 
     text_buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text_area));
+    */
+
+    // create the status bar
+    statusbar = gtk_statusbar_new();
+    statusbar_context_id = gtk_statusbar_get_context_id(GTK_STATUSBAR(statusbar), "status");
+    gtk_box_pack_end(GTK_BOX(box_outer), statusbar, FALSE, FALSE, 0);
 
     /*
     ** Map the destroy signal of the window to gtk_main_quit;
@@ -217,7 +257,8 @@ void build_gui(map_env_t *map_env) {
 
     g_signal_connect(window, "key-press-event", G_CALLBACK(key_press_event_callback), map_env);
 
-    g_timeout_add(100 /* milliseconds */, (GSourceFunc)map_env_update, map_env);
+    //g_timeout_add(100 /* milliseconds */, (GSourceFunc)map_env_update, map_env);
+    g_idle_add((GSourceFunc)map_env_update, map_env);
     g_signal_connect(drawing_area, "draw", G_CALLBACK(draw_callback), map_env);
     g_signal_connect(drawing_area, "button-press-event", G_CALLBACK(button_press_event_callback), map_env);
     g_signal_connect(drawing_area, "button-release-event", G_CALLBACK(button_release_event_callback), map_env);
@@ -240,15 +281,19 @@ void build_gui(map_env_t *map_env) {
     // print some help text
     printf(
         "key bindings\n"
+        " space- play/pause the physics update\n"
         "    a - add 1 paper\n"
         "    b - add 10 papers\n"
         "    c - add 100 papers\n"
+        "    d - add 1000 papers\n"
         "    t - turn tred on/off\n"
+        "    l - turn links on/off\n"
         "    j - make a small jolt\n"
         "    k - make a large jolt\n"
         "    q - quit\n"
         "mouse bindings\n"
         "    left click - show info about a paper\n"
-        "    left drag - move a paper around\n"
+        "    left drag - move a paper around / pan the view\n"
+        "       scroll - zoom in/out\n"
     );
 }
