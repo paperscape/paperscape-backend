@@ -16,7 +16,6 @@ typedef struct _env_t {
     vstr_t *vstr[VSTR_MAX];
     bool close_mysql;
     MYSQL mysql;
-    const char *maincat;
     int num_papers;
     paper_t *papers;
 } env_t;
@@ -122,7 +121,7 @@ static int paper_cmp_id(const void *in1, const void *in2) {
     return p1->id - p2->id;
 }
 
-static bool env_load_ids(env_t *env, const char *maincat) {
+static bool env_load_ids(env_t *env, const char *where_clause) {
     MYSQL_RES *result;
     MYSQL_ROW row;
 
@@ -144,13 +143,8 @@ static bool env_load_ids(env_t *env, const char *maincat) {
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT id,maincat,authors,title FROM meta_data");
-    if (maincat != NULL && maincat[0] != 0) {
-        env->maincat = maincat;
-        vstr_printf(vstr, " WHERE (maincat='%s' or maincat='hep-ph' or maincat='gr-qc' or maincat='hep-ex')", maincat);
-        //vstr_printf(vstr, " AND id>=1992500000 AND id<2000000000");
-        vstr_printf(vstr, " AND id>=2110000000");
-    } else {
-        env->maincat = NULL;
+    if (where_clause != NULL && where_clause[0] != 0) {
+        vstr_printf(vstr, " WHERE (%s)", where_clause);
     }
     if (vstr_had_error(vstr)) {
         return false;
@@ -172,7 +166,9 @@ static bool env_load_ids(env_t *env, const char *maincat) {
         paper->num_refs = 0;
         paper->num_cites = 0;
         paper->refs = NULL;
-        if (strcmp(row[1], "hep-th") == 0) {
+        if (row[1] == NULL) {
+            paper->maincat = 4;
+        } else if (strcmp(row[1], "hep-th") == 0) {
             paper->maincat = 1;
         } else if (strcmp(row[1], "hep-ph") == 0) {
             paper->maincat = 2;
@@ -309,7 +305,7 @@ static bool env_build_cites(env_t *env) {
     return true;
 }
 
-bool load_papers_from_mysql(const char *wanted_maincat, int *num_papers_out, paper_t **papers_out) {
+bool load_papers_from_mysql(const char *where_clause, int *num_papers_out, paper_t **papers_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
@@ -318,7 +314,7 @@ bool load_papers_from_mysql(const char *wanted_maincat, int *num_papers_out, pap
     }
 
     // load the DB
-    env_load_ids(&env, wanted_maincat);
+    env_load_ids(&env, where_clause);
     env_load_refs(&env, 0);
     env_build_cites(&env);
 

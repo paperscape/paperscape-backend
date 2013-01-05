@@ -25,7 +25,7 @@ void map_env_grow(map_env_t *map_env, double amt);
 void map_env_inc_num_papers(map_env_t *map_env, int amt);
 void map_env_jolt(map_env_t *map_env, double amt);
 
-void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bool do_tred);
+void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bool do_tred, vstr_t *info_out);
 bool map_env_iterate(map_env_t *map_env, bool do_tred, paper_t *hold_still);
 
 #endif // _INCLUDED_MAP_H

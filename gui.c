@@ -7,6 +7,7 @@
 #include "map.h"
 #include "mysql.h"
 #include "gui.h"
+#include "cairohelper.h"
 
 vstr_t *vstr;
 GtkWidget *window;
@@ -15,6 +16,7 @@ GtkWidget *statusbar;
 guint statusbar_context_id;
 int do_tred = 1;
 
+const char *included_papers_string = NULL;
 bool update_running = true;
 bool mouse_held = false;
 bool mouse_dragged;
@@ -26,7 +28,7 @@ static gboolean map_env_update(map_env_t *map_env) {
     if (add_counter > 0) {
         add_counter -= 1;
     }
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 2; i++) {
         if (map_env_iterate(map_env, do_tred, mouse_paper)) {
             if (add_counter == 0) {
                 add_counter = 10;
@@ -43,7 +45,16 @@ static gboolean map_env_update(map_env_t *map_env) {
 static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env) {
     guint width = gtk_widget_get_allocated_width(widget);
     guint height = gtk_widget_get_allocated_height(widget);
-    map_env_draw(map_env, cr, width, height, do_tred);
+
+    vstr_reset(vstr);
+    vstr_printf(vstr, "included papers: %s\n", included_papers_string);
+    map_env_draw(map_env, cr, width, height, do_tred, vstr);
+
+    // draw info to canvas
+    cairo_identity_matrix(cr);
+    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_helper_draw_text_lines(cr, 10, 20, vstr);
+
     return FALSE;
 }
 
@@ -72,6 +83,8 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_inc_num_papers(map_env, 100);
     } else if (event->keyval == GDK_KEY_d) {
         map_env_inc_num_papers(map_env, 1000);
+    } else if (event->keyval == GDK_KEY_e) {
+        map_env_inc_num_papers(map_env, 10000);
 
     } else if (event->keyval == GDK_KEY_j) {
         map_env_jolt(map_env, 0.5);
@@ -134,7 +147,6 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
                 paper_t *p = mouse_paper;
                 vstr_reset(vstr);
                 vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites) %s -- %s\n", p->index, p->id, p->num_refs, p->num_cites, p->authors, p->title);
-                //gtk_text_buffer_insert_at_cursor(text_buf, vstr_str(vstr), vstr_len(vstr));
                 gtk_statusbar_push(GTK_STATUSBAR(statusbar), statusbar_context_id, vstr_str(vstr));
             }
         }
@@ -191,8 +203,9 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
 
 // for a gtk example, see: http://git.gnome.org/browse/gtk+/tree/demos/gtk-demo/drawingarea.c
 
-void build_gui(map_env_t *map_env) {
+void build_gui(map_env_t *map_env, const char *papers_string) {
     vstr = vstr_new();
+    included_papers_string = papers_string;
 
     // create the main, top level window
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -286,6 +299,7 @@ void build_gui(map_env_t *map_env) {
         "    b - add 10 papers\n"
         "    c - add 100 papers\n"
         "    d - add 1000 papers\n"
+        "    e - add 10000 papers\n"
         "    t - turn tred on/off\n"
         "    l - turn links on/off\n"
         "    j - make a small jolt\n"

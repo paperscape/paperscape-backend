@@ -13,8 +13,6 @@ static double anti_gravity_strength = 0.2;
 static double link_strength = 0.03;
 
 struct _map_env_t {
-    vstr_t *vstr;
-
     // loaded
     int cur_num_papers;
     int max_num_papers;
@@ -43,7 +41,6 @@ struct _map_env_t {
 
 map_env_t *map_env_new() {
     map_env_t *map_env = m_new(map_env_t, 1);
-    map_env->vstr = vstr_new();
     map_env->cur_num_papers = 0;
     map_env->max_num_papers = 0;
     map_env->all_papers = NULL;
@@ -217,8 +214,10 @@ void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
         cairo_set_source_rgba(cr, 0.85, 0.85, 1, 1);
     } else if (p->kind == 2) {
         cairo_set_source_rgba(cr, 1, 0.85, 0.85, 1);
-    } else {
+    } else if (p->kind == 3) {
         cairo_set_source_rgba(cr, 0.85, 1, 0.85, 1);
+    } else {
+        cairo_set_source_rgba(cr, 1, 1, 0.85, 1);
     }
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
@@ -287,7 +286,7 @@ void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double 
     }
 }
 
-void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bool do_tred) {
+void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bool do_tred, vstr_t* vstr_info) {
     // clear bg
     cairo_set_source_rgb(cr, 1, 1, 1);
     cairo_rectangle(cr, 0, 0, width, height);
@@ -361,13 +360,13 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
                 paper_t *p = map_env->papers[i];
                 for (int j = 0; j < p->num_refs; j++) {
                     paper_t *p2 = p->refs[j];
-                    if ((!do_tred || p->refs_tred_computed[j]) && p2->index < map_env->cur_num_papers) {
+                    if (p2->index < map_env->cur_num_papers) {
                         cairo_move_to(cr, p->x, p->y);
                         cairo_line_to(cr, p2->x, p2->y);
+                        cairo_stroke(cr);
                     }
                 }
             }
-            cairo_stroke(cr);
         }
     }
 
@@ -391,36 +390,24 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
         draw_paper_text(cr, map_env, p);
     }
 
-    // info
-
-    vstr_reset(map_env->vstr);
-    vstr_printf(map_env->vstr, "energy: %.3g\n", map_env->energy);
-    vstr_printf(map_env->vstr, "step size: %.3g\n", map_env->step_size);
-    vstr_printf(map_env->vstr, "anti-gravity strength: %.3f\n", anti_gravity_strength);
-    vstr_printf(map_env->vstr, "link strength: %.3f\n", link_strength);
-    vstr_printf(map_env->vstr, "transitive reduction: %d\n", do_tred);
-    vstr_printf(map_env->vstr, "have %d papers, %d connected and included in graph\n", map_env->cur_num_papers, map_env->num_papers);
-
-    cairo_identity_matrix(cr);
-    cairo_set_source_rgb(cr, 0, 0, 0);
-    int y = 20;
-    char *s1 = vstr_str(map_env->vstr);
-    while (*s1 != '\0') {
-        char *s2 = s1;
-        while (*s2 != '\0' && *s2 != '\n') {
-            s2 += 1;
-        }
-        int old_c = *s2;
-        *s2 = '\0';
-        cairo_move_to(cr, 10, y);
-        cairo_show_text(cr, s1);
-        *s2 = old_c;
-        y += 12;
-        s1 = s2;
-        if (*s1 == '\n') {
-            s1 += 1;
-        }
+    // create info string to return
+    vstr_printf(vstr_info, "have %d papers, %d connected and included in graph\n", map_env->cur_num_papers, map_env->num_papers);
+    if (map_env->num_papers > 0) {
+        int id0 = map_env->papers[0]->id;
+        int id1 = map_env->papers[map_env->num_papers - 1]->id;
+        int y0 = id0 / 10000000 + 1800;
+        int m0 = ((id0 % 10000000) / 625000) + 1;
+        int d0 = ((id0 % 625000) / 15625) + 1;
+        int y1 = id1 / 10000000 + 1800;
+        int m1 = ((id1 % 10000000) / 625000) + 1;
+        int d1 = ((id1 % 625000) / 15625) + 1;
+        vstr_printf(vstr_info, "date range is %d/%d/%d -- %d/%d/%d\n", d0, m0, y0, d1, m1, y1);
     }
+    vstr_printf(vstr_info, "energy: %.3g\n", map_env->energy);
+    vstr_printf(vstr_info, "step size: %.3g\n", map_env->step_size);
+    vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", anti_gravity_strength);
+    vstr_printf(vstr_info, "link strength: %.3f\n", link_strength);
+    vstr_printf(vstr_info, "transitive reduction: %d\n", do_tred);
 }
 
 // reset the forces and compute the grid
@@ -727,34 +714,27 @@ void map_env_compute_forces(map_env_t *map_env, bool do_tred) {
 bool map_env_iterate(map_env_t *map_env, bool do_tred, paper_t *hold_still) {
     map_env_compute_forces(map_env, do_tred);
 
+    // use the computed forces to update the (x,y) positions of the papers
     double energy = 0;
-
-    // work out maximum force
-    double fmax = 0;
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
-        p->fx /= p->mass;
-        p->fy /= p->mass;
-        double fmagsq = p->fx * p->fx + p->fy * p->fy;
-        energy += fmagsq;
-        if (fmagsq > fmax) {
-            fmax = fmagsq;
-        }
-    }
-
-    //double dt = map_env->step_size / sqrt(fmax);
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         if (p == hold_still) {
             continue;
         }
 
-        double fmagsq = p->fx*p->fx + p->fy*p->fy;
+        p->fx /= p->mass;
+        p->fy /= p->mass;
+
+        double fmagsq = p->fx * p->fx + p->fy * p->fy;
+        energy += fmagsq;
+
         double dt = map_env->step_size / sqrt(fmagsq);
+
         p->x += dt * p->fx;
         p->y += dt * p->fy;
     }
 
+    // adjust the step size
     if (energy < map_env->energy) {
         // energy went down
         if (map_env->progress < 3) {

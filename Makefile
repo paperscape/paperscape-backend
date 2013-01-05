@@ -9,6 +9,7 @@ SRC = \
 	map.c \
 	mysql.c \
 	gui.c \
+	cairohelper.c \
 	main.c \
 
 OBJ = $(SRC:.c=.o)
