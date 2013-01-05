@@ -161,6 +161,7 @@ type Paper struct {
     arxiv      string   // arxiv id, simplified
     maincat    string   // main arxiv category
     allcats    string   // all arxiv categories (as a comma-separated string)
+    inspire    uint     // inspire record number
     authors    string   // authors
     title      string   // title
     publJSON   string   // publication string in JSON format
@@ -531,10 +532,10 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     // perform query
     var query string
     if id != 0 {
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,authors,title,publ FROM meta_data WHERE id = %d", id)
+        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE id = %d", id)
     } else if len(arxiv) > 0 {
         // security issue: should make sure arxiv string is sanitised
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,authors,title,publ FROM meta_data WHERE arxiv = '%s'", arxiv)
+        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE arxiv = '%s'", arxiv)
     } else {
         return nil
     }
@@ -559,26 +560,29 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         if paper.maincat, ok = row[2].(string); !ok { return nil }
     }
     if paper.allcats, ok = row[3].(string); !ok { paper.allcats = "" }
-    if row[4] == nil {
+    if row[4] != nil {
+        if inspire, ok := row[4].(uint64); ok { paper.inspire = uint(inspire); }
+    }
+    if row[5] == nil {
         paper.authors = "(unknown authors)"
-    } else if au, ok := row[4].([]byte); !ok {
-        fmt.Printf("ERROR: cannot get authors for id=%d; %v\n", paper.id, row[4])
+    } else if au, ok := row[5].([]byte); !ok {
+        fmt.Printf("ERROR: cannot get authors for id=%d; %v\n", paper.id, row[5])
         return nil
     } else {
         paper.authors = string(au)
     }
-    if row[5] == nil {
+    if row[6] == nil {
         paper.authors = "(unknown title)"
-    } else if title, ok := row[5].(string); !ok {
-        fmt.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[5])
+    } else if title, ok := row[6].(string); !ok {
+        fmt.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[6])
         return nil
     } else {
         paper.title = title
     }
-    if row[6] == nil {
+    if row[7] == nil {
         paper.publJSON = "";
-    } else if publ, ok := row[6].(string); !ok {
-        fmt.Printf("ERROR: cannot get publ for id=%d; %v\n", paper.id, row[6])
+    } else if publ, ok := row[7].(string); !ok {
+        fmt.Printf("ERROR: cannot get publ for id=%d; %v\n", paper.id, row[7])
         paper.publJSON = "";
     } else {
         publ2 := string(publ) // convert to string so marshalling does the correct thing
@@ -1268,7 +1272,21 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 /****************************************************************/
 
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
-    PrintJSONMetaInfoUsing(w, paper.id, paper.arxiv, paper.allcats, paper.authors, paper.title, paper.numCites, paper.dNumCites1, paper.dNumCites5, paper.publJSON)
+    authorsJSON, _ := json.Marshal(paper.authors)
+    titleJSON, _ := json.Marshal(paper.title)
+    fmt.Fprintf(w, "{\"id\":%d,\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, authorsJSON, titleJSON, paper.numCites, paper.dNumCites1, paper.dNumCites5)
+    if len(paper.arxiv) > 0 {
+        fmt.Fprintf(w, ",\"arxv\":\"%s\"", paper.arxiv)
+        if len(paper.allcats) > 0 {
+            fmt.Fprintf(w, ",\"cats\":\"%s\"", paper.allcats)
+        }
+    }
+    if paper.inspire > 0 {
+        fmt.Fprintf(w, ",\"insp\":%d", paper.inspire)
+    }
+    if len(paper.publJSON) > 0 {
+        fmt.Fprintf(w, ",\"publ\":%s", paper.publJSON)
+    }
 }
 
 // Returns possibly updated meta info only (this is called on a date change)
@@ -1276,21 +1294,6 @@ func PrintJSONUpdateMetaInfo(w io.Writer, paper *Paper) {
     fmt.Fprintf(w, "{\"id\":%d,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, paper.numCites, paper.dNumCites1, paper.dNumCites5)
     if len(paper.publJSON) > 0 {
         fmt.Fprintf(w, ",\"publ\":%s", paper.publJSON)
-    }
-}
-
-func PrintJSONMetaInfoUsing(w io.Writer, id uint, arxiv string, allcats string, authors string, title string, numCites uint, dNumCites1 uint, dNumCites5 uint, publJSON string) {
-    authorsJSON, _ := json.Marshal(authors)
-    titleJSON, _ := json.Marshal(title)
-    fmt.Fprintf(w, "{\"id\":%d,\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", id, authorsJSON, titleJSON, numCites, dNumCites1, dNumCites5)
-    if len(arxiv) > 0 {
-        fmt.Fprintf(w, ",\"arxv\":\"%s\"", arxiv)
-        if len(allcats) > 0 {
-            fmt.Fprintf(w, ",\"cats\":\"%s\"", allcats)
-        }
-    }
-    if len(publJSON) > 0 {
-        fmt.Fprintf(w, ",\"publ\":%s", publJSON)
     }
 }
 
