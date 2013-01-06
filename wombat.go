@@ -2291,13 +2291,13 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     }
 
     // print the json output
-    fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
+    fmt.Fprintf(rw, "{papr:[{\"id\":%d,", paper.id)
     PrintJSONMetaInfo(rw, paper)
     fmt.Fprintf(rw, ",")
     PrintJSONAllRefs(rw, paper)
     fmt.Fprintf(rw, ",")
     PrintJSONAllCites(rw, paper, 0)
-    fmt.Fprintf(rw, "}")
+    fmt.Fprintf(rw, "}]}")
 }
 
 func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
