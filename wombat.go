@@ -2266,6 +2266,7 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     }
 
     // print the json output
+    fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
     PrintJSONMetaInfo(rw, paper)
     fmt.Fprintf(rw, ",")
     PrintJSONAllRefs(rw, paper)
