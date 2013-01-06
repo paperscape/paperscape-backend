@@ -868,6 +868,7 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 /****************************************************************/
 
 // Returns a list of papers Objects built from ids extracted from DB JSON strings
+/* OBSOLETE
 func (h *MyHTTPHandler) PaperListFromDatabaseJSON (notesJSON []byte, graphsJSON []byte, tagsJSON []byte) []*Paper {
     var paperList []*Paper
     var err error
@@ -916,7 +917,9 @@ func (h *MyHTTPHandler) PaperListFromDatabaseJSON (notesJSON []byte, graphsJSON 
 
     return paperList
 }
+*/
 
+/* OBSOLETE
 func (h *MyHTTPHandler) PrintJSONPapersList(w io.Writer, papersList []*Paper) {
 
     // Get 5 days ago date boundary so we can pass along new cites
@@ -952,6 +955,7 @@ func (h *MyHTTPHandler) PrintJSONPapersList(w io.Writer, papersList []*Paper) {
     }
     fmt.Fprintf(w, "]")
 }
+*/
 
 /****************************************************************/
 
@@ -1069,92 +1073,24 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
-        } else if req.Form["gmrc[]"] != nil {
-            // TODO replace with one function gdata
-            // get-meta-refs-cites: get the meta data, refs and cites for the given paper ids
-            // if cites > 26, only gives the new cites
-            var ids []uint
-            for _, strId := range req.Form["gmrc[]"] {
+        } else if req.Form["gdata[]"] != nil && req.Form["flags[]"] != nil {
+            var ids, flags []uint
+            for _, strId := range req.Form["gdata[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
                     ids = append(ids, uint(preId))
                 } else {
                     fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
             }
-            h.GetMetaRefsCites(ids, rw)
-        } else if req.Form["gm[]"] != nil {
-            // get-metas: get the meta data for given list of paper ids
-            var ids []uint
-            for _, strId := range req.Form["gm[]"] {
-                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint(preId))
+            for _, strId := range req.Form["flags[]"] {
+                // Read flags as hex
+                if preId, er := strconv.ParseUint(strId, 16, 0); er == nil {
+                    flags = append(flags, uint(preId))
                 } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                    fmt.Printf("ERROR: can't convert flag '%s'; skipping\n", strId)
                 }
             }
-            h.GetMetas(ids, rw)
-        } else if req.Form["grc"] != nil {
-            // TODO replace with one function gdata
-            // get-refs-cites: get the references and citations for given paper ids 
-            // and date-boundaries
-            var rIds, cIds, cDbs []uint
-            if req.Form["rIds[]"] != nil {
-                for _, strId := range req.Form["rIds[]"] {
-                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                        rIds = append(rIds, uint(preId))
-                    } else {
-                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
-                    }
-                }
-            }
-            if req.Form["cIds[]"] != nil {
-                for _, strId := range req.Form["cIds[]"] {
-                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                        cIds = append(cIds, uint(preId))
-                    } else {
-                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
-                    }
-                }
-            }
-            if req.Form["cDbs[]"] != nil {
-                for _, strDb := range req.Form["cDbs[]"] {
-                    if preDb, er := strconv.ParseUint(strDb, 10, 0); er == nil {
-                        cDbs = append(cDbs, uint(preDb))
-                    } else {
-                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strDb)
-                    }
-                }
-            }
-            h.GetRefsCites(rIds, cIds, cDbs, rw)
-        } else if req.Form["gncm"] != nil && (req.Form["nc[]"] != nil || req.Form["nm[]"] != nil) {
-            // TODO replace with one function gdata
-            // get-new-cites-(and update)metas: get the recent citations for given paper ids 
-            // and update given meta ids
-            var idsPapers, idsMetas []uint
-            for _, strId := range req.Form["nc[]"] {
-                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    idsPapers = append(idsPapers, uint(preId))
-                } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
-                }
-            }
-            for _, strId := range req.Form["nm[]"] {
-                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    idsMetas = append(idsMetas, uint(preId))
-                } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
-                }
-            }
-            h.GetNewCitesAndUpdateMetas(idsPapers, idsMetas, rw)
-        } else if req.Form["ga"] != nil {
-            // TODO replace with one function gdata
-            // get-abstract: get the abstract for a paper
-            var id uint = 0
-            if idNum, er := strconv.ParseUint(req.Form["ga"][0], 10, 0); er == nil {
-                id = uint(idNum)
-            }
-            abs, _ := json.Marshal(h.papers.GetAbstract(id))
-            fmt.Fprintf(rw, "%s", abs)
+            h.GetDataForIDs(ids,flags,rw)
         } else if req.Form["sax"] != nil {
             // search-arxiv: search papers for arxiv number
             h.SearchArxiv(req.Form["sax"][0], rw)
@@ -1208,50 +1144,24 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // link-save: existing code (or empty string if none)
             // n = notes, nh = notes hash, g = graphs, gh = graphs hash, t = tags, th = tags hash
             h.LinkSave(req.Form["lsave"][0], req.Form["n"][0], req.Form["nh"][0], req.Form["g"][0], req.Form["gh"][0], req.Form["t"][0], req.Form["th"][0], rw)
-        } else if req.Form["gm[]"] != nil {
-            // get-metas: get the meta data for given list of paper ids
-            // In case user wants many many metas, a POST is sent
-            var ids []uint
-            for _, strId := range req.Form["gm[]"] {
+        } else if req.Form["gdata[]"] != nil && req.Form["flags[]"] != nil {
+            var ids, flags []uint
+            for _, strId := range req.Form["gdata[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
                     ids = append(ids, uint(preId))
                 } else {
                     fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
             }
-            h.GetMetas(ids, rw)
-        } else if req.Form["grc"] != nil {
-            // get-refs-cites: get the references and citations for given paper ids 
-            // and date-boundaries
-            var rIds, cIds, cDbs []uint
-            if req.Form["rIds[]"] != nil {
-                for _, strId := range req.Form["rIds[]"] {
-                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                        rIds = append(rIds, uint(preId))
-                    } else {
-                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
-                    }
+            for _, strId := range req.Form["flags[]"] {
+                // Read flags as hex
+                if preId, er := strconv.ParseUint(strId, 16, 0); er == nil {
+                    flags = append(flags, uint(preId))
+                } else {
+                    fmt.Printf("ERROR: can't convert flag '%s'; skipping\n", strId)
                 }
             }
-            if req.Form["cIds[]"] != nil {
-                for _, strId := range req.Form["cIds[]"] {
-                    if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                        cIds = append(cIds, uint(preId))
-                    } else {
-                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
-                    }
-                }
-            }
-            if req.Form["cDbs[]"] != nil {
-                for _, strDb := range req.Form["cDbs[]"] {
-                    if preDb, er := strconv.ParseUint(strDb, 10, 0); er == nil {
-                        cDbs = append(cDbs, uint(preDb))
-                    } else {
-                        fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strDb)
-                    }
-                }
-            }
-            h.GetRefsCites(rIds, cIds, cDbs, rw)
+            h.GetDataForIDs(ids,flags,rw)
         } else {
             // unknown ajax request
         }
@@ -1278,7 +1188,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
     authorsJSON, _ := json.Marshal(paper.authors)
     titleJSON, _ := json.Marshal(paper.title)
-    fmt.Fprintf(w, "{\"id\":%d,\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, authorsJSON, titleJSON, paper.numCites, paper.dNumCites1, paper.dNumCites5)
+    //fmt.Fprintf(w, "{\"id\":%d,\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, authorsJSON, titleJSON, paper.numCites, paper.dNumCites1, paper.dNumCites5)
+    fmt.Fprintf(w, "\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", authorsJSON, titleJSON, paper.numCites, paper.dNumCites1, paper.dNumCites5)
     if len(paper.arxiv) > 0 {
         fmt.Fprintf(w, ",\"arxv\":\"%s\"", paper.arxiv)
         if len(paper.allcats) > 0 {
@@ -1295,7 +1206,8 @@ func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
 
 // Returns possibly updated meta info only (this is called on a date change)
 func PrintJSONUpdateMetaInfo(w io.Writer, paper *Paper) {
-    fmt.Fprintf(w, "{\"id\":%d,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, paper.numCites, paper.dNumCites1, paper.dNumCites5)
+    //fmt.Fprintf(w, "{\"id\":%d,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, paper.numCites, paper.dNumCites1, paper.dNumCites5)
+    fmt.Fprintf(w, "\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.numCites, paper.dNumCites1, paper.dNumCites5)
     if len(paper.publJSON) > 0 {
         fmt.Fprintf(w, ",\"publ\":%s", paper.publJSON)
     }
@@ -1691,10 +1603,10 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
     fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"", usermail,challenge)
 
     // PAPERS
-    papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
-    fmt.Printf("for profile %s, read %d papers\n", usermail, len(papersList)) // TEMP
-    fmt.Fprintf(rw, ",\"papr\":")
-    h.PrintJSONPapersList(rw,papersList)
+    //papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
+    //fmt.Printf("for profile %s, read %d papers\n", usermail, len(papersList)) // TEMP
+    //fmt.Fprintf(rw, ",\"papr\":")
+    //h.PrintJSONPapersList(rw,papersList)
 
     // NOTES
     fmt.Fprintf(rw, ",\"note\":%s,\"nh\":\"%s\"",string(notes),noteshashDb)
@@ -1886,10 +1798,10 @@ func (h *MyHTTPHandler) LinkLoad(code string, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"", code, modcode)
 
     // PAPERS
-    papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
-    fmt.Printf("for graph code %s, read %d papers\n", code, len(papersList)) // TEMP
-    fmt.Fprintf(rw, ",\"papr\":")
-    h.PrintJSONPapersList(rw,papersList)
+    //papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
+    //fmt.Printf("for graph code %s, read %d papers\n", code, len(papersList)) // TEMP
+    //fmt.Fprintf(rw, ",\"papr\":")
+    //h.PrintJSONPapersList(rw,papersList)
 
     // NOTES
     if len(notes) == 0 { notes = []byte("[]") }
@@ -2053,6 +1965,89 @@ func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "}")
 }
 
+func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.ResponseWriter) {
+    if len(ids) != len(flags) {
+        fmt.Printf("ERROR: GetDataForIDs has length mismatch between ids and flags\n")
+        fmt.Fprintf(rw, "null")
+        return
+    }
+    // Get date boundary
+    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
+    h.papers.QueryEnd()
+    if row == nil {
+        fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from MySQL\n")
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+    var ok bool
+    var db uint64
+    if db, ok = row[0].(uint64); !ok {
+        fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from Row\n")
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+
+    fmt.Fprintf(rw, "{papr:[")
+    first := true
+    for i, _ := range ids {
+        id := ids[i]
+        flag := flags[i]
+        paper := h.papers.QueryPaper(id, "")
+        // check the paper exists
+        if paper == nil {
+            fmt.Printf("ERROR: GetDataForIDs could not find paper for id %d; skipping\n", id)
+            continue
+        }
+        if !first {
+            fmt.Fprintf(rw, ",")
+        } else {
+            first = false
+        }
+        fmt.Fprintf(rw, "{\"id\":%d", paper.id)
+        if flag & 0x1 > 0 {
+            // Meta
+            fmt.Fprintf(rw, ",")
+            PrintJSONMetaInfo(rw, paper)
+        } else if flag & 0x2 > 0{
+            // Update meta
+            fmt.Fprintf(rw, ",")
+            PrintJSONUpdateMetaInfo(rw, paper)
+        }
+        if flag & 0x4 > 0 {
+            // All refs 
+            h.papers.QueryRefs(paper, false)
+            fmt.Fprintf(rw, ",")
+            PrintJSONAllRefs(rw, paper)
+        }
+        if flag & 0x8 > 0 {
+            // All cites
+            h.papers.QueryCites(paper, false)
+            fmt.Fprintf(rw, ",")
+            PrintJSONAllCites(rw, paper, 0)
+        } else if flag & 0x16 > 0 {
+            // New cites
+            h.papers.QueryCites(paper, false)
+            if len(paper.cites) < 26 {
+                fmt.Fprintf(rw, ",")
+                PrintJSONAllCites(rw, paper, 0)
+            } else {
+                fmt.Fprintf(rw, ",")
+                PrintJSONNewCites(rw, paper, uint(db))
+            }
+        }
+        if flag & 0x32 > 0{
+            // Abstract
+            abs, _ := json.Marshal(h.papers.GetAbstract(paper.id))
+            fmt.Fprintf(rw, ",")
+            fmt.Fprintf(rw,"\"abst\":%s",abs)
+        }
+
+        fmt.Fprintf(rw, "}")
+    }
+    fmt.Fprintf(rw, "]}")
+}
+
+/* OBSOLETE
 func (h *MyHTTPHandler) GetMetaRefsCites(ids []uint, rw http.ResponseWriter) {
 
     // Get 5 days ago date boundary so we can pass along new cites
@@ -2101,7 +2096,9 @@ func (h *MyHTTPHandler) GetMetaRefsCites(ids []uint, rw http.ResponseWriter) {
     }
     fmt.Fprintf(rw, "]")
 }
+*/
 
+/* OBSOLETE
 func (h *MyHTTPHandler) GetMetas(ids []uint, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "[")
     first := true
@@ -2123,7 +2120,9 @@ func (h *MyHTTPHandler) GetMetas(ids []uint, rw http.ResponseWriter) {
     }
     fmt.Fprintf(rw, "]")
 }
+*/
 
+/* OBSOLETE
 // TODO handle refs/cite separately
 func (h *MyHTTPHandler) GetRefsCites(rIds []uint, cIds []uint, dbs []uint, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "[")
@@ -2181,7 +2180,9 @@ func (h *MyHTTPHandler) GetRefsCites(rIds []uint, cIds []uint, dbs []uint, rw ht
     }
     fmt.Fprintf(rw, "]")
 }
+*/
 
+/* OBSOLETE
 func (h *MyHTTPHandler) GetNewCitesAndUpdateMetas(idsPapers []uint, idsMetas []uint, rw http.ResponseWriter) {
     row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
     h.papers.QueryEnd()
@@ -2243,6 +2244,7 @@ func (h *MyHTTPHandler) GetNewCitesAndUpdateMetas(idsPapers []uint, idsMetas []u
     }
     fmt.Fprintf(rw,"]}")
 }
+*/
 
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
     // check for valid characters in arxiv string
