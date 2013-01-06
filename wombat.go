@@ -1070,6 +1070,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
         } else if req.Form["gmrc[]"] != nil {
+            // TODO replace with one function gdata
             // get-meta-refs-cites: get the meta data, refs and cites for the given paper ids
             // if cites > 26, only gives the new cites
             var ids []uint
@@ -1093,6 +1094,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             h.GetMetas(ids, rw)
         } else if req.Form["grc"] != nil {
+            // TODO replace with one function gdata
             // get-refs-cites: get the references and citations for given paper ids 
             // and date-boundaries
             var rIds, cIds, cDbs []uint
@@ -1125,6 +1127,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             h.GetRefsCites(rIds, cIds, cDbs, rw)
         } else if req.Form["gncm"] != nil && (req.Form["nc[]"] != nil || req.Form["nm[]"] != nil) {
+            // TODO replace with one function gdata
             // get-new-cites-(and update)metas: get the recent citations for given paper ids 
             // and update given meta ids
             var idsPapers, idsMetas []uint
@@ -1144,6 +1147,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             h.GetNewCitesAndUpdateMetas(idsPapers, idsMetas, rw)
         } else if req.Form["ga"] != nil {
+            // TODO replace with one function gdata
             // get-abstract: get the abstract for a paper
             var id uint = 0
             if idNum, er := strconv.ParseUint(req.Form["ga"][0], 10, 0); er == nil {
