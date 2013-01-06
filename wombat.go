@@ -21,6 +21,7 @@ import (
     "math/rand"
     "crypto/sha1"
     "crypto/sha256"
+    "compress/gzip"
     //"crypto/aes"
     "sort"
     //"net/smtp"
@@ -1018,10 +1019,47 @@ func (myrw *MyResponseWriter) WriteHeader(val int) {
     myrw.rw.WriteHeader(val)
 }
 
+type gzipResponseWriter struct {
+    io.Writer
+    http.ResponseWriter
+    sniffDone bool
+}
+
+func (w gzipResponseWriter) Write(b []byte) (int, error) {
+    if !w.sniffDone {
+        if w.Header().Get("Content-Type") == "" {
+            w.Header().Set("Content-Type", http.DetectContentType(b))
+        }
+        w.sniffDone = true
+    }
+    return w.Writer.Write(b)
+}
+
+func MyHandler(h http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+            h.ServeHTTP(w, r)
+            return
+        }
+        w.Header().Set("Content-Encoding", "gzip")
+        gz := gzip.NewWriter(w)
+        defer gz.Close()
+        h.ServeHTTP(gzipResponseWriter{Writer: gz, ResponseWriter: w}, r)
+    })
+}
+
 func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
     req.ParseForm()
 
-    rw := &MyResponseWriter{rwIn, 0}
+    var rw *MyResponseWriter
+    if !strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
+        rw = &MyResponseWriter{rwIn, 0}
+    } else {
+        rwIn.Header().Set("Content-Encoding", "gzip")
+        gz := gzip.NewWriter(rwIn)
+        defer gz.Close()
+        rw = &MyResponseWriter{gzipResponseWriter{Writer: gz, ResponseWriter: rwIn},0}
+    }
 
     if req.Form["callback"] != nil {
         // construct a JSON object to return
