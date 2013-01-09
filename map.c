@@ -9,7 +9,7 @@
 #include "quadtree.h"
 #include "map.h"
 
-static double anti_gravity_strength = 0.2;
+static double anti_gravity_strength = 0.4;
 static double link_strength = 0.03;
 
 struct _map_env_t {
@@ -29,6 +29,7 @@ struct _map_env_t {
     int grid_d;
     paper_t **grid;
 
+    bool do_tred;
     bool draw_grid;
     bool draw_paper_links;
 
@@ -52,8 +53,9 @@ map_env_t *map_env_new() {
     map_env->grid_d = 20;
     map_env->grid = m_new0(paper_t*, map_env->grid_w * map_env->grid_h * map_env->grid_d);
 
+    map_env->do_tred = false;
     map_env->draw_grid = false;
-    map_env->draw_paper_links = true;
+    map_env->draw_paper_links = false;
 
     cairo_matrix_init_identity(&map_env->tr_matrix);
     map_env->tr_matrix.xx = 8;
@@ -190,6 +192,10 @@ void map_env_zoom(map_env_t *map_env, double screen_x, double screen_y, double a
     map_env->tr_matrix.y0 = map_env->tr_matrix.y0 * amt + screen_y * (1.0 - amt);
 }
 
+void map_env_toggle_do_tred(map_env_t *map_env) {
+    map_env->do_tred = !map_env->do_tred;
+}
+
 void map_env_toggle_draw_grid(map_env_t *map_env) {
     map_env->draw_grid = !map_env->draw_grid;
 }
@@ -213,17 +219,19 @@ void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     if (p->kind == 1) {
         cairo_set_source_rgba(cr, 0.85, 0.85, 1, 1);
     } else if (p->kind == 2) {
-        cairo_set_source_rgba(cr, 1, 0.85, 0.85, 1);
-    } else if (p->kind == 3) {
         cairo_set_source_rgba(cr, 0.85, 1, 0.85, 1);
-    } else {
+    } else if (p->kind == 3) {
         cairo_set_source_rgba(cr, 1, 1, 0.85, 1);
+    } else if (p->kind == 4) {
+        cairo_set_source_rgba(cr, 0.85, 1, 1, 1);
+    } else {
+        cairo_set_source_rgba(cr, 1, 0.85, 1, 1);
     }
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
 }
 
-void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double shade) {
+void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double age) {
     /*
     double h = w * 1.41;
     cairo_set_source_rgba(cr, 0.9, 0.9, 0.8, 0.9);
@@ -247,7 +255,40 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double shade) {
         cairo_set_source_rgba(cr, 0, 0.8, 0, 0.7);
     }
     */
-    cairo_set_source_rgba(cr, shade, 1-shade, 0, 1);
+
+    // basic colour of paper
+    double r, g, b;
+    if (p->kind == 1) {
+        r = 0;
+        g = 0;
+        b = 1;
+    } else if (p->kind == 2) {
+        r = 0;
+        g = 1;
+        b = 0;
+    } else if (p->kind == 3) {
+        r = 1;
+        g = 1;
+        b = 0;
+    } else if (p->kind == 4) {
+        r = 0;
+        g = 1;
+        b = 1;
+    } else {
+        r = 1;
+        g = 0;
+        b = 1;
+    }
+
+    // older papers are more saturated in colour
+    double saturation = 0.6 * (1 - age);
+
+    // compute and set final colour; newer papers tend towards red
+    age = age * age;
+    r = saturation + (r * (1 - age) + age) * (1 - saturation);
+    g = saturation + (g * (1 - age)      ) * (1 - saturation);
+    b = saturation + (b * (1 - age)      ) * (1 - saturation);
+    cairo_set_source_rgb(cr, r, g, b);
 
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
@@ -262,6 +303,35 @@ void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
         cairo_text_extents(cr, p->title, &extents);
         cairo_move_to(cr, x - 0.5 * extents.width, y + 0.5 * extents.height);
         cairo_show_text(cr, p->title);
+    }
+}
+
+void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        const char *str = NULL;
+             if (p->id == 2071594354) { str = "unparticles"; }
+        else if (p->id == 2076328973) { str = "M2-branes"; }
+        else if (p->id == 2070391225) { str = "black hole mergers"; }
+        else if (p->id == 2082673143) { str = "f(R) gravity"; }
+        else if (p->id == 2085375036) { str = "Kerr/CFT"; }
+        else if (p->id == 2090390629) { str = "Horava-Lifshitz"; }
+        else if (p->id == 2100078229) { str = "entropic gravity"; }
+        else if (p->id == 2110390945) { str = "TMD PDFs"; }
+        else if (p->id == 2113360267) { str = "massive gravity"; }
+        else if (p->id == 2115329009) { str = "superluminal neutrinos"; }
+        else if (p->id == 2123937504) { str = "firewalls"; }
+        else if (p->id == 2124219058) { str = "Higgs"; }
+        //else if (p->id == ) { str = ""; }
+        if (str != NULL) {
+            double x = p->x;
+            double y = p->y;
+            map_env_world_to_screen(map_env, &x, &y);
+            cairo_text_extents_t extents;
+            cairo_text_extents(cr, str, &extents);
+            cairo_move_to(cr, x - 0.5 * extents.width, y + 0.5 * extents.height);
+            cairo_show_text(cr, str);
+        }
     }
 }
 
@@ -286,7 +356,7 @@ void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double 
     }
 }
 
-void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bool do_tred, vstr_t* vstr_info) {
+void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vstr_t* vstr_info) {
     // clear bg
     cairo_set_source_rgb(cr, 1, 1, 1);
     cairo_rectangle(cr, 0, 0, width, height);
@@ -341,7 +411,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
     // paper links
     if (map_env->draw_paper_links) {
         cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
-        if (do_tred) {
+        if (map_env->do_tred) {
             for (int i = 0; i < map_env->num_papers; i++) {
                 paper_t *p = map_env->papers[i];
                 for (int j = 0; j < p->num_refs; j++) {
@@ -385,10 +455,16 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
     // paper text
     cairo_identity_matrix(cr);
     cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_set_font_size(cr, 10);
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         draw_paper_text(cr, map_env, p);
     }
+
+    // big labels
+    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_set_font_size(cr, 16);
+    draw_big_labels(cr, map_env);
 
     // create info string to return
     vstr_printf(vstr_info, "have %d papers, %d connected and included in graph\n", map_env->cur_num_papers, map_env->num_papers);
@@ -407,7 +483,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, bo
     vstr_printf(vstr_info, "step size: %.3g\n", map_env->step_size);
     vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", anti_gravity_strength);
     vstr_printf(vstr_info, "link strength: %.3f\n", link_strength);
-    vstr_printf(vstr_info, "transitive reduction: %d\n", do_tred);
+    vstr_printf(vstr_info, "transitive reduction: %d\n", map_env->do_tred);
 }
 
 // reset the forces and compute the grid
@@ -556,7 +632,7 @@ void quad_tree_forces(quad_tree_t *qt) {
     quad_tree_node_forces_propagate(qt->root, 0, 0);
 }
 
-void map_env_compute_forces(map_env_t *map_env, bool do_tred) {
+void map_env_compute_forces(map_env_t *map_env) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
 
@@ -661,7 +737,7 @@ void map_env_compute_forces(map_env_t *map_env, bool do_tred) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         double dy = (0.02 * p->index) - p->y;
-        double fac = 0.2 * p->mass;
+        double fac = 9.5 * p->mass;
         double fy = dy * fac;
         p->fy += fy;
     }
@@ -672,21 +748,23 @@ void map_env_compute_forces(map_env_t *map_env, bool do_tred) {
         paper_t *p1 = map_env->papers[i];
         for (int j = 0; j < p1->num_refs; j++) {
             paper_t *p2 = p1->refs[j];
-            if ((!do_tred || p1->refs_tred_computed[j]) && p2->index < map_env->cur_num_papers) {
+            if ((!map_env->do_tred || p1->refs_tred_computed[j]) && p2->index < map_env->cur_num_papers) {
                 double dx = p1->x - p2->x;
                 double dy = p1->y - p2->y;
                 double r = sqrt(dx*dx + dy*dy);
-                double overlap = p1->r + p2->r - r + 0.1;
-                if (overlap < 0) {
-                    double fac = 2.4 * link_strength;
+                double rest_len = 1.1 * (p1->r + p2->r);
 
-                    if (do_tred) {
-                        fac = link_strength * p1->refs_tred_computed[j];
-                        //fac *= p1->refs_tred_computed[j];
-                    }
+                double fac = 2.4 * link_strength;
 
-                    double fx = dx*r * fac;
-                    double fy = dy*r * fac;
+                if (map_env->do_tred) {
+                    fac = link_strength * p1->refs_tred_computed[j];
+                    //fac *= p1->refs_tred_computed[j];
+                }
+
+                if (r > 1e-2) {
+                    fac *= (r - rest_len) * fabs(r - rest_len) / r;
+                    double fx = dx * fac;
+                    double fy = dy * fac;
 
                     /*
                     // rotate pairs so the earliest one is above the other
@@ -711,8 +789,8 @@ void map_env_compute_forces(map_env_t *map_env, bool do_tred) {
     }
 }
 
-bool map_env_iterate(map_env_t *map_env, bool do_tred, paper_t *hold_still) {
-    map_env_compute_forces(map_env, do_tred);
+bool map_env_iterate(map_env_t *map_env, paper_t *hold_still) {
+    map_env_compute_forces(map_env);
 
     // use the computed forces to update the (x,y) positions of the papers
     double energy = 0;
@@ -747,13 +825,13 @@ bool map_env_iterate(map_env_t *map_env, bool do_tred, paper_t *hold_still) {
     } else {
         // energy went up
         map_env->progress = 0;
-        if (map_env->step_size > 1e-2) {
+        if (map_env->step_size > 1e-1) {
             map_env->step_size *= 0.9;
         }
     }
     map_env->energy = energy;
 
-    return map_env->step_size <= 1e-2;
+    return map_env->step_size <= 1e-1;
 
     #if 0
     // work out maximum force
@@ -826,7 +904,7 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
     }
     recompute_num_cites(map_env->cur_num_papers, map_env->all_papers);
     recompute_colours(map_env->cur_num_papers, map_env->all_papers, false);
-    compute_tred(map_env->cur_num_papers, map_env->all_papers);
+    //compute_tred(map_env->cur_num_papers, map_env->all_papers);
     for (int i = 0; i < map_env->cur_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
         p->mass = 0.05 + 0.2 * p->num_cites;
@@ -878,5 +956,17 @@ void map_env_jolt(map_env_t *map_env, double amt) {
         paper_t *p = map_env->papers[i];
         p->x += amt * (-0.5 + 1.0 * random() / RAND_MAX);
         p->y += amt * (-0.5 + 1.0 * random() / RAND_MAX);
+    }
+}
+
+void map_env_rotate_all(map_env_t *map_env, double angle) {
+    double s_angle = sin(angle);
+    double c_angle = cos(angle);
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        double x = p->x;
+        double y = p->y;
+        p->x = c_angle * x - s_angle * y;
+        p->y = s_angle * x + c_angle * y;
     }
 }

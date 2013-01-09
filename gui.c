@@ -14,7 +14,6 @@ GtkWidget *window;
 GtkTextBuffer *text_buf;
 GtkWidget *statusbar;
 guint statusbar_context_id;
-int do_tred = 1;
 
 const char *included_papers_string = NULL;
 bool update_running = true;
@@ -29,7 +28,7 @@ static gboolean map_env_update(map_env_t *map_env) {
         add_counter -= 1;
     }
     for (int i = 0; i < 2; i++) {
-        if (map_env_iterate(map_env, do_tred, mouse_paper)) {
+        if (map_env_iterate(map_env, mouse_paper)) {
             if (add_counter == 0) {
                 add_counter = 10;
                 map_env_inc_num_papers(map_env, 100);
@@ -48,11 +47,12 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
 
     vstr_reset(vstr);
     vstr_printf(vstr, "included papers: %s\n", included_papers_string);
-    map_env_draw(map_env, cr, width, height, do_tred, vstr);
+    map_env_draw(map_env, cr, width, height, vstr);
 
     // draw info to canvas
     cairo_identity_matrix(cr);
     cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_set_font_size(cr, 10);
     cairo_helper_draw_text_lines(cr, 10, 20, vstr);
 
     return FALSE;
@@ -90,6 +90,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_jolt(map_env, 0.5);
     } else if (event->keyval == GDK_KEY_k) {
         map_env_jolt(map_env, 2.5);
+
+    } else if (event->keyval == GDK_KEY_t) {
+        map_env_toggle_do_tred(map_env);
     } else if (event->keyval == GDK_KEY_g) {
         map_env_toggle_draw_grid(map_env);
     } else if (event->keyval == GDK_KEY_l) {
@@ -105,17 +108,16 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_4) {
         map_env_adjust_link_strength(map_env, 1.1);
 
-    } else if (event->keyval == GDK_KEY_t) {
-        do_tred = 1 - do_tred;
-        if (do_tred) {
-            printf("transitive reduction turned on\n");
-        } else {
-            printf("transitive reduction turned off\n");
-        }
     } else if (event->keyval == GDK_KEY_plus || event->keyval == GDK_KEY_equal) {
         map_env_zoom(map_env, width / 2, height / 2, 1.2);
     } else if (event->keyval == GDK_KEY_minus) {
         map_env_zoom(map_env, width / 2, height / 2, 0.8);
+
+    } else if (event->keyval == GDK_KEY_Left) {
+        map_env_rotate_all(map_env, 0.1);
+    } else if (event->keyval == GDK_KEY_Right) {
+        map_env_rotate_all(map_env, -0.1);
+
     } else if (event->keyval == GDK_KEY_q) {
         gtk_main_quit();
     }
@@ -146,7 +148,7 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
             if (mouse_paper != NULL) {
                 paper_t *p = mouse_paper;
                 vstr_reset(vstr);
-                vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites) %s -- %s\n", p->index, p->id, p->num_refs, p->num_cites, p->authors, p->title);
+                vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites) %s -- %s", p->index, p->id, p->num_refs, p->num_cites, p->title, p->authors);
                 gtk_statusbar_push(GTK_STATUSBAR(statusbar), statusbar_context_id, vstr_str(vstr));
             }
         }

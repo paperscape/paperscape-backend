@@ -172,8 +172,12 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
             paper->maincat = 1;
         } else if (strcmp(row[1], "hep-ph") == 0) {
             paper->maincat = 2;
-        } else {
+        } else if (strcmp(row[1], "hep-ex") == 0) {
             paper->maincat = 3;
+        } else if (strcmp(row[1], "gr-qc") == 0) {
+            paper->maincat = 4;
+        } else {
+            paper->maincat = 5;
         }
         paper->authors = strdup(row[2]);
         paper->title = strdup(row[3]);
