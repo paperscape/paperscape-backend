@@ -28,6 +28,10 @@ import (
     //"xiwi"
 )
 
+// Current version of paperscape.
+// Any client "kea" instances that don't match this will
+// be prompted to do a hard reload of the latest version
+var VERSION = "0.1"
 
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
 var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
@@ -1961,8 +1965,8 @@ func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
         return
     }
 
+    fmt.Fprintf(rw, "{\"v\":\"%s\",",VERSION)
     // get each row from the result and create the JSON object
-    fmt.Fprintf(rw, "{")
     numResults := 0
     for {
         // get the row
