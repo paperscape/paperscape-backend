@@ -1151,6 +1151,14 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 
         // tail of JSON object
         fmt.Fprintf(rw, ",\"bC2S\":%d,\"bS2C\":%d})\n", int64(len(req.URL.String())) + req.ContentLength, rw.bytesWritten)
+    } else if req.Method == "POST" && req.Form["echo"] != nil && req.Form["fn"] != nil {
+        // POST - echo file so that it can be saved
+        rw.Header().Set("Access-Control-Allow-Origin", "*") // for cross domain POSTing; see https://developer.mozilla.org/en/http_access_control
+        rw.Header().Set("Cache-Control", "public")
+        rw.Header().Set("Content-Description", "File Transfer")
+        rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s",req.Form["fn"][0]))
+        rw.Header().Set("Content-Type", "application/octet-stream")
+        fmt.Fprintf(rw, req.Form["echo"][0])
     } else if req.Method == "POST" {
         // POST verb
 
@@ -1269,24 +1277,6 @@ func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
 func PrintJSONLinkFutureInfo(w io.Writer, link *Link) {
     fmt.Fprintf(w, "{\"id\":%d,\"o\":%d,\"f\":%d,\"nc\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
 }
-
-/*
-func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
-    fmt.Fprintf(w, "\"allc\":true,\"cite\":[")
-    first := true
-    for _, link := range paper.cites {
-        if link.futureId < dateBoundary  {
-            continue
-        }
-        if !first {
-            fmt.Fprintf(w, ",")
-        }
-        PrintJSONLinkFutureInfo(w, link)
-        first = false
-    }
-
-    fmt.Fprintf(w, "]")
-}*/
 
 func PrintJSONAllRefs(w io.Writer, paper *Paper) {
     fmt.Fprintf(w, "\"allr\":true,\"ref\":[")
@@ -2075,205 +2065,6 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
     }
     fmt.Fprintf(rw, "]}")
 }
-
-/* OBSOLETE
-func (h *MyHTTPHandler) GetMetaRefsCites(ids []uint, rw http.ResponseWriter) {
-
-    // Get 5 days ago date boundary so we can pass along new cites
-    // TODO maybe handier to simply have this in memory
-    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
-    h.papers.QueryEnd()
-    var db uint64
-    if row != nil {
-        var ok bool
-        if db, ok = row[0].(uint64); !ok {
-            fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from Row\n")
-            db = 0
-        }
-    }
-
-    fmt.Fprintf(rw, "[")
-    first := true
-    for _, id := range ids {
-        if !first {
-            fmt.Fprintf(rw, ",")
-        } else {
-            first = false
-        }
-        // query the paper and its refs and cites
-        paper := h.papers.QueryPaper(id, "")
-        h.papers.QueryRefs(paper, false)
-        h.papers.QueryCites(paper, false)
-
-        // check the paper exists
-        if paper == nil {
-            fmt.Fprintf(rw, "null")
-            return
-        }
-
-        // print the json output
-        PrintJSONMetaInfo(rw, paper)
-        fmt.Fprintf(rw, ",")
-        PrintJSONAllRefs(rw, paper)
-        fmt.Fprintf(rw, ",")
-        if len(paper.cites) < 26 {
-            PrintJSONAllCites(rw, paper, 0)
-        } else {
-            PrintJSONNewCites(rw, paper, uint(db))
-        }
-        fmt.Fprintf(rw, "}")
-    }
-    fmt.Fprintf(rw, "]")
-}
-*/
-
-/* OBSOLETE
-func (h *MyHTTPHandler) GetMetas(ids []uint, rw http.ResponseWriter) {
-    fmt.Fprintf(rw, "[")
-    first := true
-    for _, id := range ids {
-        paper := h.papers.QueryPaper(id, "")
-        if paper == nil {
-            fmt.Printf("ERROR: GetMetas could not get meta for id %d; skipping\n", id)
-            continue
-        }
-
-        if first {
-            first = false
-        } else {
-            fmt.Fprintf(rw, ",")
-        }
-
-        PrintJSONMetaInfo(rw, paper)
-        fmt.Fprintf(rw, "}")
-    }
-    fmt.Fprintf(rw, "]")
-}
-*/
-
-/* OBSOLETE
-// TODO handle refs/cite separately
-func (h *MyHTTPHandler) GetRefsCites(rIds []uint, cIds []uint, dbs []uint, rw http.ResponseWriter) {
-    fmt.Fprintf(rw, "[")
-    first := true
-    if len(cIds) != len(dbs) {
-        fmt.Printf("ERROR: GetRefsCites had incompatible length for cIds and their dates\n")
-        return
-    }
-    // TODO combine refs and cites if possible with same ID
-    for i := 0; i < len(rIds); i++ {
-        id := rIds[i]
-        // query the paper and its refs and cites
-        paper := h.papers.QueryPaper(id, "")
-        h.papers.QueryRefs(paper, false)
-
-        // check the paper exists
-        if paper == nil {
-            fmt.Printf("ERROR: GetRefsCites could not find paper for id %d; skipping\n", id)
-            continue
-        }
-        if first {
-            first = false
-        } else {
-            fmt.Fprintf(rw, ",")
-        }
-
-        // print the json output
-        fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
-        PrintJSONAllRefs(rw, paper)
-        fmt.Fprintf(rw, "}")
-    }
-    for i := 0; i < len(cIds); i++ {
-        id := cIds[i]
-        db := dbs[i] // date boundary for this id (we have everything before it)
-        // query the paper and its refs and cites
-        paper := h.papers.QueryPaper(id, "")
-        h.papers.QueryCites(paper, false)
-
-        // check the paper exists
-        if paper == nil {
-            fmt.Printf("ERROR: GetRefsCites could not find paper for id %d; skipping\n", id)
-            continue
-        }
-
-        if first {
-            first = false
-        } else {
-            fmt.Fprintf(rw, ",")
-        }
-
-        // print the json output
-        fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
-        PrintJSONAllCites(rw, paper, db)
-        fmt.Fprintf(rw, "}")
-    }
-    fmt.Fprintf(rw, "]")
-}
-*/
-
-/* OBSOLETE
-func (h *MyHTTPHandler) GetNewCitesAndUpdateMetas(idsPapers []uint, idsMetas []uint, rw http.ResponseWriter) {
-    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
-    h.papers.QueryEnd()
-    if row == nil {
-        fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from MySQL\n")
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-    var ok bool
-    var db uint64
-    if db, ok = row[0].(uint64); !ok {
-        fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from Row\n")
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-    fmt.Fprintf(rw, "{\"cites\":[")
-    first := true
-    for i := 0; i < len(idsPapers); i++ {
-        id := idsPapers[i]
-        // query the paper and its refs and cites
-        paper := h.papers.QueryPaper(id, "")
-        h.papers.QueryCites(paper, false)
-
-        // check the paper exists
-        if paper == nil {
-            fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not find paper for id %d; skipping\n", id)
-            continue
-        }
-
-        if first {
-            first = false
-        } else {
-            fmt.Fprintf(rw, ",")
-        }
-
-        // print the json output
-        fmt.Fprintf(rw, "{\"id\":%d,", paper.id)
-        PrintJSONNewCites(rw, paper, uint(db))
-        fmt.Fprintf(rw, "}")
-    }
-    fmt.Fprintf(rw, "],\"metas\":[")
-    first = true
-    for i := 0; i < len(idsMetas); i++ {
-        id := idsMetas[i]
-        paper := h.papers.QueryPaper(id, "")
-        if paper == nil {
-            fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get meta for id %d; skipping\n", id)
-            continue
-        }
-
-        if first {
-            first = false
-        } else {
-            fmt.Fprintf(rw, ",")
-        }
-
-        PrintJSONUpdateMetaInfo(rw, paper)
-        fmt.Fprintf(rw, "}")
-    }
-    fmt.Fprintf(rw,"]}")
-}
-*/
 
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
     // check for valid characters in arxiv string
