@@ -24,7 +24,7 @@ import (
     "compress/gzip"
     //"crypto/aes"
     "sort"
-    //"net/smtp"
+    "net/smtp"
     //"xiwi"
 )
 
@@ -653,6 +653,37 @@ func GenerateUserPassword() (string, int, int64, string) {
     var userhash string
     userhash = Sha256(fmt.Sprintf("%s%d", Sha256(Sha1(password)), salt))
     return password, pwdversion, salt, userhash
+}
+
+func SendPscpMail(message []byte, usermail string) {
+
+    // Connect to the local SMTP server.
+    c, err := smtp.Dial("127.0.0.1:25")
+    if err != nil {
+        fmt.Println("ERROR: SendPscpMail:", err)
+        return
+    }
+    // Set the sender and recipient.
+    c.Mail("noreply@paperscape.org")
+    c.Rcpt(usermail)
+    // Send the email body.
+    wc, err := c.Data()
+    if err != nil {
+        fmt.Println("ERROR: SendPscpMail:", err)
+        return
+    }
+    defer wc.Close()
+    buf := bytes.NewBufferString(string(message))
+    if _, err = buf.WriteTo(wc); err != nil {
+        fmt.Println("ERROR: SendPscpMail:", err)
+        return
+    }
+
+    //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
+    //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
+    //if err != nil {
+    //  fmt.Println("ERROR: ProfileRequestResetPassword sendmail:", err)
+    //}
 }
 
 func FindNextComma(str string, idx int) (int, int) {
@@ -1479,12 +1510,7 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
 
     // for now print pwd to output (otherwise we lose it)
     fmt.Printf("Reset link for %s is http://pscp.me/?rp=%s\n",usermail,resetcode)
-    // TODO email it
-    //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
-    //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
-    //if err != nil {
-    //  fmt.Println("ERROR: ProfileRequestResetPassword sendmail:", err)
-    //}
+    SendPscpMail(w.Bytes(),usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 }
@@ -1569,12 +1595,7 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
 
     // for now print pwd to output (otherwise we lose it)
     fmt.Printf("Password for %s is %s\n",usermail,password)
-    // TODO email it
-    //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
-    //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
-    //if err != nil {
-    //  fmt.Println("ERROR: ProfileRequestResetPassword sendmail:", err)
-    //}
+    SendPscpMail(w.Bytes(),usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 }
