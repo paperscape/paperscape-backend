@@ -2044,27 +2044,27 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
             first = false
         }
         fmt.Fprintf(rw, "{\"id\":%d", paper.id)
-        if flag & 0x1 > 0 {
+        if flag & 0x01 != 0 {
             // Meta
             fmt.Fprintf(rw, ",")
             PrintJSONMetaInfo(rw, paper)
-        } else if flag & 0x2 > 0{
+        } else if flag & 0x02 != 0 {
             // Update meta
             fmt.Fprintf(rw, ",")
             PrintJSONUpdateMetaInfo(rw, paper)
         }
-        if flag & 0x4 > 0 {
+        if flag & 0x04 != 0 {
             // All refs 
             h.papers.QueryRefs(paper, false)
             fmt.Fprintf(rw, ",")
             PrintJSONAllRefs(rw, paper)
         }
-        if flag & 0x8 > 0 {
+        if flag & 0x08 != 0 {
             // All cites
             h.papers.QueryCites(paper, false)
             fmt.Fprintf(rw, ",")
             PrintJSONAllCites(rw, paper, 0)
-        } else if flag & 0x16 > 0 {
+        } else if flag & 0x10 != 0 {
             // New cites
             h.papers.QueryCites(paper, false)
             if len(paper.cites) < 26 {
@@ -2075,7 +2075,7 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
                 PrintJSONNewCites(rw, paper, uint(db))
             }
         }
-        if flag & 0x32 > 0{
+        if flag & 0x20 != 0 {
             // Abstract
             abs, _ := json.Marshal(h.papers.GetAbstract(paper.id))
             fmt.Fprintf(rw, ",")
