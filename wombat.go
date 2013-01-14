@@ -2027,7 +2027,7 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
         return
     }
 
-    fmt.Fprintf(rw, "{papr:[")
+    fmt.Fprintf(rw, "{\"papr\":[")
     first := true
     for i, _ := range ids {
         id := ids[i]
@@ -2107,7 +2107,7 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     }
 
     // print the json output
-    fmt.Fprintf(rw, "{papr:[{\"id\":%d,", paper.id)
+    fmt.Fprintf(rw, "{\"papr\":[{\"id\":%d,", paper.id)
     PrintJSONMetaInfo(rw, paper)
     fmt.Fprintf(rw, ",")
     PrintJSONAllRefs(rw, paper)
