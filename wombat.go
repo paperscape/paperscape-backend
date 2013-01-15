@@ -1502,14 +1502,18 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
 
     // generate user message with link
     w := new(bytes.Buffer)
-	fmt.Fprintf(w,"From: %s\n",noreply@paperscape.org)
-	fmt.Fprintf(w,"To: %s\n",usermail)
-	fmt.Fprintf(w,"Subject: Paperscape password reset request\n")
+    fmt.Fprintf(w,"From: %s\n","noreply@paperscape.org")
+    fmt.Fprintf(w,"To: %s\n",usermail)
+    fmt.Fprintf(w,"Subject: Paperscape password reset request\n")
     fmt.Fprintf(w,"Dear Paperscape user,\n\n");
     fmt.Fprintf(w,"Someone (probably you) has requested that your Paperscape password be reset. To proceed with reseting your password, please follow the link below. This will result in us sending you a new password to this email address. If you are happy with your current password then please ignore this message.\n\n");
     fmt.Fprintf(w,"http://pscp.me/?rp=%s\n\n",resetcode);
     fmt.Fprintf(w,"Goodluck!\n\n");
-    fmt.Fprintf(w,"The Paperscape team\n");
+    fmt.Fprintf(w,"The Paperscape team\n\n\n");
+    fmt.Fprintf(w,"--------\n");
+    fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
+    fmt.Fprintf(w,"You can do so by following this link:\n\n");
+    fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
 
     // for now print pwd to output (otherwise we lose it)
     fmt.Printf("Reset link for %s is http://pscp.me/?rp=%s\n",usermail,resetcode)
@@ -1541,15 +1545,19 @@ func (h *MyHTTPHandler) ProfileResetPassword(resetcode string, rw http.ResponseW
 
     // generate user message with link
     w := new(bytes.Buffer)
-	fmt.Fprintf(w,"From: %s\n",noreply@paperscape.org)
-	fmt.Fprintf(w,"To: %s\n",usermail)
-	fmt.Fprintf(w,"Subject: Paperscape password has been reset\n")
+    fmt.Fprintf(w,"From: %s\n","noreply@paperscape.org")
+    fmt.Fprintf(w,"To: %s\n",usermail)
+    fmt.Fprintf(w,"Subject: Paperscape password has been reset\n")
     fmt.Fprintf(w,"Dear Paperscape user,\n\n");
     fmt.Fprintf(w,"We have reset your password for you. Your new password is:\n\n");
     fmt.Fprintf(w,"Password: %s\n\n",password);
     fmt.Fprintf(w,"We recommend that you change this password after logging in.\n\n");
     fmt.Fprintf(w,"Goodluck!\n\n");
-    fmt.Fprintf(w,"The Paperscape team\n");
+    fmt.Fprintf(w,"The Paperscape team\n\n\n");
+    fmt.Fprintf(w,"--------\n");
+    fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
+    fmt.Fprintf(w,"You can do so by following this link:\n\n");
+    fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
 
     // for now print pwd to output (otherwise we lose it)
     fmt.Printf("New password for %s is %s\n",usermail,password)
@@ -1585,9 +1593,9 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
 
     // generate user message with new password
     w := new(bytes.Buffer)
-	fmt.Fprintf(w,"From: %s\n",noreply@paperscape.org)
-	fmt.Fprintf(w,"To: %s\n",usermail)
-	fmt.Fprintf(w,"Subject: Paperscape user registration\n")
+    fmt.Fprintf(w,"From: %s\n","noreply@paperscape.org")
+    fmt.Fprintf(w,"To: %s\n",usermail)
+    fmt.Fprintf(w,"Subject: Paperscape user registration\n")
     fmt.Fprintf(w,"Welcome to Paperscape!\n\n");
     fmt.Fprintf(w,"Thankyou for signing up with us. Your new password is:\n\n");
     fmt.Fprintf(w,"Password: %s\n\n",password);
@@ -1595,7 +1603,11 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
     fmt.Fprintf(w,"Now that you are logged in you can benefit from several cool new features such as:\n");
     fmt.Fprintf(w," - Autosave: ...\n\n"); // TODO
     fmt.Fprintf(w,"Goodluck!\n\n");
-    fmt.Fprintf(w,"The Paperscape team\n");
+    fmt.Fprintf(w,"The Paperscape team\n\n\n");
+    fmt.Fprintf(w,"--------\n");
+    fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
+    fmt.Fprintf(w,"You can do so by following this link:\n\n");
+    fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
 
     // for now print pwd to output (otherwise we lose it)
     fmt.Printf("Password for %s is %s\n",usermail,password)
