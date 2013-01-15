@@ -1502,6 +1502,9 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
 
     // generate user message with link
     w := new(bytes.Buffer)
+	fmt.Fprintf(w,"From: %s\n",noreply@paperscape.org)
+	fmt.Fprintf(w,"To: %s\n",usermail)
+	fmt.Fprintf(w,"Subject: Paperscape password reset request\n")
     fmt.Fprintf(w,"Dear Paperscape user,\n\n");
     fmt.Fprintf(w,"Someone (probably you) has requested that your Paperscape password be reset. To proceed with reseting your password, please follow the link below. This will result in us sending you a new password to this email address. If you are happy with your current password then please ignore this message.\n\n");
     fmt.Fprintf(w,"http://pscp.me/?rp=%s\n\n",resetcode);
@@ -1538,6 +1541,9 @@ func (h *MyHTTPHandler) ProfileResetPassword(resetcode string, rw http.ResponseW
 
     // generate user message with link
     w := new(bytes.Buffer)
+	fmt.Fprintf(w,"From: %s\n",noreply@paperscape.org)
+	fmt.Fprintf(w,"To: %s\n",usermail)
+	fmt.Fprintf(w,"Subject: Paperscape password has been reset\n")
     fmt.Fprintf(w,"Dear Paperscape user,\n\n");
     fmt.Fprintf(w,"We have reset your password for you. Your new password is:\n\n");
     fmt.Fprintf(w,"Password: %s\n\n",password);
@@ -1547,12 +1553,7 @@ func (h *MyHTTPHandler) ProfileResetPassword(resetcode string, rw http.ResponseW
 
     // for now print pwd to output (otherwise we lose it)
     fmt.Printf("New password for %s is %s\n",usermail,password)
-    // TODO email it
-    //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
-    //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
-    //if err != nil {
-    //  fmt.Println("ERROR: ProfileRequestResetPassword sendmail:", err)
-    //}
+    SendPscpMail(w.Bytes(),usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 }
@@ -1584,6 +1585,9 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
 
     // generate user message with new password
     w := new(bytes.Buffer)
+	fmt.Fprintf(w,"From: %s\n",noreply@paperscape.org)
+	fmt.Fprintf(w,"To: %s\n",usermail)
+	fmt.Fprintf(w,"Subject: Paperscape user registration\n")
     fmt.Fprintf(w,"Welcome to Paperscape!\n\n");
     fmt.Fprintf(w,"Thankyou for signing up with us. Your new password is:\n\n");
     fmt.Fprintf(w,"Password: %s\n\n",password);
