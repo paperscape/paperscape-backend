@@ -1510,13 +1510,11 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
     fmt.Fprintf(w,"http://pscp.me/?rp=%s\n\n",resetcode);
     fmt.Fprintf(w,"Goodluck!\n\n");
     fmt.Fprintf(w,"The Paperscape team\n\n\n");
-    fmt.Fprintf(w,"--------\n");
+    fmt.Fprintf(w,"--------\n\n");
     fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
     fmt.Fprintf(w,"You can do so by following this link:\n\n");
     fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
 
-    // for now print pwd to output (otherwise we lose it)
-    fmt.Printf("Reset link for %s is http://pscp.me/?rp=%s\n",usermail,resetcode)
     SendPscpMail(w.Bytes(),usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
@@ -1554,13 +1552,11 @@ func (h *MyHTTPHandler) ProfileResetPassword(resetcode string, rw http.ResponseW
     fmt.Fprintf(w,"We recommend that you change this password after logging in.\n\n");
     fmt.Fprintf(w,"Goodluck!\n\n");
     fmt.Fprintf(w,"The Paperscape team\n\n\n");
-    fmt.Fprintf(w,"--------\n");
+    fmt.Fprintf(w,"--------\n\n");
     fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
     fmt.Fprintf(w,"You can do so by following this link:\n\n");
     fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
 
-    // for now print pwd to output (otherwise we lose it)
-    fmt.Printf("New password for %s is %s\n",usermail,password)
     SendPscpMail(w.Bytes(),usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
@@ -1586,8 +1582,9 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
     settingsJSON := "{\"pvo\":0,\"nda\":1}"
 
     // create database entry
-    stmt = h.papers.StatementBegin("INSERT INTO userdata (usermail,userhash,salt,pwdversion,notes,graphs,tags,settings,lastlogin) VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW())",h.papers.db.Escape(usermail),userhash,salt,pwdversion,emptyJSON,emptyJSON,emptyJSON,settingsJSON)
+    stmt = h.papers.StatementBegin("INSERT INTO userdata (usermail,userhash,salt,pwdversion,notes,graphs,tags,settings,lastlogin) VALUES (?,?,?,?,?,?,?,?,NOW())",h.papers.db.Escape(usermail),userhash,salt,pwdversion,emptyJSON,emptyJSON,emptyJSON,settingsJSON)
     if !h.papers.StatementEnd(stmt) {
+        fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
 
@@ -1604,13 +1601,11 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
     fmt.Fprintf(w," - Autosave: ...\n\n"); // TODO
     fmt.Fprintf(w,"Goodluck!\n\n");
     fmt.Fprintf(w,"The Paperscape team\n\n\n");
-    fmt.Fprintf(w,"--------\n");
+    fmt.Fprintf(w,"--------\n\n");
     fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
     fmt.Fprintf(w,"You can do so by following this link:\n\n");
     fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
 
-    // for now print pwd to output (otherwise we lose it)
-    fmt.Printf("Password for %s is %s\n",usermail,password)
     SendPscpMail(w.Bytes(),usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
