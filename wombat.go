@@ -609,6 +609,8 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         if dNumCites5, ok := row2[2].(int64); ok {
             paper.dNumCites5 = uint(dNumCites5)
         }
+    } else {
+        fmt.Printf("ERROR: cannot get pcite data for id=%d\n", paper.id)
     }
 
     papers.QueryEnd()
@@ -1502,7 +1504,7 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
 
     // generate user message with link
     w := new(bytes.Buffer)
-    fmt.Fprintf(w,"From: %s\n","noreply@paperscape.org")
+    fmt.Fprintf(w,"From: %s\n","Paperscape <noreply@paperscape.org>")
     fmt.Fprintf(w,"To: %s\n",usermail)
     fmt.Fprintf(w,"Subject: Paperscape password reset request\n")
     fmt.Fprintf(w,"Dear Paperscape user,\n\n");
@@ -1543,7 +1545,7 @@ func (h *MyHTTPHandler) ProfileResetPassword(resetcode string, rw http.ResponseW
 
     // generate user message with link
     w := new(bytes.Buffer)
-    fmt.Fprintf(w,"From: %s\n","noreply@paperscape.org")
+    fmt.Fprintf(w,"From: %s\n","Paperscape <noreply@paperscape.org>")
     fmt.Fprintf(w,"To: %s\n",usermail)
     fmt.Fprintf(w,"Subject: Paperscape password has been reset\n")
     fmt.Fprintf(w,"Dear Paperscape user,\n\n");
@@ -1590,7 +1592,7 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
 
     // generate user message with new password
     w := new(bytes.Buffer)
-    fmt.Fprintf(w,"From: %s\n","noreply@paperscape.org")
+    fmt.Fprintf(w,"From: %s\n","Paperscape <noreply@paperscape.org>")
     fmt.Fprintf(w,"To: %s\n",usermail)
     fmt.Fprintf(w,"Subject: Paperscape user registration\n")
     fmt.Fprintf(w,"Welcome to Paperscape!\n\n");
