@@ -21,6 +21,8 @@ bool mouse_held = false;
 bool mouse_dragged;
 double mouse_last_x = 0, mouse_last_y = 0;
 paper_t *mouse_paper = NULL;
+int id_range_start = 2050000000;
+int id_range_end = 2060000000;
 
 static int add_counter = 0;
 static gboolean map_env_update(map_env_t *map_env) {
@@ -29,10 +31,12 @@ static gboolean map_env_update(map_env_t *map_env) {
     }
     for (int i = 0; i < 2; i++) {
         if (map_env_iterate(map_env, mouse_paper)) {
+            /*
             if (add_counter == 0) {
                 add_counter = 10;
                 map_env_inc_num_papers(map_env, 100);
             }
+            */
             break;
         }
     }
@@ -75,6 +79,25 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
             printf("update running\n");
         }
 
+    } else if (event->keyval >= GDK_KEY_a && event->keyval <= GDK_KEY_f) {
+
+               if (event->keyval == GDK_KEY_a) {
+            id_range_start -= 1000000;
+            id_range_end -= 1000000;
+        } else if (event->keyval == GDK_KEY_b) {
+            id_range_start += 1000000;
+            id_range_end += 1000000;
+        } else if (event->keyval == GDK_KEY_c) {
+            id_range_end -= 1000000;
+        } else if (event->keyval == GDK_KEY_d) {
+            id_range_end += 1000000;
+        } else if (event->keyval == GDK_KEY_e) {
+        } else if (event->keyval == GDK_KEY_f) {
+        }
+
+        map_env_select_date_range(map_env, id_range_start, id_range_end);
+
+        /*
     } else if (event->keyval == GDK_KEY_a) {
         map_env_inc_num_papers(map_env, 1);
     } else if (event->keyval == GDK_KEY_b) {
@@ -85,6 +108,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_inc_num_papers(map_env, 1000);
     } else if (event->keyval == GDK_KEY_e) {
         map_env_inc_num_papers(map_env, 10000);
+        */
 
     } else if (event->keyval == GDK_KEY_j) {
         map_env_jolt(map_env, 0.5);
@@ -97,6 +121,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_toggle_draw_grid(map_env);
     } else if (event->keyval == GDK_KEY_l) {
         map_env_toggle_draw_paper_links(map_env);
+
+    } else if (event->keyval == GDK_KEY_T) {
+        map_env_centre_and_orient(map_env);
 
     } else if (event->keyval == GDK_KEY_1) {
         map_env_adjust_anti_gravity(map_env, 0.9);
@@ -297,11 +324,10 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     printf(
         "key bindings\n"
         " space- play/pause the physics update\n"
-        "    a - add 1 paper\n"
-        "    b - add 10 papers\n"
-        "    c - add 100 papers\n"
-        "    d - add 1000 papers\n"
-        "    e - add 10000 papers\n"
+        "    a - decrease whole id range by 1/10 of a year\n"
+        "    b - increase whole id range by 1/10 of a year\n"
+        "    c - decrease end of id range by 1/10 of a year\n"
+        "    d - increase end of id range by 1/10 of a year\n"
         "    t - turn tred on/off\n"
         "    l - turn links on/off\n"
         "    j - make a small jolt\n"
@@ -312,4 +338,11 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
         "    left drag - move a paper around / pan the view\n"
         "       scroll - zoom in/out\n"
     );
+
+    int id_min;
+    int id_max;
+    map_env_get_max_id_range(map_env, &id_min, &id_max);
+    id_range_start = id_min;
+    id_range_end = id_min + 10000000; // plus 1 year
+    map_env_select_date_range(map_env, id_range_start, id_range_end);
 }

@@ -16,14 +16,13 @@ int main(int argc, char *argv[]) {
 
     //const char *where_clause = NULL;
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR arxiv IS NULL)";
-    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex') AND id >= 1992500000 AND id < 2000000000";
-    const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='hep-lat') AND id >= 2090000000";
+    const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='hep-lat') AND id >= 2080000000";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='astro-ph') AND id >= 2100000000";
     //const char *where_clause = "(maincat='astro-ph') AND id >= 2090000000";
     //const char *where_clause = "(maincat='cond-mat' OR maincat='quant-ph') AND id >= 2080000000";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='astro-ph' OR maincat='math-ph') AND id >= 2110000000";
 
-    if (!load_papers_from_mysql(where_clause, &num_papers, &papers)) {
+    if (!mysql_load_papers(where_clause, &num_papers, &papers)) {
         return 1;
     }
     map_env_set_papers(map_env, num_papers, papers);
@@ -38,6 +37,8 @@ int main(int argc, char *argv[]) {
 
     // start the main loop and block until the application is closed
     gtk_main();
+
+    //mysql_save_paper_positions(num_papers, papers);
 
     return 0;
 }

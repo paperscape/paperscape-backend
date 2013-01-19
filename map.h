@@ -22,13 +22,16 @@ void map_env_toggle_draw_paper_links(map_env_t *map_env);
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt);
 void map_env_adjust_link_strength(map_env_t *map_env, double amt);
 
+void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max);
 void map_env_grow(map_env_t *map_env, double amt);
 void map_env_inc_num_papers(map_env_t *map_env, int amt);
+void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vstr_t *info_out);
 bool map_env_iterate(map_env_t *map_env, paper_t *hold_still);
+void map_env_centre_and_orient(map_env_t *map_env);
 
 #endif // _INCLUDED_MAP_H
 

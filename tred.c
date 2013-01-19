@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "xiwilib.h"
 #include "common.h"
 
 void compute_tred_refs_mark(int p_top_index, paper_t *p_cur, paper_t *follow_back_paper, int follow_back_ref) {

@@ -13,6 +13,10 @@ typedef struct _paper_t {
     const char *authors;
     const char *title;
 
+    bool pos_valid;
+    float x;
+    float y;
+
     // stuff for colouring
     int colour;
     int num_with_my_colour;
@@ -24,16 +28,17 @@ typedef struct _paper_t {
     int tred_follow_back_ref;
 
     // stuff for the placement of papers
+    bool included;
+    int num_included_cites;
     int kind;
+    float age; // between 0.0 and 1.0
     float r;
     float mass;
-    float x;
-    float y;
     float fx;
     float fy;
 } paper_t;
 
-void recompute_num_cites(int num_papers, paper_t *papers);
+void recompute_num_included_cites(int num_papers, paper_t *papers);
 void recompute_colours(int num_papers, paper_t *papers, int verbose);
 void compute_tred(int num_papers, paper_t *papers);
 

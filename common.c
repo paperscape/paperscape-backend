@@ -6,46 +6,49 @@
 #include "xiwilib.h"
 #include "common.h"
 
-// compute the num_cites field in the paper_t objects
-// num_papers can be less than the actual number of papers in the papers array, and in this case
-// the citation count will only count papers with an index in the array which is less than num_papers
-void recompute_num_cites(int num_papers, paper_t *papers) {
+// compute the num_included_cites field in the paper_t objects
+// only includes papers that have their "included" flag set
+void recompute_num_included_cites(int num_papers, paper_t *papers) {
     // reset citation count
     for (int i = 0; i < num_papers; i++) {
         paper_t *p = &papers[i];
-        p->num_cites = 0;
+        p->num_included_cites = 0;
     }
 
     // compute citation count by following references
     for (int i = 0; i < num_papers; i++) {
         paper_t *p = &papers[i];
-        for (int j = 0; j < p->num_refs; j++) {
-            paper_t *p2 = p->refs[j];
-            // only count those papers which are within the desired index range
-            if (p2->index < num_papers) {
-                p2->num_cites += 1;
+        if (p->included) {
+            for (int j = 0; j < p->num_refs; j++) {
+                paper_t *p2 = p->refs[j];
+                if (p2->included) {
+                    p2->num_included_cites += 1;
+                }
             }
         }
     }
 }
 
-static void paper_paint(int num_papers, paper_t *p, int colour) {
-    if (p->index >= num_papers || p->colour == colour) {
+static void paper_paint(paper_t *p, int colour) {
+    if (!p->included || p->colour == colour) {
         return;
     }
     assert(p->colour == 0);
     p->colour = colour;
     for (int i = 0; i < p->num_refs; i++) {
-        paper_paint(num_papers, p->refs[i], colour);
+        if (p->refs[i]->included) {
+            paper_paint(p->refs[i], colour);
+        }
     }
     for (int i = 0; i < p->num_cites; i++) {
-        paper_paint(num_papers, p->cites[i], colour);
+        if (p->cites[i]->included) {
+            paper_paint(p->cites[i], colour);
+        }
     }
 }
 
 // works out connected class for each paper (the colour after a flood fill painting algorigth)
-// num_papers can be less than the actual number of papers in the papers array, and in this case
-// the colours will only be computed for papers with an index in the array which is less than num_papers
+// only includes papers that have their "included" flag set
 void recompute_colours(int num_papers, paper_t *papers, int verbose) {
     // clear colour
     for (int i = 0; i < num_papers; i++) {
@@ -56,8 +59,8 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
     int cur_colour = 1;
     for (int i = 0; i < num_papers; i++) {
         paper_t *paper = &papers[i];
-        if (paper->colour == 0) {
-            paper_paint(num_papers, paper, cur_colour++);
+        if (paper->included && paper->colour == 0) {
+            paper_paint(paper, cur_colour++);
         }
     }
 

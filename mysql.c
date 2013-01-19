@@ -95,14 +95,12 @@ static bool env_query_many_rows(env_t *env, const char *q, int expected_num_fiel
     return true;
 }
 
-/*
 static bool env_query_no_result(env_t *env, const char *q, unsigned long len) {
     if (mysql_real_query(&env->mysql, q, len) != 0) {
         return have_error(env);
     }
     return true;
 }
-*/
 
 static bool env_get_num_ids(env_t *env, int *num_ids) {
     MYSQL_RES *result;
@@ -181,6 +179,9 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         }
         paper->authors = strdup(row[2]);
         paper->title = strdup(row[3]);
+        paper->pos_valid = false;
+        paper->x = 0;
+        paper->y = 0;
         i += 1;
     }
     env->num_papers = i;
@@ -213,6 +214,40 @@ static paper_t *env_get_paper_by_id(env_t *env, int id) {
         }
     }
     return NULL;
+}
+
+static bool env_load_pos(env_t *env) {
+    MYSQL_RES *result;
+    MYSQL_ROW row;
+
+    printf("reading mappos\n");
+
+    // get the positions from the mappos table
+    vstr_t *vstr = env->vstr[VSTR_0];
+    vstr_reset(vstr);
+    vstr_printf(vstr, "SELECT id,x,y FROM mappos");
+    if (vstr_had_error(vstr)) {
+        return false;
+    }
+    if (!env_query_many_rows(env, vstr_str(vstr), 3, &result)) {
+        return false;
+    }
+
+    int total_pos = 0;
+    while ((row = mysql_fetch_row(result))) {
+        paper_t *paper = env_get_paper_by_id(env, atoi(row[0]));
+        if (paper != NULL) {
+            paper->pos_valid = true;
+            paper->x = atof(row[1]);
+            paper->y = atof(row[2]);
+            total_pos += 1;
+        }
+    }
+    mysql_free_result(result);
+
+    printf("read %d total positions\n", total_pos);
+
+    return true;
 }
 
 static bool env_load_refs(env_t *env, unsigned int min_id) {
@@ -309,7 +344,7 @@ static bool env_build_cites(env_t *env) {
     return true;
 }
 
-bool load_papers_from_mysql(const char *where_clause, int *num_papers_out, paper_t **papers_out) {
+bool mysql_load_papers(const char *where_clause, int *num_papers_out, paper_t **papers_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
@@ -319,6 +354,7 @@ bool load_papers_from_mysql(const char *where_clause, int *num_papers_out, paper
 
     // load the DB
     env_load_ids(&env, where_clause);
+    //env_load_pos(&env);
     env_load_refs(&env, 0);
     env_build_cites(&env);
 
@@ -328,6 +364,55 @@ bool load_papers_from_mysql(const char *where_clause, int *num_papers_out, paper
     // return the papers
     *num_papers_out = env.num_papers;
     *papers_out = env.papers;
+
+    return true;
+}
+
+/****************************************************************/
+/* stuff to save papers positions to DB                         */
+/****************************************************************/
+
+// save paper positions to mappos table
+static bool env_save_pos(env_t *env) {
+    vstr_t *vstr = env->vstr[VSTR_0];
+    for (int i = 0; i < env->num_papers; i++) {
+        paper_t *paper = &env->papers[i];
+
+        if (paper->pos_valid) {
+            vstr_reset(vstr);
+            vstr_printf(vstr, "REPLACE INTO mappos (id,x,y) VALUES (%d,%.3f,%.3f)", paper->id, paper->x, paper->y);
+            if (vstr_had_error(vstr)) {
+                return false;
+            }
+
+            if (!env_query_no_result(env, vstr_str(vstr), vstr_len(vstr))) {
+                return false;
+            }
+        }
+    }
+
+    printf("saved %d positions to mappos\n", env->num_papers);
+
+    return true;
+}
+
+bool mysql_save_paper_positions(int num_papers, paper_t *papers) {
+    // set up environment
+    env_t env;
+    if (!env_set_up(&env)) {
+        env_finish(&env);
+        return false;
+    }
+
+    // set papers
+    env.num_papers = num_papers;
+    env.papers = papers;
+
+    // save positions
+    env_save_pos(&env);
+
+    // pull down the MySQL environment
+    env_finish(&env);
 
     return true;
 }

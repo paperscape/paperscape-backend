@@ -14,7 +14,6 @@ static double link_strength = 0.03;
 
 struct _map_env_t {
     // loaded
-    int cur_num_papers;
     int max_num_papers;
     paper_t *all_papers;
 
@@ -42,7 +41,6 @@ struct _map_env_t {
 
 map_env_t *map_env_new() {
     map_env_t *map_env = m_new(map_env_t, 1);
-    map_env->cur_num_papers = 0;
     map_env->max_num_papers = 0;
     map_env->all_papers = NULL;
     map_env->num_papers = 0;
@@ -58,8 +56,10 @@ map_env_t *map_env_new() {
     map_env->draw_paper_links = false;
 
     cairo_matrix_init_identity(&map_env->tr_matrix);
-    map_env->tr_matrix.xx = 8;
-    map_env->tr_matrix.yy = 8;
+    map_env->tr_matrix.xx = 4;
+    map_env->tr_matrix.yy = 4;
+    map_env->tr_matrix.x0 = 280;
+    map_env->tr_matrix.y0 = 280;
 
     map_env->energy = 0;
     map_env->progress = 0;
@@ -101,10 +101,14 @@ void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers) {
         p->refs_tred_computed = m_new(int, p->num_refs);
         //p->kind = 2.5 * random() / RAND_MAX;
         p->kind = p->maincat;
-        p->mass = 0.05 + 0.2 * p->num_cites;
+        p->num_included_cites = p->num_cites;
+        p->mass = 0.05 + 0.2 * p->num_included_cites;
         p->r = sqrt(p->mass / M_PI);
-        p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
-        p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+        if (!p->pos_valid) {
+            p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
+            p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+        }
+        p->pos_valid = true;
     }
 }
 
@@ -217,21 +221,21 @@ void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     double y = p->y;
     double w = 2*p->r;
     if (p->kind == 1) {
-        cairo_set_source_rgba(cr, 0.85, 0.85, 1, 1);
+        cairo_set_source_rgba(cr, 0.75, 0.75, 1, 1);
     } else if (p->kind == 2) {
-        cairo_set_source_rgba(cr, 0.85, 1, 0.85, 1);
+        cairo_set_source_rgba(cr, 0.75, 1, 0.75, 1);
     } else if (p->kind == 3) {
-        cairo_set_source_rgba(cr, 1, 1, 0.85, 1);
+        cairo_set_source_rgba(cr, 1, 1, 0.75, 1);
     } else if (p->kind == 4) {
-        cairo_set_source_rgba(cr, 0.85, 1, 1, 1);
+        cairo_set_source_rgba(cr, 0.75, 1, 1, 1);
     } else {
-        cairo_set_source_rgba(cr, 1, 0.85, 1, 1);
+        cairo_set_source_rgba(cr, 1, 0.75, 1, 1);
     }
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
 }
 
-void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double age) {
+void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     /*
     double h = w * 1.41;
     cairo_set_source_rgba(cr, 0.9, 0.9, 0.8, 0.9);
@@ -244,6 +248,7 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p, double age) {
     double x = p->x;
     double y = p->y;
     double w = p->r;
+    double age = p->age;
     /*
     if (p->id == 1992546899 || p->id == 1993234723) {
         cairo_set_source_rgba(cr, 0.8, 0.8, 0, 0.7);
@@ -322,6 +327,7 @@ void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
         else if (p->id == 2115329009) { str = "superluminal neutrinos"; }
         else if (p->id == 2123937504) { str = "firewalls"; }
         else if (p->id == 2124219058) { str = "Higgs"; }
+        else if (p->id == 2127218782) { str = "amplitudes"; }
         //else if (p->id == ) { str = ""; }
         if (str != NULL) {
             double x = p->x;
@@ -356,6 +362,55 @@ void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double 
     }
 }
 
+void map_env_centre_and_orient(map_env_t *map_env) {
+    if (map_env->num_papers == 0) {
+        return;
+    }
+
+    // compute the moments of the graph
+    double mom_x = 0.0;
+    double mom_y = 0.0;
+    double mom_xx = 0.0;
+    double mom_xy = 0.0;
+    double mom_yy = 0.0;
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        mom_x += p->x;
+        mom_y += p->y;
+        mom_xx += p->x * p->x;
+        mom_xy += p->x * p->y;
+        mom_yy += p->y * p->y;
+    }
+    mom_x /= map_env->num_papers;
+    mom_y /= map_env->num_papers;
+    mom_xx /= map_env->num_papers;
+    mom_xy /= map_env->num_papers;
+    mom_yy /= map_env->num_papers;
+
+    mom_xx = sqrt(mom_xx);
+    mom_yy = sqrt(mom_yy);
+
+    printf("moments: %f %f; %f %f %f\n", mom_x, mom_y, mom_xx, mom_xy, mom_yy);
+}
+
+static int paper_cmp_id(const void *in1, const void *in2) {
+    paper_t *p1 = *(paper_t **)in1;
+    paper_t *p2 = *(paper_t **)in2;
+    return p1->id - p2->id;
+}
+
+static int paper_cmp_radius(const void *in1, const void *in2) {
+    paper_t *p1 = *(paper_t **)in1;
+    paper_t *p2 = *(paper_t **)in2;
+    if (p1->r < p2->r) {
+        return -1;
+    } else if (p1->r > p2->r) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vstr_t* vstr_info) {
     // clear bg
     cairo_set_source_rgb(cr, 1, 1, 1);
@@ -364,6 +419,17 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vs
 
     double line_width_1px = 1.0 / map_env->tr_matrix.xx;
     cairo_set_matrix(cr, &map_env->tr_matrix);
+
+    /* the origin/axis
+    cairo_set_line_width(cr, line_width_1px);
+    cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
+    cairo_move_to(cr, 0, -100);
+    cairo_line_to(cr, 0, 100);
+    cairo_stroke(cr);
+    cairo_move_to(cr, -100, 0);
+    cairo_line_to(cr, 100, 0);
+    cairo_stroke(cr);
+    */
 
     if (map_env->draw_grid) {
         cairo_set_line_width(cr, line_width_1px);
@@ -416,7 +482,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vs
                 paper_t *p = map_env->papers[i];
                 for (int j = 0; j < p->num_refs; j++) {
                     paper_t *p2 = p->refs[j];
-                    if (p->refs_tred_computed[j] && p2->index < map_env->cur_num_papers) {
+                    if (p->refs_tred_computed[j] && p2->included) {
                         cairo_set_line_width(cr, 0.1 * p->refs_tred_computed[j]);
                         cairo_move_to(cr, p->x, p->y);
                         cairo_line_to(cr, p2->x, p2->y);
@@ -430,7 +496,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vs
                 paper_t *p = map_env->papers[i];
                 for (int j = 0; j < p->num_refs; j++) {
                     paper_t *p2 = p->refs[j];
-                    if (p2->index < map_env->cur_num_papers) {
+                    if (p2->included) {
                         cairo_move_to(cr, p->x, p->y);
                         cairo_line_to(cr, p2->x, p2->y);
                         cairo_stroke(cr);
@@ -440,17 +506,23 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vs
         }
     }
 
-    // papers background halo
+    // sort the papers array by radius, smallest first
+    qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_radius);
+
+    // papers background halo (smallest first, so big ones take over the bg)
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         draw_paper_bg(cr, map_env, p);
     }
 
-    // papers
-    for (int i = 0; i < map_env->num_papers; i++) {
+    // papers (biggest first, so small ones are drawn over the top)
+    for (int i = map_env->num_papers - 1; i >= 0; i--) {
         paper_t *p = map_env->papers[i];
-        draw_paper(cr, map_env, p, 1.0 * i / map_env->num_papers);
+        draw_paper(cr, map_env, p);
     }
+
+    // sort the papers array by id
+    qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_id);
 
     // paper text
     cairo_identity_matrix(cr);
@@ -467,23 +539,25 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vs
     draw_big_labels(cr, map_env);
 
     // create info string to return
-    vstr_printf(vstr_info, "have %d papers, %d connected and included in graph\n", map_env->cur_num_papers, map_env->num_papers);
-    if (map_env->num_papers > 0) {
-        int id0 = map_env->papers[0]->id;
-        int id1 = map_env->papers[map_env->num_papers - 1]->id;
-        int y0 = id0 / 10000000 + 1800;
-        int m0 = ((id0 % 10000000) / 625000) + 1;
-        int d0 = ((id0 % 625000) / 15625) + 1;
-        int y1 = id1 / 10000000 + 1800;
-        int m1 = ((id1 % 10000000) / 625000) + 1;
-        int d1 = ((id1 % 625000) / 15625) + 1;
-        vstr_printf(vstr_info, "date range is %d/%d/%d -- %d/%d/%d\n", d0, m0, y0, d1, m1, y1);
+    if (vstr_info != NULL) {
+        vstr_printf(vstr_info, "have %d papers connected and included in graph\n", map_env->num_papers);
+        if (map_env->num_papers > 0) {
+            int id0 = map_env->papers[0]->id;
+            int id1 = map_env->papers[map_env->num_papers - 1]->id;
+            int y0 = id0 / 10000000 + 1800;
+            int m0 = ((id0 % 10000000) / 625000) + 1;
+            int d0 = ((id0 % 625000) / 15625) + 1;
+            int y1 = id1 / 10000000 + 1800;
+            int m1 = ((id1 % 10000000) / 625000) + 1;
+            int d1 = ((id1 % 625000) / 15625) + 1;
+            vstr_printf(vstr_info, "date range is %d/%d/%d -- %d/%d/%d\n", d0, m0, y0, d1, m1, y1);
+        }
+        vstr_printf(vstr_info, "energy: %.3g\n", map_env->energy);
+        vstr_printf(vstr_info, "step size: %.3g\n", map_env->step_size);
+        vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", anti_gravity_strength);
+        vstr_printf(vstr_info, "link strength: %.3f\n", link_strength);
+        vstr_printf(vstr_info, "transitive reduction: %d\n", map_env->do_tred);
     }
-    vstr_printf(vstr_info, "energy: %.3g\n", map_env->energy);
-    vstr_printf(vstr_info, "step size: %.3g\n", map_env->step_size);
-    vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", anti_gravity_strength);
-    vstr_printf(vstr_info, "link strength: %.3f\n", link_strength);
-    vstr_printf(vstr_info, "transitive reduction: %d\n", map_env->do_tred);
 }
 
 // reset the forces and compute the grid
@@ -748,7 +822,7 @@ void map_env_compute_forces(map_env_t *map_env) {
         paper_t *p1 = map_env->papers[i];
         for (int j = 0; j < p1->num_refs; j++) {
             paper_t *p2 = p1->refs[j];
-            if ((!map_env->do_tred || p1->refs_tred_computed[j]) && p2->index < map_env->cur_num_papers) {
+            if ((!map_env->do_tred || p1->refs_tred_computed[j]) && p2->included) {
                 double dx = p1->x - p2->x;
                 double dy = p1->y - p2->y;
                 double r = sqrt(dx*dx + dy*dy);
@@ -794,6 +868,9 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still) {
 
     // use the computed forces to update the (x,y) positions of the papers
     double energy = 0;
+    double x_avg = 0;
+    double y_avg = 0;
+    double total_mass = 0;
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         if (p == hold_still) {
@@ -810,6 +887,22 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still) {
 
         p->x += dt * p->fx;
         p->y += dt * p->fy;
+
+        x_avg += p->x * p->mass;
+        y_avg += p->y * p->mass;
+        total_mass += p->mass;
+    }
+
+    // centre papers on the centre of mass
+    x_avg /= total_mass;
+    y_avg /= total_mass;
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        if (p == hold_still) {
+            continue;
+        }
+        p->x -= x_avg;
+        p->y -= y_avg;
     }
 
     // adjust the step size
@@ -884,6 +977,16 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still) {
     #endif
 }
 
+void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max) {
+    if (map_env->max_num_papers > 0) {
+        *id_min = map_env->all_papers[0].id;
+        *id_max = map_env->all_papers[map_env->max_num_papers - 1].id;
+    } else {
+        *id_min = 0;
+        *id_max = 0;
+    }
+}
+
 void map_env_grow(map_env_t *map_env, double amt) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
@@ -892,6 +995,7 @@ void map_env_grow(map_env_t *map_env, double amt) {
     }
 }
 
+/*
 void map_env_inc_num_papers(map_env_t *map_env, int amt) {
     if (map_env->cur_num_papers >= map_env->max_num_papers) {
         // already have maximum number of papers in graph
@@ -902,44 +1006,57 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
     if (map_env->cur_num_papers > map_env->max_num_papers) {
         map_env->cur_num_papers = map_env->max_num_papers;
     }
-    recompute_num_cites(map_env->cur_num_papers, map_env->all_papers);
+    recompute_num_included_cites(map_env->cur_num_papers, map_env->all_papers);
     recompute_colours(map_env->cur_num_papers, map_env->all_papers, false);
     //compute_tred(map_env->cur_num_papers, map_env->all_papers);
     for (int i = 0; i < map_env->cur_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        p->mass = 0.05 + 0.2 * p->num_cites;
+        p->mass = 0.05 + 0.2 * p->num_included_cites;
         p->r = sqrt(p->mass / M_PI);
+        p->index2 = i;
     }
     // compute initial position for newly added papers (average of all its references)
     for (int i = old_num_papers; i < map_env->cur_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        double x = 0;
-        double y = 0;
-        int n = 0;
-        // average x- and y-pos of references
-        for (int j = 0; j < p->num_refs; j++) {
-            paper_t *p2 = p->refs[j];
-            if (p2->index < map_env->cur_num_papers) {
-                x += p2->x;
-                y += p2->y;
-                n += 1;
+        if (!p->pos_valid) {
+            double x = 0;
+            double y = 0;
+            int n = 0;
+            // average x- and y-pos of references
+            for (int j = 0; j < p->num_refs; j++) {
+                paper_t *p2 = p->refs[j];
+                if (p2->index < map_env->cur_num_papers) {
+                    x += p2->x;
+                    y += p2->y;
+                    n += 1;
+                }
+            }
+            if (n == 0) {
+                p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
+                p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+            } else {
+                // add some random element to average, mainly so we don't put it at the same pos for n=1
+                p->x = x / n + 1.0 * random() / RAND_MAX;
+                p->y = y / n + 1.0 * random() / RAND_MAX;
             }
         }
-        if (n == 0) {
-            p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
-            p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
-        } else {
-            // add some random element to average, mainly so we don't put it at the same pos for n=1
-            p->x = x / n + 1.0 * random() / RAND_MAX;
-            p->y = y / n + 1.0 * random() / RAND_MAX;
-        }
+        p->pos_valid = true;
     }
 
-    // make array of papers that we want to include (exclude non-connected papers)
+    // make array of papers that we want to include (only include biggest connected graph)
+    int biggest_col = 0;
+    int num_with_biggest_col = 10;
+    for (int i = 0; i < map_env->cur_num_papers; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        if (p->num_with_my_colour > num_with_biggest_col) {
+            biggest_col = p->colour;
+            num_with_biggest_col = p->num_with_my_colour;
+        }
+    }
     map_env->num_papers = 0;
     for (int i = 0; i < map_env->cur_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        if (p->num_with_my_colour > 10) {
+        if (p->colour == biggest_col) {
             map_env->papers[map_env->num_papers++] = p;
         }
     }
@@ -949,6 +1066,69 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
     }
 
     //printf("now have %d papers, %d connected and included in graph, maximum id is %d\n", map_env->cur_num_papers, map_env->num_papers, map_env->all_papers[map_env->cur_num_papers - 1].id);
+}
+*/
+
+void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
+    int i_start = map_env->max_num_papers - 1;
+    int i_end = 0;
+    for (int i = 0; i < map_env->max_num_papers; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        p->included = false;
+        if (p->id >= id_start && p->id <= id_end) {
+            if (i < i_start) {
+                i_start = i;
+            }
+            if (i > i_end) {
+                i_end = i;
+            }
+        }
+    }
+
+    if (i_start > i_end) {
+        // no papers in id range
+        map_env->num_papers = 0;
+        return;
+    }
+
+    printf("date range: %d - %d; index %d - %d\n", id_start, id_end, i_start, i_end);
+
+    for (int i = i_start; i <= i_end; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        p->included = true;
+        p->age = 1.0 * (p->id - id_start) / (id_end - id_start);
+    }
+
+    recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
+    recompute_colours(map_env->max_num_papers, map_env->all_papers, false);
+    //compute_tred(map_env->max_num_papers, map_env->all_papers);
+
+    // recompute mass and radius based on num_included_cites
+    for (int i = 0; i < map_env->max_num_papers; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        p->mass = 0.05 + 0.2 * p->num_included_cites;
+        p->r = sqrt(p->mass / M_PI);
+    }
+
+    // make array of papers that we want to include (only include biggest connected graph)
+    int biggest_col = 0;
+    int num_with_biggest_col = 2;
+    for (int i = 0; i < map_env->max_num_papers; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        if (p->included && p->num_with_my_colour > num_with_biggest_col) {
+            biggest_col = p->colour;
+            num_with_biggest_col = p->num_with_my_colour;
+        }
+    }
+    map_env->num_papers = 0;
+    for (int i = 0; i < map_env->max_num_papers; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        if (p->included && p->colour == biggest_col) {
+            map_env->papers[map_env->num_papers++] = p;
+        }
+    }
+
+    map_env->step_size = 1;
 }
 
 void map_env_jolt(map_env_t *map_env, double amt) {
