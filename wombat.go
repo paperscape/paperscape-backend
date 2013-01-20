@@ -715,6 +715,15 @@ func ParseRefsCitesString(paper *Paper, blob []byte, isRefStr bool) bool {
         return true
     }
 
+    if ((paper.id % 15625) % 4) == 2 {
+        // this is an inspire paper
+        if isRefStr {
+            // don't process inspire references
+            // this acts as though we don't have the 999 information
+            return true
+        }
+    }
+
     for i := 0; i < len(blob); i += 10 {
         refId := getLE32(blob, i)
         refOrder := getLE16(blob, i + 4)
