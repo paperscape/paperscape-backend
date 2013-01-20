@@ -2266,7 +2266,17 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
 // searches for papers using the given where-clause
 // builds a JSON list with id, numCites, refs for up to 500 results
 func (h *MyHTTPHandler) SearchGeneric(whereClause string, rw http.ResponseWriter) {
-    if !h.papers.QueryBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id=" + *flagPciteTable + ".id AND (" + whereClause + ") LIMIT 500") {
+    // build basic query
+    query := "SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id=" + *flagPciteTable + ".id AND (" + whereClause + ")"
+
+    // don't include results that we have no way of uniquely identifying (ie must have arxiv or publ info)
+    query += " AND (meta_data.arxiv IS NOT NULL OR meta_data.publ IS NOT NULL)"
+
+    // limit 500 results
+    query += " LIMIT 500"
+
+    // do the query
+    if !h.papers.QueryBegin(query) {
         fmt.Fprintf(rw, "[]")
         return
     }
