@@ -2,6 +2,7 @@
 #define _INCLUDED_MAP_H
 
 typedef struct _map_env_t map_env_t;
+struct cairo_t;
 
 map_env_t *map_env_new();
 
@@ -31,7 +32,7 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
 
-void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t *info_out);
+void map_env_draw(map_env_t *map_env, struct cairo_t *cr, int width, int height, vstr_t *info_out);
 bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size);
 
 #endif // _INCLUDED_MAP_H
