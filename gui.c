@@ -26,21 +26,27 @@ paper_t *mouse_paper = NULL;
 int id_range_start = 2050000000;
 int id_range_end = 2060000000;
 
-static int add_counter = -200;
+static int iterate_counter = -500;
 static gboolean map_env_update(map_env_t *map_env) {
-    for (int i = 0; i < 2; i++) {
+    bool converged = false;
+    for (int i = 0; i < 50; i++) {
+        iterate_counter += 1;
         if (map_env_iterate(map_env, mouse_paper, boost_step_size)) {
+            converged = true;
             break;
         }
         boost_step_size = false;
     }
 
-    if (add_counter++ > 50) {
-        add_counter = 0;
+    map_env_centre_view(map_env);
+    map_env_set_zoom_to_fit_n_standard_deviations(map_env, 2.6, 1000, 1000);
 
+    if (iterate_counter > 200 || converged) {
+        iterate_counter = 0;
+
+        int y, m, d;
         vstr_reset(vstr);
         vstr_t *vstr_info = vstr_new();
-        int y, m, d;
 
         unique_id_to_date(id_range_start, &y, &m, &d);
         vstr_printf(vstr, "map-%04u-%02u-%02u.png", y, m, d);
@@ -51,8 +57,8 @@ static gboolean map_env_update(map_env_t *map_env) {
         vstr_free(vstr_info);
 
         while (true) {
-            id_range_start += 200000;
-            id_range_end += 200000;
+            id_range_start += 109375; // add 1 week
+            id_range_end += 109375; // add 1 week
             unique_id_to_date(id_range_start, &y, &m, &d);
             if (m <= 12) {
                 break;
@@ -373,8 +379,10 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     id_range_end = id_min + 20000000; // plus 2 years
     map_env_select_date_range(map_env, id_range_start, id_range_end);
 
-    // for now
+    // for starting part way through
+    /*
     id_range_start = 1952278129;
     id_range_end = id_range_start + 20000000; // plus 2 years
     map_env_select_date_range(map_env, id_range_start, id_range_end);
+    */
 }

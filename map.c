@@ -38,6 +38,9 @@ struct _map_env_t {
     double energy;
     int progress;
     double step_size;
+
+    // standard deviation of the positions of the papers
+    double x_sd, y_sd;
 };
 
 map_env_t *map_env_new() {
@@ -65,6 +68,9 @@ map_env_t *map_env_new() {
     map_env->energy = 0;
     map_env->progress = 0;
     map_env->step_size = 0.1;
+
+    map_env->x_sd = 1;
+    map_env->y_sd = 1;
 
     return map_env;
 }
@@ -110,8 +116,8 @@ void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers) {
         p->mass = 0.05 + 0.2 * p->num_included_cites;
         p->r = sqrt(p->mass / M_PI);
         if (!p->pos_valid) {
-            p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
-            p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+            p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
+            p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
         }
     }
 }
@@ -126,8 +132,8 @@ void map_env_random_papers(map_env_t *map_env, int n) {
         p->r = 0.1 + 0.05 / (0.01 + 1.0 * random() / RAND_MAX);
         if (p->r > 4) { p->r = 4; }
         p->mass = M_PI * p->r * p->r;
-        p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
-        p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+        p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
         p->num_refs = 0;
     }
@@ -147,8 +153,8 @@ void map_env_papers_test1(map_env_t *map_env, int n) {
             p->mass = 0.05;
         }
         p->r = sqrt(p->mass / M_PI);
-        p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
-        p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+        p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
         if (i == 0) {
             p->num_refs = 0;
@@ -174,8 +180,8 @@ void map_env_papers_test2(map_env_t *map_env, int n) {
             p->mass = 0.05;
         }
         p->r = sqrt(p->mass / M_PI);
-        p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
-        p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+        p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
         if (i < 2) {
             p->num_refs = 0;
@@ -191,6 +197,21 @@ void map_env_papers_test2(map_env_t *map_env, int n) {
 void map_env_centre_view(map_env_t *map_env) {
     map_env->tr_matrix.x0 = 0.0;
     map_env->tr_matrix.y0 = 0.0;
+}
+
+void map_env_set_zoom_to_fit_n_standard_deviations(map_env_t *map_env, double n, double screen_w, double screen_h) {
+    if (map_env->x_sd < 1e-3 || map_env->y_sd < 1e-3) {
+        return;
+    }
+    double tr_xx = screen_w / (2 * n * map_env->x_sd);
+    double tr_yy = screen_h / (2 * n * map_env->y_sd);
+    if (tr_xx < tr_yy) {
+        map_env->tr_matrix.xx = tr_xx;
+        map_env->tr_matrix.yy = tr_xx;
+    } else {
+        map_env->tr_matrix.xx = tr_yy;
+        map_env->tr_matrix.yy = tr_yy;
+    }
 }
 
 void map_env_scroll(map_env_t *map_env, double dx, double dy) {
@@ -884,8 +905,10 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
 
     // use the computed forces to update the (x,y) positions of the papers
     double energy = 0;
-    double x_avg = 0;
-    double y_avg = 0;
+    double x_sum = 0;
+    double y_sum = 0;
+    double xsq_sum = 0;
+    double ysq_sum = 0;
     double total_mass = 0;
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
@@ -904,22 +927,30 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
         p->x += dt * p->fx;
         p->y += dt * p->fy;
 
-        x_avg += p->x * p->mass;
-        y_avg += p->y * p->mass;
+        x_sum += p->x * p->mass;
+        y_sum += p->y * p->mass;
+        xsq_sum += p->x * p->x * p->mass;
+        ysq_sum += p->y * p->y * p->mass;
         total_mass += p->mass;
     }
 
     // centre papers on the centre of mass
-    x_avg /= total_mass;
-    y_avg /= total_mass;
+    x_sum /= total_mass;
+    y_sum /= total_mass;
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         if (p == hold_still) {
             continue;
         }
-        p->x -= x_avg;
-        p->y -= y_avg;
+        p->x -= x_sum;
+        p->y -= y_sum;
     }
+
+    // compute standard deviation in x and y
+    xsq_sum /= total_mass;
+    ysq_sum /= total_mass;
+    map_env->x_sd = sqrt(xsq_sum - x_sum * x_sum);
+    map_env->y_sd = sqrt(ysq_sum - y_sum * y_sum);
 
     // adjust the step size
     if (energy < map_env->energy) {
@@ -1026,12 +1057,12 @@ static void map_env_compute_best_start_position_for_paper(map_env_t* map_env, pa
         }
     }
     if (n == 0) {
-        p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
-        p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+        p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
     } else {
         // add some random element to average, mainly so we don't put it at the same pos for n=1
-        p->x = x / n + 1.0 * random() / RAND_MAX;
-        p->y = y / n + 1.0 * random() / RAND_MAX;
+        p->x = x / n + (-0.5 + 1.0 * random() / RAND_MAX);
+        p->y = y / n + (-0.5 + 1.0 * random() / RAND_MAX);
     }
 }
 

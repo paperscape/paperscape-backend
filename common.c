@@ -75,42 +75,41 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
     }
 
     // compute and assign num_with_my_colour for each paper
-    // also work out some stats
-    int hist_s[100];
-    int hist_n[100];
-    int hist_num = 0;
-    for (int colour = 1; colour < cur_colour; colour++) {
-        int n = 0;
-        for (int i = 0; i < num_papers; i++) {
-            if (papers[i].colour == colour) {
-                n += 1;
-            }
-        }
-        for (int i = 0; i < num_papers; i++) {
-            if (papers[i].colour == colour) {
-                papers[i].num_with_my_colour = n;
-            }
-        }
-
-        // compute histogram
-        int i;
-        for (i = 0; i < hist_num; i++) {
-            if (hist_s[i] == n) {
-                break;
-            }
-        }
-        if (i == hist_num) {
-            hist_num += 1;
-            hist_s[i] = n;
-            hist_n[i] = 0;
-        }
-        hist_n[i] += 1;
+    int *num_with_col = m_new0(int, cur_colour);
+    for (int i = 0; i < num_papers; i++) {
+        num_with_col[papers[i].colour] += 1;
+    }
+    for (int i = 0; i < num_papers; i++) {
+        papers[i].num_with_my_colour = num_with_col[papers[i].colour];
     }
 
     if (verbose) {
+        // compute histogram
+        int hist_s[100];
+        int hist_n[100];
+        int hist_num = 0;
+        for (int colour = 1; colour < cur_colour; colour++) {
+            int n = num_with_col[colour];
+
+            int i;
+            for (i = 0; i < hist_num; i++) {
+                if (hist_s[i] == n) {
+                    break;
+                }
+            }
+            if (i == hist_num && hist_num < 100) {
+                hist_num += 1;
+                hist_s[i] = n;
+                hist_n[i] = 0;
+            }
+            hist_n[i] += 1;
+        }
+
         printf("%d colours\n", cur_colour - 1);
         for (int i = 0; i < hist_num; i++) {
             printf("size %d occured %d times\n", hist_s[i], hist_n[i]);
         }
     }
+
+    m_free(num_with_col);
 }

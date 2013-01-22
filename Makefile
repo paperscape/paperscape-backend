@@ -8,7 +8,6 @@ SRC = \
 	quadtree.c \
 	map.c \
 	mysql.c \
-	gen.c \
 	gui.c \
 	cairohelper.c \
 	tile.c \
