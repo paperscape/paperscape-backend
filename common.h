@@ -38,6 +38,8 @@ typedef struct _paper_t {
     float fy;
 } paper_t;
 
+int date_to_unique_id(int y, int m, int d);
+void unique_id_to_date(int id, int *y, int *m, int *d);
 void recompute_num_included_cites(int num_papers, paper_t *papers);
 void recompute_colours(int num_papers, paper_t *papers, int verbose);
 void compute_tred(int num_papers, paper_t *papers);

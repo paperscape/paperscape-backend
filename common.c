@@ -6,6 +6,16 @@
 #include "xiwilib.h"
 #include "common.h"
 
+int date_to_unique_id(int y, int m, int d) {
+    return y * 10000000 + m * 625000 + d * 15625;
+}
+
+void unique_id_to_date(int id, int *y, int *m, int *d) {
+    *y = id / 10000000 + 1800;
+    *m = ((id % 10000000) / 625000) + 1;
+    *d = ((id % 625000) / 15625) + 1;
+}
+
 // compute the num_included_cites field in the paper_t objects
 // only includes papers that have their "included" flag set
 void recompute_num_included_cites(int num_papers, paper_t *papers) {

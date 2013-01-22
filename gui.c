@@ -8,6 +8,7 @@
 #include "mysql.h"
 #include "gui.h"
 #include "cairohelper.h"
+#include "tile.h"
 
 vstr_t *vstr;
 GtkWidget *window;
@@ -17,6 +18,7 @@ guint statusbar_context_id;
 
 const char *included_papers_string = NULL;
 bool update_running = true;
+bool boost_step_size = false;
 bool mouse_held = false;
 bool mouse_dragged;
 double mouse_last_x = 0, mouse_last_y = 0;
@@ -24,22 +26,42 @@ paper_t *mouse_paper = NULL;
 int id_range_start = 2050000000;
 int id_range_end = 2060000000;
 
-static int add_counter = 0;
+static int add_counter = -200;
 static gboolean map_env_update(map_env_t *map_env) {
-    if (add_counter > 0) {
-        add_counter -= 1;
-    }
     for (int i = 0; i < 2; i++) {
-        if (map_env_iterate(map_env, mouse_paper)) {
-            /*
-            if (add_counter == 0) {
-                add_counter = 10;
-                map_env_inc_num_papers(map_env, 100);
-            }
-            */
+        if (map_env_iterate(map_env, mouse_paper, boost_step_size)) {
             break;
         }
+        boost_step_size = false;
     }
+
+    if (add_counter++ > 50) {
+        add_counter = 0;
+
+        vstr_reset(vstr);
+        vstr_t *vstr_info = vstr_new();
+        int y, m, d;
+
+        unique_id_to_date(id_range_start, &y, &m, &d);
+        vstr_printf(vstr, "map-%04u-%02u-%02u.png", y, m, d);
+        vstr_printf(vstr_info, "date: %02u-%02u-%04u to ", d, m, y);
+        unique_id_to_date(id_range_end, &y, &m, &d);
+        vstr_printf(vstr_info, "%02u-%02u-%04u\n%d papers", d, m, y, map_env_get_num_papers(map_env));
+        write_tiles(map_env, 1000, 1000, vstr_str(vstr), vstr_info);
+        vstr_free(vstr_info);
+
+        while (true) {
+            id_range_start += 200000;
+            id_range_end += 200000;
+            unique_id_to_date(id_range_start, &y, &m, &d);
+            if (m <= 12) {
+                break;
+            }
+        }
+        map_env_select_date_range(map_env, id_range_start, id_range_end);
+        boost_step_size = true;
+    }
+
     // force a redraw
     gtk_widget_queue_draw(window);
     return TRUE; // yes, we want to be called again
@@ -65,9 +87,6 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
 static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, map_env_t *map_env) {
     //printf("here %d %d\n", event->state, event->keyval);
 
-    guint width = gtk_widget_get_allocated_width(widget);
-    guint height = gtk_widget_get_allocated_height(widget);
-
     if (event->keyval == GDK_KEY_space) {
         if (update_running) {
             g_idle_remove_by_data(map_env);
@@ -79,18 +98,21 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
             printf("update running\n");
         }
 
+    } else if (event->keyval == GDK_KEY_Tab) {
+        boost_step_size = true;
+
     } else if (event->keyval >= GDK_KEY_a && event->keyval <= GDK_KEY_f) {
 
                if (event->keyval == GDK_KEY_a) {
-            id_range_start -= 1000000;
-            id_range_end -= 1000000;
+            id_range_start -= 100000;
+            id_range_end -= 100000;
         } else if (event->keyval == GDK_KEY_b) {
-            id_range_start += 1000000;
-            id_range_end += 1000000;
+            id_range_start += 100000;
+            id_range_end += 100000;
         } else if (event->keyval == GDK_KEY_c) {
-            id_range_end -= 1000000;
+            id_range_end -= 100000;
         } else if (event->keyval == GDK_KEY_d) {
-            id_range_end += 1000000;
+            id_range_end += 100000;
         } else if (event->keyval == GDK_KEY_e) {
         } else if (event->keyval == GDK_KEY_f) {
         }
@@ -122,8 +144,11 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_l) {
         map_env_toggle_draw_paper_links(map_env);
 
-    } else if (event->keyval == GDK_KEY_T) {
-        map_env_centre_and_orient(map_env);
+    } else if (event->keyval == GDK_KEY_w) {
+        write_tiles(map_env, 1000, 1000, "out.png", NULL);
+
+    } else if (event->keyval == GDK_KEY_z) {
+        map_env_centre_view(map_env);
 
     } else if (event->keyval == GDK_KEY_1) {
         map_env_adjust_anti_gravity(map_env, 0.9);
@@ -136,9 +161,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_adjust_link_strength(map_env, 1.1);
 
     } else if (event->keyval == GDK_KEY_plus || event->keyval == GDK_KEY_equal) {
-        map_env_zoom(map_env, width / 2, height / 2, 1.2);
+        map_env_zoom(map_env, 0, 0, 1.2);
     } else if (event->keyval == GDK_KEY_minus) {
-        map_env_zoom(map_env, width / 2, height / 2, 0.8);
+        map_env_zoom(map_env, 0, 0, 0.8);
 
     } else if (event->keyval == GDK_KEY_Left) {
         map_env_rotate_all(map_env, 0.1);
@@ -186,10 +211,12 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
 }
 
 static gboolean scroll_event_callback(GtkWidget *widget, GdkEventScroll *event, map_env_t *map_env) {
+    guint width = gtk_widget_get_allocated_width(widget);
+    guint height = gtk_widget_get_allocated_height(widget);
     if (event->direction == GDK_SCROLL_UP) {
-        map_env_zoom(map_env, event->x, event->y, 1.2);
+        map_env_zoom(map_env, event->x - 0.5 * width, event->y - 0.5 * height, 1.2);
     } else if (event->direction == GDK_SCROLL_DOWN) {
-        map_env_zoom(map_env, event->x, event->y, 0.8);
+        map_env_zoom(map_env, event->x - 0.5 * width, event->y - 0.5 * height, 0.8);
     }
 
     if (!update_running) {
@@ -343,6 +370,11 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     int id_max;
     map_env_get_max_id_range(map_env, &id_min, &id_max);
     id_range_start = id_min;
-    id_range_end = id_min + 10000000; // plus 1 year
+    id_range_end = id_min + 20000000; // plus 2 years
+    map_env_select_date_range(map_env, id_range_start, id_range_end);
+
+    // for now
+    id_range_start = 1952278129;
+    id_range_end = id_range_start + 20000000; // plus 2 years
     map_env_select_date_range(map_env, id_range_start, id_range_end);
 }

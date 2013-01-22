@@ -78,6 +78,10 @@ void map_env_screen_to_world(map_env_t *map_env, double *x, double *y) {
     *y = ((*y) - map_env->tr_matrix.y0) / map_env->tr_matrix.yy;
 }
 
+int map_env_get_num_papers(map_env_t *map_env) {
+    return map_env->num_papers;
+}
+
 paper_t *map_env_get_paper_at(map_env_t *map_env, double x, double y) {
     map_env_screen_to_world(map_env, &x, &y);
     for (int i = 0; i < map_env->num_papers; i++) {
@@ -108,7 +112,6 @@ void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers) {
             p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
             p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
         }
-        p->pos_valid = true;
     }
 }
 
@@ -182,6 +185,11 @@ void map_env_papers_test2(map_env_t *map_env, int n) {
             p->refs[1] = &map_env->all_papers[1];
         }
     }
+}
+
+void map_env_centre_view(map_env_t *map_env) {
+    map_env->tr_matrix.x0 = 0.0;
+    map_env->tr_matrix.y0 = 0.0;
 }
 
 void map_env_scroll(map_env_t *map_env, double dx, double dy) {
@@ -411,7 +419,7 @@ static int paper_cmp_radius(const void *in1, const void *in2) {
     }
 }
 
-void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vstr_t* vstr_info) {
+void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
     // clear bg
     cairo_set_source_rgb(cr, 1, 1, 1);
     cairo_rectangle(cr, 0, 0, width, height);
@@ -419,19 +427,20 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vs
 
     double line_width_1px = 1.0 / map_env->tr_matrix.xx;
     cairo_set_matrix(cr, &map_env->tr_matrix);
-
-    /* the origin/axis
-    cairo_set_line_width(cr, line_width_1px);
-    cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
-    cairo_move_to(cr, 0, -100);
-    cairo_line_to(cr, 0, 100);
-    cairo_stroke(cr);
-    cairo_move_to(cr, -100, 0);
-    cairo_line_to(cr, 100, 0);
-    cairo_stroke(cr);
-    */
+    cairo_translate(cr, 0.5 * width / map_env->tr_matrix.xx, 0.5 * height / map_env->tr_matrix.yy);
 
     if (map_env->draw_grid) {
+        // the origin/axis
+        cairo_set_line_width(cr, line_width_1px);
+        cairo_set_source_rgba(cr, 0, 0, 0, 1);
+        cairo_move_to(cr, 0, -100);
+        cairo_line_to(cr, 0, 100);
+        cairo_stroke(cr);
+        cairo_move_to(cr, -100, 0);
+        cairo_line_to(cr, 100, 0);
+        cairo_stroke(cr);
+
+        // the quad tree grid
         cairo_set_line_width(cr, line_width_1px);
         cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
         quad_tree_draw_grid(cr, map_env->quad_tree->root, map_env->quad_tree->min_x, map_env->quad_tree->min_y, map_env->quad_tree->max_x, map_env->quad_tree->max_y);
@@ -544,12 +553,10 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, guint width, guint height, vs
         if (map_env->num_papers > 0) {
             int id0 = map_env->papers[0]->id;
             int id1 = map_env->papers[map_env->num_papers - 1]->id;
-            int y0 = id0 / 10000000 + 1800;
-            int m0 = ((id0 % 10000000) / 625000) + 1;
-            int d0 = ((id0 % 625000) / 15625) + 1;
-            int y1 = id1 / 10000000 + 1800;
-            int m1 = ((id1 % 10000000) / 625000) + 1;
-            int d1 = ((id1 % 625000) / 15625) + 1;
+            int y0, m0, d0;
+            int y1, m1, d1;
+            unique_id_to_date(id0, &y0, &m0, &d0);
+            unique_id_to_date(id1, &y1, &m1, &d1);
             vstr_printf(vstr_info, "date range is %d/%d/%d -- %d/%d/%d\n", d0, m0, y0, d1, m1, y1);
         }
         vstr_printf(vstr_info, "energy: %.3g\n", map_env->energy);
@@ -863,8 +870,16 @@ void map_env_compute_forces(map_env_t *map_env) {
     }
 }
 
-bool map_env_iterate(map_env_t *map_env, paper_t *hold_still) {
+bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size) {
     map_env_compute_forces(map_env);
+
+    if (boost_step_size) {
+        if (map_env->step_size < 1) {
+            map_env->step_size = 1.5;
+        } else {
+            map_env->step_size *= 1.5;
+        }
+    }
 
     // use the computed forces to update the (x,y) positions of the papers
     double energy = 0;
@@ -912,14 +927,14 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still) {
             map_env->progress += 1;
         } else {
             if (map_env->step_size < 5) {
-                map_env->step_size *= 1.1;
+                map_env->step_size *= 1.3;
             }
         }
     } else {
         // energy went up
         map_env->progress = 0;
         if (map_env->step_size > 1e-1) {
-            map_env->step_size *= 0.9;
+            map_env->step_size *= 0.95;
         }
     }
     map_env->energy = energy;
@@ -995,6 +1010,30 @@ void map_env_grow(map_env_t *map_env, double amt) {
     }
 }
 
+static void map_env_compute_best_start_position_for_paper(map_env_t* map_env, paper_t *p) {
+    // compute initial position for newly added paper (average of all its references)
+    double x = 0;
+    double y = 0;
+    int n = 0;
+    // average x- and y-pos of references
+    for (int j = 0; j < p->num_refs; j++) {
+        paper_t *p2 = p->refs[j];
+        if (p2->included) {
+            x += p2->x;
+            y += p2->y;
+            n += 1;
+        }
+    }
+    if (n == 0) {
+        p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
+        p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
+    } else {
+        // add some random element to average, mainly so we don't put it at the same pos for n=1
+        p->x = x / n + 1.0 * random() / RAND_MAX;
+        p->y = y / n + 1.0 * random() / RAND_MAX;
+    }
+}
+
 /*
 void map_env_inc_num_papers(map_env_t *map_env, int amt) {
     if (map_env->cur_num_papers >= map_env->max_num_papers) {
@@ -1019,28 +1058,9 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
     for (int i = old_num_papers; i < map_env->cur_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
         if (!p->pos_valid) {
-            double x = 0;
-            double y = 0;
-            int n = 0;
-            // average x- and y-pos of references
-            for (int j = 0; j < p->num_refs; j++) {
-                paper_t *p2 = p->refs[j];
-                if (p2->index < map_env->cur_num_papers) {
-                    x += p2->x;
-                    y += p2->y;
-                    n += 1;
-                }
-            }
-            if (n == 0) {
-                p->x = map_env->grid_w * 1.0 * random() / RAND_MAX;
-                p->y = map_env->grid_h * 1.0 * random() / RAND_MAX;
-            } else {
-                // add some random element to average, mainly so we don't put it at the same pos for n=1
-                p->x = x / n + 1.0 * random() / RAND_MAX;
-                p->y = y / n + 1.0 * random() / RAND_MAX;
-            }
+            map_env_compute_best_start_position_for_paper(map_env, p);
+            p->pos_valid = true;
         }
-        p->pos_valid = true;
     }
 
     // make array of papers that we want to include (only include biggest connected graph)
@@ -1108,6 +1128,14 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
         paper_t *p = &map_env->all_papers[i];
         p->mass = 0.05 + 0.2 * p->num_included_cites;
         p->r = sqrt(p->mass / M_PI);
+        if (p->included) {
+            if (!p->pos_valid) {
+                map_env_compute_best_start_position_for_paper(map_env, p);
+                p->pos_valid = true;
+            }
+        } else {
+            p->pos_valid = false;
+        }
     }
 
     // make array of papers that we want to include (only include biggest connected graph)
