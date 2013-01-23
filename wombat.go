@@ -2115,10 +2115,62 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
 func (h *MyHTTPHandler) ConvertHumanToInternalIds(humanIds []string, rw http.ResponseWriter) {
     // send back a dictionary
     // for each ID, try to convert to internal ID
-    for _, id := range humanIds {
-    
-    
+
+    var humanIdListBuffer bytes.Buffer
+    //humanIdListBuffer.WriteString("(")
+    first := true
+    //for _, humanId := range humanIds {
+    for _, _ = range humanIds {
+        if first { 
+            first = false 
+        } else {
+            humanIdListBuffer.WriteString(",")
+        }
+        // first try simple method: mysql call per id
+        //humanIdListBuffer.WriteString("'" + h.papers.db.Escape(humanId) + "'")
+        humanIdListBuffer.WriteString("1012.0839")
+        break
     }
+    //humanIdListBuffer.WriteString(")")
+    fmt.Print(humanIdListBuffer.String())
+    // TODO could generate sql for number of params, then feed in params as some sort of interface
+    stmt := h.papers.StatementBegin("SELECT id, arxiv, publ FROM meta_data WHERE arxiv = ? OR publ = ?",humanIdListBuffer.String(),humanIdListBuffer.String())
+    var internalId uint64
+    var arxiv, publ string
+    //var idList []uint64 
+    if stmt != nil {
+        stmt.BindResult(&internalId,&arxiv,&publ)
+        for {
+            eof, err := stmt.Fetch()
+            // expect only one row:
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+                break
+            } else if eof {
+                //fmt.Println("MySQL statement error; eof")
+                // Row just didn't exist, return false but don't print error
+                break
+            }
+            fmt.Printf("%d,%s,%s\n",internalId,internalId,arxiv,publ)
+        }
+        err := stmt.FreeResult()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
+        }
+    } else {
+        return
+    }
+    if !h.papers.StatementEnd(stmt) { 
+        return
+    }
+    //first := true
+    //if first { first = false 
+    //} else {
+    //    fmt.Fprintf(rw, ",")
+    //}
+    //fmt.Fprintf(rw,"\"%s\":%d",humanId,internalId)
+    fmt.Fprintf(rw, "{")
+    fmt.Fprintf(rw, "}")
 }
 
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
