@@ -1162,6 +1162,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetDataForIDs(ids,flags,rw)
+        } else if req.Form["chids[]"] != nil {
+            // convert-human-ids: convert human IDs to internal IDs
+            h.ConvertHumanToInternalIds(req.Form["chids[]"], rw)
         } else if req.Form["sax"] != nil {
             // search-arxiv: search papers for arxiv number
             h.SearchArxiv(req.Form["sax"][0], rw)
@@ -2107,6 +2110,15 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
         fmt.Fprintf(rw, "}")
     }
     fmt.Fprintf(rw, "]}")
+}
+
+func (h *MyHTTPHandler) ConvertHumanToInternalIds(humanIds []string, rw http.ResponseWriter) {
+    // send back a dictionary
+    // for each ID, try to convert to internal ID
+    for _, id := range humanIds {
+    
+    
+    }
 }
 
 func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) {
