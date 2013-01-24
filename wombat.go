@@ -2611,7 +2611,8 @@ func (h *MyHTTPHandler) SearchTrending(rw http.ResponseWriter) {
         h.papers.QueryEnd()
         ids := strings.Split(value, ",")
         fmt.Fprintf(rw, "[")
-        for i := 0; i + 1 < len(ids); i += 2 {
+        // until categories properly implemented, cap at 10
+        for i := 0; i + 1 < len(ids) && i+1 < 20; i += 2 {
             if i > 0 {
                 fmt.Fprintf(rw, ",")
             }
