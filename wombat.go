@@ -2116,25 +2116,25 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(humanIds []string, rw http.Res
     // send back a dictionary
     // for each ID, try to convert to internal ID
 
-    var humanIdListBuffer bytes.Buffer
-    //humanIdListBuffer.WriteString("(")
-    first := true
-    //for _, humanId := range humanIds {
-    for _, _ = range humanIds {
-        if first { 
-            first = false 
-        } else {
-            humanIdListBuffer.WriteString(",")
+    // create statement
+    var args bytes.Buffer
+    args.WriteString("(")
+    for i, _ := range humanIds {
+        if i > 0 { 
+            args.WriteString(",")
         }
-        // first try simple method: mysql call per id
-        //humanIdListBuffer.WriteString("'" + h.papers.db.Escape(humanId) + "'")
-        humanIdListBuffer.WriteString("1012.0839")
-        break
+        args.WriteString("?")
     }
-    //humanIdListBuffer.WriteString(")")
-    fmt.Print(humanIdListBuffer.String())
+    args.WriteString(")")
+    //sql := "SELECT id, arxiv, publ FROM meta_data WHERE arxiv = " + args.String() + " OR publ = " + args.String()
+    sql := "SELECT id, arxiv, publ FROM meta_data WHERE arxiv = " + args.String()
+    for i, _ := range humanIds {
+        humanIds[i] = h.papers.db.Escape(humanIds[i])
+    }
     // TODO could generate sql for number of params, then feed in params as some sort of interface
-    stmt := h.papers.StatementBegin("SELECT id, arxiv, publ FROM meta_data WHERE arxiv = ? OR publ = ?",humanIdListBuffer.String(),humanIdListBuffer.String())
+    fmt.Printf(sql)
+    //stmt := h.papers.StatementBegin(sql,humanIds...)
+    stmt := h.papers.StatementBegin(sql,humanIds)
     var internalId uint64
     var arxiv, publ string
     //var idList []uint64 
