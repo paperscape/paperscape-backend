@@ -1162,9 +1162,11 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetDataForIDs(ids,flags,rw)
-        } else if req.Form["chids[]"] != nil {
+        } else if req.Form["chids"] != nil && (req.Form["arx[]"] != nil ||  req.Form["jrn[]"] != nil) {
             // convert-human-ids: convert human IDs to internal IDs
-            h.ConvertHumanToInternalIds(req.Form["chids[]"], rw)
+            // arx: list of arxiv IDs
+            // jrn: list of journal IDs
+            h.ConvertHumanToInternalIds(req.Form["arx[]"],req.Form["arx[]"], rw)
         } else if req.Form["sax"] != nil {
             // search-arxiv: search papers for arxiv number
             h.SearchArxiv(req.Form["sax"][0], rw)
@@ -2112,64 +2114,115 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
     fmt.Fprintf(rw, "]}")
 }
 
-func (h *MyHTTPHandler) ConvertHumanToInternalIds(humanIds []string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, journalIds []string, rw http.ResponseWriter) {
     // send back a dictionary
     // for each ID, try to convert to internal ID
-
-    // create statement
-    var args bytes.Buffer
-    args.WriteString("(")
-    for i, _ := range humanIds {
-        if i > 0 { 
-            args.WriteString(",")
+    fmt.Fprintf(rw, "{")
+    
+    if arxivIds != nil && len(arxivIds) > 0 {
+        // create sql statement dynamically based on number of IDs
+        var args bytes.Buffer
+        args.WriteString("(")
+        for i, _ := range arxivIds {
+            if i > 0 { 
+                args.WriteString(",")
+            }
+            args.WriteString("?")
         }
-        args.WriteString("?")
-    }
-    args.WriteString(")")
-    //sql := "SELECT id, arxiv, publ FROM meta_data WHERE arxiv = " + args.String() + " OR publ = " + args.String()
-    sql := "SELECT id, arxiv, publ FROM meta_data WHERE arxiv = " + args.String()
-    for i, _ := range humanIds {
-        humanIds[i] = h.papers.db.Escape(humanIds[i])
-    }
-    // TODO could generate sql for number of params, then feed in params as some sort of interface
-    fmt.Printf(sql)
-    //stmt := h.papers.StatementBegin(sql,humanIds...)
-    stmt := h.papers.StatementBegin(sql,humanIds)
-    var internalId uint64
-    var arxiv, publ string
-    //var idList []uint64 
-    if stmt != nil {
-        stmt.BindResult(&internalId,&arxiv,&publ)
-        for {
-            eof, err := stmt.Fetch()
-            // expect only one row:
+        args.WriteString(")")
+        sql := "SELECT id, arxiv FROM meta_data WHERE arxiv IN " + args.String()
+        for i, _ := range arxivIds {
+            arxivIds[i] = h.papers.db.Escape(arxivIds[i])
+        }
+
+        // create interface of arguments for statement
+        hIdsInt := make([]interface{},len(arxivIds))
+        for i, arxivId := range arxivIds {
+            hIdsInt[i] = interface{}(arxivId)
+        }
+        
+        // Execute statement
+        stmt := h.papers.StatementBegin(sql,hIdsInt...)
+        var internalId uint64
+        var arxiv string
+        first := true
+        if stmt != nil {
+            stmt.BindResult(&internalId,&arxiv)
+            for {
+                eof, err := stmt.Fetch()
+                if err != nil {
+                    fmt.Println("MySQL statement error;", err)
+                    break
+                } else if eof {
+                    break
+                }
+                if first { 
+                    first = false 
+                } else {
+                    fmt.Fprintf(rw, ",")
+                }
+                // write to output!
+                fmt.Fprintf(rw, "\"%s\":%d",arxiv,internalId)
+            }
+            err := stmt.FreeResult()
             if err != nil {
                 fmt.Println("MySQL statement error;", err)
-                break
-            } else if eof {
-                //fmt.Println("MySQL statement error; eof")
-                // Row just didn't exist, return false but don't print error
-                break
             }
-            fmt.Printf("%d,%s,%s\n",internalId,internalId,arxiv,publ)
         }
-        err := stmt.FreeResult()
-        if err != nil {
-            fmt.Println("MySQL statement error;", err)
+        h.papers.StatementEnd(stmt) 
+    } // end arxivIds
+    if journalIds != nil && len(journalIds) > 0 {
+        // create sql statement dynamically based on number of IDs
+        var args bytes.Buffer
+        args.WriteString("(")
+        for i, _ := range journalIds {
+            if i > 0 { 
+                args.WriteString(",")
+            }
+            args.WriteString("?")
         }
-    } else {
-        return
-    }
-    if !h.papers.StatementEnd(stmt) { 
-        return
-    }
-    //first := true
-    //if first { first = false 
-    //} else {
-    //    fmt.Fprintf(rw, ",")
-    //}
-    //fmt.Fprintf(rw,"\"%s\":%d",humanId,internalId)
-    fmt.Fprintf(rw, "{")
+        args.WriteString(")")
+        sql := "SELECT id, publ FROM meta_data WHERE publ IN " + args.String()
+        for i, _ := range journalIds {
+            journalIds[i] = h.papers.db.Escape(journalIds[i])
+        }
+
+        // create interface of arguments for statement
+        hIdsInt := make([]interface{},len(journalIds))
+        for i, journalId := range journalIds {
+            hIdsInt[i] = interface{}(journalId)
+        }
+        
+        // Execute statement
+        stmt := h.papers.StatementBegin(sql,hIdsInt...)
+        var internalId uint64
+        var publ string
+        first := true
+        if stmt != nil {
+            stmt.BindResult(&internalId,&publ)
+            for {
+                eof, err := stmt.Fetch()
+                if err != nil {
+                    fmt.Println("MySQL statement error;", err)
+                    break
+                } else if eof {
+                    break
+                }
+                if first { 
+                    first = false 
+                } else {
+                    fmt.Fprintf(rw, ",")
+                }
+                // write to output!
+                fmt.Fprintf(rw, "\"%s\":%d",publ,internalId)
+            }
+            err := stmt.FreeResult()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+            }
+        }
+        h.papers.StatementEnd(stmt) 
+    } // end journalIds
     fmt.Fprintf(rw, "}")
 }
 
