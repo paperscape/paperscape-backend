@@ -1162,11 +1162,11 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetDataForIDs(ids,flags,rw)
-        } else if req.Form["chids"] != nil && (req.Form["arx[]"] != nil ||  req.Form["jrn[]"] != nil) {
+        } else if req.Form["chids"] != nil && (req.Form["arx[]"] != nil ||  req.Form["doi[]"] != nil || req.Form["jrn[]"] != nil) {
             // convert-human-ids: convert human IDs to internal IDs
             // arx: list of arxiv IDs
             // jrn: list of journal IDs
-            h.ConvertHumanToInternalIds(req.Form["arx[]"],req.Form["arx[]"], rw)
+            h.ConvertHumanToInternalIds(req.Form["arx[]"],req.Form["doi[]"],req.Form["jrn[]"], rw)
         } else if req.Form["sax"] != nil {
             // search-arxiv: search papers for arxiv number
             h.SearchArxiv(req.Form["sax"][0], rw)
@@ -2114,11 +2114,13 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
     fmt.Fprintf(rw, "]}")
 }
 
-func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, journalIds []string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []string, journalIds []string, rw http.ResponseWriter) {
     // send back a dictionary
     // for each ID, try to convert to internal ID
     fmt.Fprintf(rw, "{")
-    
+    first := true
+   
+    // ARXIV IDS
     if arxivIds != nil && len(arxivIds) > 0 {
         // create sql statement dynamically based on number of IDs
         var args bytes.Buffer
@@ -2131,21 +2133,17 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, journalIds 
         }
         args.WriteString(")")
         sql := "SELECT id, arxiv FROM meta_data WHERE arxiv IN " + args.String()
-        for i, _ := range arxivIds {
-            arxivIds[i] = h.papers.db.Escape(arxivIds[i])
-        }
 
         // create interface of arguments for statement
         hIdsInt := make([]interface{},len(arxivIds))
         for i, arxivId := range arxivIds {
-            hIdsInt[i] = interface{}(arxivId)
+            hIdsInt[i] = interface{}(h.papers.db.Escape(arxivId))
         }
         
         // Execute statement
         stmt := h.papers.StatementBegin(sql,hIdsInt...)
         var internalId uint64
         var arxiv string
-        first := true
         if stmt != nil {
             stmt.BindResult(&internalId,&arxiv)
             for {
@@ -2156,11 +2154,7 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, journalIds 
                 } else if eof {
                     break
                 }
-                if first { 
-                    first = false 
-                } else {
-                    fmt.Fprintf(rw, ",")
-                }
+                if first { first = false } else { fmt.Fprintf(rw, ",") }
                 // write to output!
                 fmt.Fprintf(rw, "\"%s\":%d",arxiv,internalId)
             }
@@ -2171,33 +2165,32 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, journalIds 
         }
         h.papers.StatementEnd(stmt) 
     } // end arxivIds
-    if journalIds != nil && len(journalIds) > 0 {
+
+    // DOI IDs
+    if doiIds != nil && len(doiIds) > 0 {
         // create sql statement dynamically based on number of IDs
         var args bytes.Buffer
-        args.WriteString("(")
-        for i, _ := range journalIds {
+        for i, _ := range doiIds {
             if i > 0 { 
-                args.WriteString(",")
+                args.WriteString(" OR ")
             }
-            args.WriteString("?")
+            args.WriteString("publ LIKE ?")
         }
-        args.WriteString(")")
-        sql := "SELECT id, publ FROM meta_data WHERE publ IN " + args.String()
-        for i, _ := range journalIds {
-            journalIds[i] = h.papers.db.Escape(journalIds[i])
-        }
+        sql := "SELECT id, publ FROM meta_data WHERE " + args.String()
+        fmt.Printf("%s\n",sql)
 
         // create interface of arguments for statement
-        hIdsInt := make([]interface{},len(journalIds))
-        for i, journalId := range journalIds {
-            hIdsInt[i] = interface{}(journalId)
+        hIdsInt := make([]interface{},len(doiIds))
+        for i, doiId := range doiIds {
+            dbEntry := "%#" + h.papers.db.Escape(doiId) + "%"
+            hIdsInt[i] = interface{}(dbEntry)
         }
         
+        dict := make(map[uint64]string)
         // Execute statement
         stmt := h.papers.StatementBegin(sql,hIdsInt...)
         var internalId uint64
         var publ string
-        first := true
         if stmt != nil {
             stmt.BindResult(&internalId,&publ)
             for {
@@ -2208,13 +2201,7 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, journalIds 
                 } else if eof {
                     break
                 }
-                if first { 
-                    first = false 
-                } else {
-                    fmt.Fprintf(rw, ",")
-                }
-                // write to output!
-                fmt.Fprintf(rw, "\"%s\":%d",publ,internalId)
+                dict[internalId] = publ
             }
             err := stmt.FreeResult()
             if err != nil {
@@ -2222,7 +2209,21 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, journalIds 
             }
         }
         h.papers.StatementEnd(stmt) 
-    } // end journalIds
+
+        // write to output
+        for internalId := range dict {
+            for _, doiId := range doiIds {
+                publ := dict[internalId]
+                if (strings.Contains(publ,string(doiId))) {
+                    fmt.Println(publ);
+                    fmt.Println(doiId);
+                    if first { first = false } else { fmt.Fprintf(rw, ",") }
+                    fmt.Fprintf(rw, "\"doi:%s\":%d",doiId,internalId)
+                }
+            }
+        }
+    } // end doiIds
+
     fmt.Fprintf(rw, "}")
 }
 
@@ -2255,6 +2256,7 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     fmt.Fprintf(rw, "}]}")
 }
 
+// TODO use prepared statements to gaurd against sql injection
 func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
     // turn authors into boolean search terms
     // add surrounding double quotes for each author in case they have initials with them
@@ -2284,6 +2286,7 @@ func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
     h.SearchGeneric("MATCH (authors) AGAINST ('" + searchString.String() + "' IN BOOLEAN MODE)", rw)
 }
 
+// TODO use prepared statements to gaurd against sql injection
 func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
     // turn title words into boolean search terms
     newWord := true
@@ -2324,6 +2327,7 @@ func sanityCheckId(id string) bool {
     return true
 }
 
+// TODO use prepared statements to gaurd against sql injection
 // searches for all papers within the id range, with main category as given
 // returns id, numCites, refs for up to 500 results
 func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, idFrom string, idTo string, rw http.ResponseWriter) {
