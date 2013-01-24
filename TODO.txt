@@ -1,0 +1,1 @@
+- Harden against sql injection by using prepared statements everywhere where user input involved

@@ -1894,12 +1894,11 @@ func (h *MyHTTPHandler) LinkLoad(code string, rw http.ResponseWriter) {
     fmt.Fprintf(rw, "}")
 }
 
-/* Graph Save */
+/* Link Save */
 func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash string, graphsIn string, graphsInHash string, tagsIn string, tagsInHash string, rw http.ResponseWriter) {
 
-    fmt.Printf("Try unmarshalling\n")
-
     // Unmarshal, re-Marshal and hash data strings to ensure consistency
+    // Also prevents malicious injection of data in our db
     var err error
 
     // notes
