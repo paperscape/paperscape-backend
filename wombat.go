@@ -33,6 +33,11 @@ import (
 // be prompted to do a hard reload of the latest version
 var VERSION = "0.1"
 
+// Max number of ids we will convert from human to internal form at a time
+// We need some sane limit to stop mysql being spammed! If profile bigger than this,
+// it will need to make several calls
+var ID_CONVERSION_LIMIT = 50
+
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
 var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
 var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
@@ -2115,7 +2120,18 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
 }
 
 func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []string, journalIds []string, rw http.ResponseWriter) {
-    // send back a dictionary
+    
+    // Set sane limit to stop people spamming us by importing file with too many ids!
+    idLength := 0
+    if arxivIds   != nil { idLength += len(arxivIds) }
+    if doiIds     != nil { idLength += len(doiIds) }
+    if journalIds != nil { idLength += len(journalIds) }
+
+    if idLength > ID_CONVERSION_LIMIT {
+        return
+    }
+
+    // send back a JSON dictionary
     // for each ID, try to convert to internal ID
     fmt.Fprintf(rw, "{")
     first := true
@@ -2132,7 +2148,8 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
             args.WriteString("?")
         }
         args.WriteString(")")
-        sql := "SELECT id, arxiv FROM meta_data WHERE arxiv IN " + args.String()
+        sql := fmt.Sprintf("SELECT id, arxiv FROM meta_data WHERE arxiv IN %s LIMIT %d",args.String(),len(arxivIds))
+        fmt.Println(sql)
 
         // create interface of arguments for statement
         hIdsInt := make([]interface{},len(arxivIds))
@@ -2151,11 +2168,9 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
                 if err != nil {
                     fmt.Println("MySQL statement error;", err)
                     break
-                } else if eof {
-                    break
-                }
+                } else if eof { break }
                 if first { first = false } else { fmt.Fprintf(rw, ",") }
-                // write to output!
+                // write directly to output!
                 fmt.Fprintf(rw, "\"%s\":%d",arxiv,internalId)
             }
             err := stmt.FreeResult()
@@ -2176,12 +2191,13 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
             }
             args.WriteString("publ LIKE ?")
         }
-        sql := "SELECT id, publ FROM meta_data WHERE " + args.String()
-        fmt.Printf("%s\n",sql)
+        sql := fmt.Sprintf("SELECT id, publ FROM meta_data WHERE %s LIMIT %d",args.String(),len(doiIds))
 
         // create interface of arguments for statement
         hIdsInt := make([]interface{},len(doiIds))
         for i, doiId := range doiIds {
+            // NOTE dangerous operation!! e.g what if journalId empty?!
+            // Therefore we put LIMIT on number of results
             dbEntry := "%#" + h.papers.db.Escape(doiId) + "%"
             hIdsInt[i] = interface{}(dbEntry)
         }
@@ -2198,9 +2214,7 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
                 if err != nil {
                     fmt.Println("MySQL statement error;", err)
                     break
-                } else if eof {
-                    break
-                }
+                } else if eof { break }
                 dict[internalId] = publ
             }
             err := stmt.FreeResult()
@@ -2215,14 +2229,71 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
             for _, doiId := range doiIds {
                 publ := dict[internalId]
                 if (strings.Contains(publ,string(doiId))) {
-                    fmt.Println(publ);
-                    fmt.Println(doiId);
                     if first { first = false } else { fmt.Fprintf(rw, ",") }
                     fmt.Fprintf(rw, "\"doi:%s\":%d",doiId,internalId)
                 }
             }
         }
     } // end doiIds
+
+
+    // JOURNAL IDs
+    // User not likely to generate an exact match by hand, so may as well
+    // use same format in saved file as in db. Later, when we have proper
+    // journal searching we could reuse that
+    if journalIds != nil && len(journalIds) > 0 {
+        // create sql statement dynamically based on number of IDs
+        var args bytes.Buffer
+        for i, _ := range journalIds {
+            if i > 0 { 
+                args.WriteString(" OR ")
+            }
+            args.WriteString("publ LIKE ?")
+        }
+        sql := fmt.Sprintf("SELECT id, publ FROM meta_data WHERE %s LIMIT %d",args.String(),len(journalIds))
+
+        // create interface of arguments for statement
+        hIdsInt := make([]interface{},len(journalIds))
+        for i, journalId := range journalIds {
+            // NOTE dangerous operation!! e.g what if journalId empty?!
+            // Therefore we put LIMIT on number of results
+            dbEntry := h.papers.db.Escape(journalId) + "#%"
+            hIdsInt[i] = interface{}(dbEntry)
+        }
+        
+        dict := make(map[uint64]string)
+        // Execute statement
+        stmt := h.papers.StatementBegin(sql,hIdsInt...)
+        var internalId uint64
+        var publ string
+        if stmt != nil {
+            stmt.BindResult(&internalId,&publ)
+            for {
+                eof, err := stmt.Fetch()
+                if err != nil {
+                    fmt.Println("MySQL statement error;", err)
+                    break
+                } else if eof { break }
+                dict[internalId] = publ
+            }
+            err := stmt.FreeResult()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+            }
+        }
+        h.papers.StatementEnd(stmt) 
+
+        // write to output
+        for internalId := range dict {
+            for _, journalId := range journalIds {
+                publ := dict[internalId]
+                if (strings.Contains(publ,string(journalId))) {
+                    if first { first = false } else { fmt.Fprintf(rw, ",") }
+                    fmt.Fprintf(rw, "\"%s\":%d",journalId,internalId)
+                }
+            }
+        }
+    } // end journalIds
 
     fmt.Fprintf(rw, "}")
 }
