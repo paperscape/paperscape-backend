@@ -2595,7 +2595,8 @@ func ParseRefsCitesStringToJSONListOfIds(blob []byte, rw http.ResponseWriter) {
 // searches for trending papers
 // returns list of id and numCites
 func (h *MyHTTPHandler) SearchTrending(rw http.ResponseWriter) {
-    row := h.papers.QuerySingleRow("SELECT value FROM misc WHERE field='trending'")
+    //row := h.papers.QuerySingleRow("SELECT value FROM misc WHERE field='trending'")
+    row := h.papers.QuerySingleRow("SELECT value FROM misc WHERE field = 'hep-ph'")
     if row == nil {
         h.papers.QueryEnd()
         fmt.Fprintf(rw, "[]")
@@ -2612,7 +2613,8 @@ func (h *MyHTTPHandler) SearchTrending(rw http.ResponseWriter) {
         ids := strings.Split(value, ",")
         fmt.Fprintf(rw, "[")
         // until categories properly implemented, cap at 10
-        for i := 0; i + 1 < len(ids) && i+1 < 20; i += 2 {
+        //for i := 0; i + 1 < len(ids) && i+1 < 20; i += 2 {
+        for i := 0; i + 1 < len(ids) && i+1 < 50; i += 2 {
             if i > 0 {
                 fmt.Fprintf(rw, ",")
             }
