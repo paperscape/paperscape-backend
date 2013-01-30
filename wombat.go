@@ -1189,9 +1189,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // search-new-papers: search papers between given id range
             // f = from, t = to
             h.SearchNewPapers(req.Form["f"][0], req.Form["t"][0], rw)
-        } else if req.Form["str"] != nil {
+        } else if req.Form["str[]"] != nil {
             // search-trending: search papers that are "trending"
-            h.SearchTrending(rw)
+            h.SearchTrending(req.Form["str[]"], rw)
         } else {
             // unknown ajax request
         }
@@ -2594,33 +2594,33 @@ func ParseRefsCitesStringToJSONListOfIds(blob []byte, rw http.ResponseWriter) {
 
 // searches for trending papers
 // returns list of id and numCites
-func (h *MyHTTPHandler) SearchTrending(rw http.ResponseWriter) {
-    //row := h.papers.QuerySingleRow("SELECT value FROM misc WHERE field='trending'")
-    row := h.papers.QuerySingleRow("SELECT value FROM misc WHERE field = 'top25'")
-    if row == nil {
-        h.papers.QueryEnd()
-        fmt.Fprintf(rw, "[]")
-        return
-    }
+func (h *MyHTTPHandler) SearchTrending(categories []string, rw http.ResponseWriter) {
 
-    if value, ok := row[0].(string); !ok {
-        h.papers.QueryEnd()
+    // TODO handle all queries, for now just take first one
+    category := categories[0]
+
+    includeCats := true
+    var value string
+
+    stmt := h.papers.StatementBegin("SELECT value FROM misc WHERE field = ?",h.papers.db.Escape(category))
+    if !h.papers.StatementBindSingleRow(stmt,&value) {
         fmt.Fprintf(rw, "[]")
         return
-    } else {
-        // create the JSON object
-        h.papers.QueryEnd()
-        ids := strings.Split(value, ",")
-        fmt.Fprintf(rw, "[")
-        // until categories properly implemented, cap at 10
-        //for i := 0; i + 1 < len(ids) && i+1 < 20; i += 2 {
-        for i := 0; i + 2 < len(ids) && i+2 < 75; i += 3 {
-            if i > 0 {
-                fmt.Fprintf(rw, ",")
-            }
-            //fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%s}", ids[i], ids[i + 1])
-            fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%s,\"mc\":\"%s\"}", ids[i], ids[i + 1], ids[i+2])
-        }
-        fmt.Fprintf(rw, "]")
     }
+    
+    // create the JSON object
+    ids := strings.Split(value, ",")
+    fmt.Fprintf(rw, "[")
+    for i := 0; i + 2 < len(ids) && i+2 < 30; i += 3 {
+        if i > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        if includeCats {
+            fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%s,\"mc\":\"%s\"}", ids[i], ids[i + 1], ids[i+2])
+        } else {
+            fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%s}", ids[i], ids[i + 1], ids[i+2])
+        }
+
+    }
+    fmt.Fprintf(rw, "]")
 }
