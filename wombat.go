@@ -2655,7 +2655,7 @@ func (h *MyHTTPHandler) SearchTrending(categories []string, rw http.ResponseWrit
     fmt.Fprintf(rw, "[")
     for i, trendingPaper := range(trendingPapers) {
         // cap it at 10
-        if i > 10 { break }
+        if i >= 10 { break }
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
