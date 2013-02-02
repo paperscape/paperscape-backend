@@ -119,10 +119,15 @@ func main() {
 
 type SavedDrawnForm struct {
     Id      uint     `json:"id"`
-    X       *int     `json:"x"`
-    R       *int     `json:"r"`
+    X       *int     `json:"x"`  // x position
+    R       *int     `json:"r"`  // radialModifier
     Rm      bool     `json:"rm,omitempty"` // remove
 }
+
+type SavedDrawnFormSortId []*SavedDrawnForm
+func (df SavedDrawnFormSortId) Len() int           { return len(df) }
+func (df SavedDrawnFormSortId) Less(i, j int) bool { return df[i].Id < df[j].Id }
+func (df SavedDrawnFormSortId) Swap(i, j int)      { df[i], df[j] = df[j], df[i] }
 
 type SavedMultiGraph struct {
     Name    string            `json:"name"`
@@ -130,6 +135,11 @@ type SavedMultiGraph struct {
     Drawn   []*SavedDrawnForm `json:"drawn"`
     Rm      bool              `json:"rm,omitempty"` // remove
 }
+
+type SavedMultiGraphSliceSortInd []SavedMultiGraph
+func (mg SavedMultiGraphSliceSortInd) Len() int           { return len(mg) }
+func (mg SavedMultiGraphSliceSortInd) Less(i, j int) bool { return *mg[i].Ind < *mg[j].Ind }
+func (mg SavedMultiGraphSliceSortInd) Swap(i, j int)      { mg[i], mg[j] = mg[j], mg[i] }
 
 type SavedTag struct {
     Name    string    `json:"name"`
@@ -139,11 +149,23 @@ type SavedTag struct {
     Rm      bool      `json:"rm,omitempty"` // remove
 }
 
+type SavedTagSliceSortIndex []SavedTag
+func (ts SavedTagSliceSortIndex) Len() int           { return len(ts) }
+func (ts SavedTagSliceSortIndex) Less(i, j int) bool { return *ts[i].Ind < *ts[j].Ind }
+func (ts SavedTagSliceSortIndex) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
+
+
 type SavedNote struct {
     Id      uint    `json:"id"`
     Notes   *string `json:"notes"`
     Rm      bool    `json:"rm,omitempty"` // remove
 }
+
+type SavedNoteSliceSortId []SavedNote
+func (sn SavedNoteSliceSortId) Len() int           { return len(sn) }
+func (sn SavedNoteSliceSortId) Less(i, j int) bool { return sn[i].Id < sn[j].Id }
+func (sn SavedNoteSliceSortId) Swap(i, j int)      { sn[i], sn[j] = sn[j], sn[i] }
+
 
 // NOTE: If you change this, also change the default entry for new user row in ProfileRegister
 type SavedUserSettings struct {
@@ -162,8 +184,6 @@ type Link struct {
     refFreq        uint     // number of in-text references made by future to past
     pastCited      uint      // number of times past paper cited
     futureCited    uint      // number of times future paper cited
-    //tredWeightFull float64  // transitively reduced weight, full
-    //tredWeightNorm float64  // transitively reduced weight, normalised
 }
 
 type Paper struct {
@@ -180,13 +200,6 @@ type Paper struct {
     numCites   uint     // number of times cited
     dNumCites1 uint     // change in numCites in past day
     dNumCites5 uint     // change in numCites in past 5 days
-    //xPos       int      // for loaded profile
-    //rMod       int      // for loaded profile
-    //notes      string   // for loaded profile
-    //layers     []string // for loaded profile
-    //tags       []string // for loaded profile
-    //newTags    []string // for loaded profile *obsolete*
-    //remove     bool     // for loaded profile, mark to remove from db
 }
 
 // first is one with smallest id
@@ -195,30 +208,23 @@ func (ps PaperSliceSortId) Len() int           { return len(ps) }
 func (ps PaperSliceSortId) Less(i, j int) bool { return ps[i].id < ps[j].id }
 func (ps PaperSliceSortId) Swap(i, j int)      { ps[i], ps[j] = ps[j], ps[i] }
 
+type TrendingPaper struct {
+    id         uint
+    numCites   uint
+    index      uint     // index/rank in total trending list
+    maincat    string   // main arxiv category
+}
+
+type TrendingPaperSortIndex []*TrendingPaper
+func (tp TrendingPaperSortIndex) Len() int           { return len(tp) }
+func (tp TrendingPaperSortIndex) Less(i, j int) bool { return tp[i].index < tp[j].index }
+func (tp TrendingPaperSortIndex) Swap(i, j int)      { tp[i], tp[j] = tp[j], tp[i] }
+
 type IdSliceSort []uint
 func (id IdSliceSort) Len() int           { return len(id) }
 func (id IdSliceSort) Less(i, j int) bool { return id[i] < id[j] }
 func (id IdSliceSort) Swap(i, j int)      { id[i], id[j] = id[j], id[i] }
 
-type SavedDrawnFormSortId []*SavedDrawnForm
-func (df SavedDrawnFormSortId) Len() int           { return len(df) }
-func (df SavedDrawnFormSortId) Less(i, j int) bool { return df[i].Id < df[j].Id }
-func (df SavedDrawnFormSortId) Swap(i, j int)      { df[i], df[j] = df[j], df[i] }
-
-type SavedNoteSliceSortId []SavedNote
-func (sn SavedNoteSliceSortId) Len() int           { return len(sn) }
-func (sn SavedNoteSliceSortId) Less(i, j int) bool { return sn[i].Id < sn[j].Id }
-func (sn SavedNoteSliceSortId) Swap(i, j int)      { sn[i], sn[j] = sn[j], sn[i] }
-
-type SavedMultiGraphSliceSortInd []SavedMultiGraph
-func (mg SavedMultiGraphSliceSortInd) Len() int           { return len(mg) }
-func (mg SavedMultiGraphSliceSortInd) Less(i, j int) bool { return *mg[i].Ind < *mg[j].Ind }
-func (mg SavedMultiGraphSliceSortInd) Swap(i, j int)      { mg[i], mg[j] = mg[j], mg[i] }
-
-type SavedTagSliceSortIndex []SavedTag
-func (ts SavedTagSliceSortIndex) Len() int           { return len(ts) }
-func (ts SavedTagSliceSortIndex) Less(i, j int) bool { return *ts[i].Ind < *ts[j].Ind }
-func (ts SavedTagSliceSortIndex) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
 
 /****************************************************************/
 
@@ -1528,7 +1534,7 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
     fmt.Fprintf(w,"Subject: Paperscape password reset request\n")
     fmt.Fprintf(w,"Dear Paperscape user,\n\n");
     fmt.Fprintf(w,"Someone (probably you) has requested that your Paperscape password be reset. To proceed with reseting your password, please follow the link below. This will result in us sending you a new password to this email address. If you are happy with your current password then please ignore this message.\n\n");
-    fmt.Fprintf(w,"http://pscp.me/?rp=%s\n\n",resetcode);
+    fmt.Fprintf(w,"http://paperscape.org/?rp=%s\n\n",resetcode);
     fmt.Fprintf(w,"Goodluck!\n\n");
     fmt.Fprintf(w,"The Paperscape team\n\n\n");
     fmt.Fprintf(w,"--------\n\n");
@@ -1869,12 +1875,6 @@ func (h *MyHTTPHandler) LinkLoad(code string, rw http.ResponseWriter) {
 
     fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"", code, modcode)
 
-    // PAPERS
-    //papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
-    //fmt.Printf("for graph code %s, read %d papers\n", code, len(papersList)) // TEMP
-    //fmt.Fprintf(rw, ",\"papr\":")
-    //h.PrintJSONPapersList(rw,papersList)
-
     // NOTES
     if len(notes) == 0 { notes = []byte("[]") }
     noteshash := Sha1(string(notes))
@@ -2148,7 +2148,7 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
         }
         args.WriteString(")")
         sql := fmt.Sprintf("SELECT id, arxiv FROM meta_data WHERE arxiv IN %s LIMIT %d",args.String(),len(arxivIds))
-        fmt.Println(sql)
+        //fmt.Println(sql)
 
         // create interface of arguments for statement
         hIdsInt := make([]interface{},len(arxivIds))
@@ -2596,31 +2596,74 @@ func ParseRefsCitesStringToJSONListOfIds(blob []byte, rw http.ResponseWriter) {
 // returns list of id and numCites
 func (h *MyHTTPHandler) SearchTrending(categories []string, rw http.ResponseWriter) {
 
-    // TODO handle all queries, for now just take first one
-    category := categories[0]
-
-    includeCats := true
-    var value string
-
-    stmt := h.papers.StatementBegin("SELECT value FROM misc WHERE field = ?",h.papers.db.Escape(category))
-    if !h.papers.StatementBindSingleRow(stmt,&value) {
-        fmt.Fprintf(rw, "[]")
-        return
+    // create sql statement dynamically based on number of categories
+    var args bytes.Buffer
+    args.WriteString("(")
+    for i, _ := range categories {
+        if i > 0 { 
+            args.WriteString(",")
+        }
+        args.WriteString("?")
     }
-    
+    args.WriteString(")")
+    sql := fmt.Sprintf("SELECT field,value FROM misc WHERE field IN %s LIMIT %d",args.String(),len(categories))
+
+    // create interface of arguments for statement
+    catsInterface := make([]interface{},len(categories))
+    for i, category := range categories {
+        catsInterface[i] = interface{}(h.papers.db.Escape(category))
+    }
+
+    // collect in object list
+    var trendingPapers []*TrendingPaper
+
+    // Execute statement
+    stmt := h.papers.StatementBegin(sql,catsInterface...)
+    var value,field string
+    if stmt != nil {
+        stmt.BindResult(&field,&value)
+        for {
+            eof, err := stmt.Fetch()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+                break
+            } else if eof { break }
+            items := strings.Split(value, ",")
+            for i := 0; i + 2 < len(items); i += 3 {
+                var id,ind,nc uint64
+                var err error
+                id, err  = strconv.ParseUint(items[i], 10, 0)
+                if err != nil { continue }
+                ind, err = strconv.ParseUint(items[i+1], 10, 0)
+                if err != nil { continue }
+                nc, err  = strconv.ParseUint(items[i+2], 10, 0)
+                if err != nil { continue }
+                tp := &TrendingPaper{uint(id),uint(nc),uint(ind),field}
+                trendingPapers = append(trendingPapers,tp)
+            }
+        }
+        err := stmt.FreeResult()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
+        }
+    }
+    h.papers.StatementEnd(stmt) 
+
+    sort.Sort(TrendingPaperSortIndex(trendingPapers))    
+
     // create the JSON object
-    ids := strings.Split(value, ",")
     fmt.Fprintf(rw, "[")
-    for i := 0; i + 2 < len(ids) && i+2 < 30; i += 3 {
+    for i, trendingPaper := range(trendingPapers) {
+        // cap it at 10
+        if i > 10 { break }
         if i > 0 {
             fmt.Fprintf(rw, ",")
         }
-        if includeCats {
-            fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%s,\"mc\":\"%s\"}", ids[i], ids[i + 1], ids[i+2])
+        if trendingPaper.maincat == "top10" || trendingPaper.maincat == "none" {
+            fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d}", trendingPaper.id, trendingPaper.numCites)
         } else {
-            fmt.Fprintf(rw, "{\"id\":%s,\"nc\":%s}", ids[i], ids[i + 1], ids[i+2])
+            fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"mc\":\"%s\"}", trendingPaper.id, trendingPaper.numCites, trendingPaper.maincat)
         }
-
     }
     fmt.Fprintf(rw, "]")
 }
