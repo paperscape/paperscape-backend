@@ -211,14 +211,14 @@ func (ps PaperSliceSortId) Swap(i, j int)      { ps[i], ps[j] = ps[j], ps[i] }
 type TrendingPaper struct {
     id         uint
     numCites   uint
-    index      uint     // index/rank in total trending list
+    score      uint     // trending score
     maincat    string   // main arxiv category
 }
 
-type TrendingPaperSortIndex []*TrendingPaper
-func (tp TrendingPaperSortIndex) Len() int           { return len(tp) }
-func (tp TrendingPaperSortIndex) Less(i, j int) bool { return tp[i].index < tp[j].index }
-func (tp TrendingPaperSortIndex) Swap(i, j int)      { tp[i], tp[j] = tp[j], tp[i] }
+type TrendingPaperSortScore []*TrendingPaper
+func (tp TrendingPaperSortScore) Len() int           { return len(tp) }
+func (tp TrendingPaperSortScore) Less(i, j int) bool { return tp[i].score > tp[j].score }
+func (tp TrendingPaperSortScore) Swap(i, j int)      { tp[i], tp[j] = tp[j], tp[i] }
 
 type IdSliceSort []uint
 func (id IdSliceSort) Len() int           { return len(id) }
@@ -2630,15 +2630,15 @@ func (h *MyHTTPHandler) SearchTrending(categories []string, rw http.ResponseWrit
             } else if eof { break }
             items := strings.Split(value, ",")
             for i := 0; i + 2 < len(items); i += 3 {
-                var id,ind,nc uint64
+                var id,score,nc uint64
                 var err error
                 id, err  = strconv.ParseUint(items[i], 10, 0)
                 if err != nil { continue }
-                ind, err = strconv.ParseUint(items[i+1], 10, 0)
+                score, err = strconv.ParseUint(items[i+1], 10, 0)
                 if err != nil { continue }
                 nc, err  = strconv.ParseUint(items[i+2], 10, 0)
                 if err != nil { continue }
-                tp := &TrendingPaper{uint(id),uint(nc),uint(ind),field}
+                tp := &TrendingPaper{uint(id),uint(nc),uint(score),field}
                 trendingPapers = append(trendingPapers,tp)
             }
         }
@@ -2649,7 +2649,7 @@ func (h *MyHTTPHandler) SearchTrending(categories []string, rw http.ResponseWrit
     }
     h.papers.StatementEnd(stmt) 
 
-    sort.Sort(TrendingPaperSortIndex(trendingPapers))    
+    sort.Sort(TrendingPaperSortScore(trendingPapers))    
 
     // create the JSON object
     fmt.Fprintf(rw, "[")
