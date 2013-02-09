@@ -1,3 +1,5 @@
+#include <unistd.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <cairo.h>
 
@@ -27,4 +29,14 @@ void write_tiles(map_env_t *map_env, int width, int height, const char *file, vs
     } else {
         printf("wrote PNG to file %s\n", file);
     }
+}
+
+void write_tiles_to_json(map_env_t *map_env, const char *file) {
+    vstr_t *vstr = vstr_new();
+    map_env_draw_to_json(map_env, vstr);
+    int fd = open(file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    write(fd, vstr_str(vstr), vstr_len(vstr));
+    close(fd);
+    vstr_free(vstr);
+    printf("wrote to JSON file %s\n", file);
 }

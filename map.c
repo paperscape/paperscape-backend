@@ -589,6 +589,19 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
     }
 }
 
+void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr) {
+    // write the papers as JSON
+    vstr_printf(vstr, "[");
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        if (i > 0) {
+            vstr_printf(vstr, ",");
+        }
+        vstr_printf(vstr, "[%d,%d,%.2f,%.2f,%.1f]", p->id, p->kind, p->x, p->y, p->r);
+    }
+    vstr_printf(vstr, "]");
+}
+
 // reset the forces and compute the grid
 static void map_env_init_forces(map_env_t *map_env) {
     int grid_depth_overflow = 0;

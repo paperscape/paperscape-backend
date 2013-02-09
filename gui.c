@@ -41,7 +41,7 @@ static gboolean map_env_update(map_env_t *map_env) {
     map_env_centre_view(map_env);
     map_env_set_zoom_to_fit_n_standard_deviations(map_env, 2.6, 1000, 1000);
 
-    if (iterate_counter > 200 || converged) {
+    if (false && (iterate_counter > 200 || converged)) {
         iterate_counter = 0;
 
         int y, m, d;
@@ -54,6 +54,7 @@ static gboolean map_env_update(map_env_t *map_env) {
         unique_id_to_date(id_range_end, &y, &m, &d);
         vstr_printf(vstr_info, "%02u-%02u-%04u\n%d papers", d, m, y, map_env_get_num_papers(map_env));
         write_tiles(map_env, 1000, 1000, vstr_str(vstr), vstr_info);
+
         vstr_free(vstr_info);
 
         while (true) {
@@ -137,6 +138,14 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_e) {
         map_env_inc_num_papers(map_env, 10000);
         */
+
+    } else if (event->keyval == GDK_KEY_J) {
+        // write map to JSON
+        int y, m, d;
+        vstr_reset(vstr);
+        unique_id_to_date(id_range_end, &y, &m, &d);
+        vstr_printf(vstr, "map-%04u-%02u-%02u.json", y, m, d);
+        write_tiles_to_json(map_env, vstr_str(vstr));
 
     } else if (event->keyval == GDK_KEY_j) {
         map_env_jolt(map_env, 0.5);
@@ -380,9 +389,7 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     map_env_select_date_range(map_env, id_range_start, id_range_end);
 
     // for starting part way through
-    /*
-    id_range_start = 1952278129;
+    id_range_start = 2120000000;
     id_range_end = id_range_start + 20000000; // plus 2 years
     map_env_select_date_range(map_env, id_range_start, id_range_end);
-    */
 }
