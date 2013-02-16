@@ -389,7 +389,7 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     map_env_select_date_range(map_env, id_range_start, id_range_end);
 
     // for starting part way through
-    id_range_start = 2120000000;
+    id_range_start = 2110000000;
     id_range_end = id_range_start + 20000000; // plus 2 years
     map_env_select_date_range(map_env, id_range_start, id_range_end);
 }
