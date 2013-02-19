@@ -30,7 +30,7 @@ knownIpAddr = {
 def ipLookup(ipAddr):
     if ipAddr not in knownIpAddr:
         print "UNKNOWN:", ipAddr
-        knownIpAddr[ipAddr] = "unknown" + str(len(knownIpAddr))
+        knownIpAddr[ipAddr] = "unknown-" + str(ipAddr)
     return knownIpAddr[ipAddr]
 
 def regexMatchLongest(st, regexList):
@@ -45,16 +45,19 @@ def regexMatchLongest(st, regexList):
     return foundKind, foundMatch
 
 class LogEntry(object):
-    wombatLogRegex = re.compile(r"\[(?P<datetime>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\] (?P<ip>[0-9.]+):0 -- (?P<verb>[A-Z]+) (?P<url>[^ ]+) \(bytes: \d+ URL, \d+ content, \d+ replied\)\n$")
+    wombatLogRegex = re.compile(r"\[(?P<datetime>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\] (?P<ip>[0-9.]+):0 -- (?P<verb>[A-Z]+) (?P<url>[^ ]+) \(bytes: \d+ URL, \d+ content, (?P<bytesr>\d+) replied\)\n$")
     wombatURLRegexList = [
         ("gdata[]", re.compile(r".*wombat.*&gdata%5B%5D=")),
         ("gdb", re.compile(r".*wombat.*&gdb&")),
         ("lload", re.compile(r".*wombat.*&lload=(?P<link>[A-Za-z0-9]+)&")),
         ("pchal", re.compile(r".*wombat.*&pchal=(?P<usermail>[A-Za-z0-9.%\-]+)&")),
         ("pload", re.compile(r".*wombat.*&pload=(?P<usermail>[A-Za-z0-9.%\-]+)&")),
-        ("sau", re.compile(r".*wombat.*&sau=(?P<query>[A-Za-z0-9.%\-]+)&")),
-        ("sax", re.compile(r".*wombat.*&sax=(?P<query>[A-Za-z0-9.%\-]+)&")),
-        ("str[]", re.compile(r".*wombat.*&str%5B%5D=(?P<query>[A-Za-z0-9.%\-]+)&")),
+        ("preg", re.compile(r".*wombat.*&preg=(?P<usermail>[A-Za-z0-9.%\-]+)&")),
+        ("sau", re.compile(r".*wombat.*&sau=(?P<query>[A-Za-z0-9.%\-+]+)&")),
+        ("sax", re.compile(r".*wombat.*&sax=(?P<query>[A-Za-z0-9.%\-+]+)&")),
+        ("sca", re.compile(r".*wombat.*&sca=(?P<query>[A-Za-z0-9.%\-+]+)&")),
+        ("sti", re.compile(r".*wombat.*&sti=(?P<query>[A-Za-z0-9.%\-+]+)&")),
+        ("str[]", re.compile(r".*wombat.*&str%5B%5D=(?P<query>[A-Za-z0-9.%\-+]+)&")),
     ]
 
     def __init__(self, line):
@@ -63,7 +66,8 @@ class LogEntry(object):
             print "ERROR: unknown wombat log line format"
             print line
             raise Exception("unknown wombat log line format")
-        dt, self.ipAddr, self.verb, self.url = match.groups()
+        dt, self.ipAddr, self.verb, self.url, self.bytesReplied = match.groups()
+        self.bytesReplied = int(self.bytesReplied)
         self.datetime = datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%SZ")
         self.ipStr = ipLookup(self.ipAddr)
         urlKind, urlMatch = regexMatchLongest(self.url, LogEntry.wombatURLRegexList)
@@ -72,6 +76,8 @@ class LogEntry(object):
                 self.request = urlKind
             else:
                 self.request = "{}: {}".format(urlKind, ','.join(arg for arg in urlMatch.groups()))
+        elif self.verb == "POST":
+            self.request = "<POST>"
         else:
             self.request = "unknown wombat request"
 
@@ -91,7 +97,7 @@ def doWork(fileList):
 
     # print out access over time
     for entry in logEntries:
-        print entry.datetime, entry.ipStr, entry.request
+        print "{} {: 5d}k {} {}".format(entry.datetime, entry.bytesReplied / 1024, entry.ipStr, entry.request)
 
 if __name__ == "__main__":
     cmdParser = argparse.ArgumentParser(description="Analyse output log of wombat.")
