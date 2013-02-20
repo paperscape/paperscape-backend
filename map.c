@@ -589,6 +589,24 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
     }
 }
 
+void vstr_add_json_str(vstr_t *vstr, const char *s) {
+    vstr_add_byte(vstr, '"');
+    for (; *s != '\0'; s++) {
+        if (*s == '"') {
+            vstr_add_byte(vstr, '\\');
+            vstr_add_byte(vstr, '"');
+        } else {
+            vstr_add_byte(vstr, *s);
+        }
+    }
+    vstr_add_byte(vstr, '"');
+}
+
+int double_for_json(double x) {
+    // so we can store as integers, multiply by some number to include a bit of the fraction
+    return round(x * 20);
+}
+
 void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr) {
     // write the papers as JSON
     vstr_printf(vstr, "[");
@@ -597,7 +615,11 @@ void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr) {
         if (i > 0) {
             vstr_printf(vstr, ",");
         }
-        vstr_printf(vstr, "[%d,%d,%.2f,%.2f,%.1f]", p->id, p->kind, p->x, p->y, p->r);
+        vstr_printf(vstr, "[%d,%d,%d,%d,%d,", p->id, p->kind, double_for_json(p->x), double_for_json(p->y), double_for_json(p->r));
+        vstr_add_json_str(vstr, p->authors);
+        vstr_add_str(vstr, ",");
+        vstr_add_json_str(vstr, p->title);
+        vstr_add_str(vstr, "]");
     }
     vstr_printf(vstr, "]");
 }
