@@ -10,8 +10,9 @@
 #include "quadtree.h"
 #include "map.h"
 
-static double anti_gravity_strength = 0.4;
-static double link_strength = 0.03;
+static double anti_gravity_strength = 0.55;
+static double link_strength = 0.015;
+static bool do_close_repulsion = false;
 
 struct _map_env_t {
     // loaded
@@ -443,7 +444,7 @@ static int paper_cmp_radius(const void *in1, const void *in2) {
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
     // clear bg
-    cairo_set_source_rgb(cr, 1, 1, 1);
+    cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
     cairo_rectangle(cr, 0, 0, width, height);
     cairo_fill(cr);
 
@@ -586,6 +587,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
         vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", anti_gravity_strength);
         vstr_printf(vstr_info, "link strength: %.3f\n", link_strength);
         vstr_printf(vstr_info, "transitive reduction: %d\n", map_env->do_tred);
+        vstr_printf(vstr_info, "do close repulsion: %d\n", do_close_repulsion);
     }
 }
 
@@ -665,7 +667,7 @@ static void map_env_init_forces(map_env_t *map_env) {
 }
 
 // q1 is a leaf against which we check q2
-void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2, double q2_cell_side_length) {
+static void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2) {
     if (q2 == NULL) {
         // q2 is empty node
     } else {
@@ -674,15 +676,29 @@ void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2, double q
         // compute distance from q1 to centroid of q2
         double dx = q1->x - q2->x;
         double dy = q1->y - q2->y;
-        double r = sqrt(dx * dx + dy * dy);
-        if (r < 1e-3) {
+        double rsq = dx * dx + dy * dy;
+        if (rsq < 1e-6) {
             // minimum distance cut-off
-            r = 1e-3;
+            rsq = 1e-6;
         }
 
         if (q2->num_papers == 1) {
             // q2 is leaf node
-            double fac = q1->mass * q2->mass * anti_gravity_strength / (r*r);
+            double fac;
+            if (do_close_repulsion) {
+                double rad_sum_sq = 1.2 * pow(q1->paper->r + q2->paper->r, 2);
+                if (rsq < rad_sum_sq) {
+                    // papers overlap, use stronger repulsive force
+                    fac = fmin(100000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * anti_gravity_strength / rsq
+                        + q1->mass * q2->mass * anti_gravity_strength / rad_sum_sq;
+                } else {
+                    // normal anti-gravity repulsive force
+                    fac = q1->mass * q2->mass * anti_gravity_strength / rsq;
+                }
+            } else {
+                // normal anti-gravity repulsive force
+                fac = q1->mass * q2->mass * anti_gravity_strength / rsq;
+            }
             double fx = dx * fac;
             double fy = dy * fac;
             q1->fx += fx;
@@ -692,10 +708,10 @@ void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2, double q
 
         } else {
             // q2 is internal node
-            if (q2_cell_side_length / r < 0.7) {
+            if (q2->side_length_x * q2->side_length_x + q2->side_length_y * q2->side_length_y < 0.5 * rsq) {
                 // q1 and the cell q2 are "well separated"
                 // approximate force by centroid of q2
-                double fac = q1->mass * q2->mass * anti_gravity_strength / (r*r);
+                double fac = q1->mass * q2->mass * anti_gravity_strength / rsq;
                 double fx = dx * fac;
                 double fy = dy * fac;
                 q1->fx += fx;
@@ -706,39 +722,36 @@ void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2, double q
             } else {
                 // q1 and q2 are not "well separated"
                 // descend into children of q2
-                q2_cell_side_length *= 0.5;
-                quad_tree_node_forces2(q1, q2->q0, q2_cell_side_length);
-                quad_tree_node_forces2(q1, q2->q1, q2_cell_side_length);
-                quad_tree_node_forces2(q1, q2->q2, q2_cell_side_length);
-                quad_tree_node_forces2(q1, q2->q3, q2_cell_side_length);
+                quad_tree_node_forces2(q1, q2->q0);
+                quad_tree_node_forces2(q1, q2->q1);
+                quad_tree_node_forces2(q1, q2->q2);
+                quad_tree_node_forces2(q1, q2->q3);
             }
         }
     }
 }
 
-void quad_tree_node_forces1(quad_tree_node_t *q, double cell_side_length) {
+void quad_tree_node_forces1(quad_tree_node_t *q) {
     assert(q->num_papers == 1); // must be a leaf node
     for (quad_tree_node_t *q2 = q; q2->parent != NULL; q2 = q2->parent) {
         quad_tree_node_t *parent = q2->parent;
         assert(parent->num_papers > 1); // all parents should be internal nodes
-        if (parent->q0 != q2) { quad_tree_node_forces2(q, parent->q0, cell_side_length); }
-        if (parent->q1 != q2) { quad_tree_node_forces2(q, parent->q1, cell_side_length); }
-        if (parent->q2 != q2) { quad_tree_node_forces2(q, parent->q2, cell_side_length); }
-        if (parent->q3 != q2) { quad_tree_node_forces2(q, parent->q3, cell_side_length); }
-        cell_side_length *= 2;
+        if (parent->q0 != q2) { quad_tree_node_forces2(q, parent->q0); }
+        if (parent->q1 != q2) { quad_tree_node_forces2(q, parent->q1); }
+        if (parent->q2 != q2) { quad_tree_node_forces2(q, parent->q2); }
+        if (parent->q3 != q2) { quad_tree_node_forces2(q, parent->q3); }
     }
 }
 
-void quad_tree_node_forces0(quad_tree_node_t *q, double cell_side_length) {
+void quad_tree_node_forces0(quad_tree_node_t *q) {
     if (q == NULL) {
     } else if (q->num_papers == 1) {
-        quad_tree_node_forces1(q, cell_side_length);
+        quad_tree_node_forces1(q);
     } else {
-        cell_side_length *= 0.5;
-        quad_tree_node_forces0(q->q0, cell_side_length);
-        quad_tree_node_forces0(q->q1, cell_side_length);
-        quad_tree_node_forces0(q->q2, cell_side_length);
-        quad_tree_node_forces0(q->q3, cell_side_length);
+        quad_tree_node_forces0(q->q0);
+        quad_tree_node_forces0(q->q1);
+        quad_tree_node_forces0(q->q2);
+        quad_tree_node_forces0(q->q3);
     }
 }
 
@@ -765,12 +778,11 @@ void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, double fy) 
 }
 
 void quad_tree_forces(quad_tree_t *qt) {
-    double cell_side_length = 0.5 * ((qt->max_x - qt->min_x) + (qt->max_y - qt->min_y));
-    quad_tree_node_forces0(qt->root, cell_side_length);
+    quad_tree_node_forces0(qt->root);
     quad_tree_node_forces_propagate(qt->root, 0, 0);
 }
 
-void map_env_compute_forces(map_env_t *map_env) {
+static void map_env_compute_forces(map_env_t *map_env, bool do_rep) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
 
@@ -781,6 +793,7 @@ void map_env_compute_forces(map_env_t *map_env) {
 
     // compute paper-paper forces using a quad tree
     quad_tree_build(map_env->num_papers, map_env->papers, map_env->quad_tree);
+    do_close_repulsion = do_rep;
     quad_tree_forces(map_env->quad_tree);
 
     /*
@@ -927,8 +940,8 @@ void map_env_compute_forces(map_env_t *map_env) {
     }
 }
 
-bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size) {
-    map_env_compute_forces(map_env);
+bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size, bool do_rep) {
+    map_env_compute_forces(map_env, do_rep);
 
     if (boost_step_size) {
         if (map_env->step_size < 1) {
@@ -1000,7 +1013,7 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
     } else {
         // energy went up
         map_env->progress = 0;
-        if (map_env->step_size > 1e-1) {
+        if (map_env->step_size > 0.025) {
             map_env->step_size *= 0.95;
         }
     }

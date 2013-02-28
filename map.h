@@ -35,7 +35,7 @@ void map_env_rotate_all(map_env_t *map_env, double angle);
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t *info_out);
 void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr);
-bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size);
+bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size, bool do_close_repulsion);
 
 #endif // _INCLUDED_MAP_H
 

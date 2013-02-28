@@ -56,6 +56,8 @@ void quad_tree_insert_paper(quad_tree_node_t *parent, quad_tree_node_t **q, pape
         // hit an empty node; create a new leaf cell and put this paper in it
         *q = quad_tree_pool_alloc();
         (*q)->parent = parent;
+        (*q)->side_length_x = max_x - min_x;
+        (*q)->side_length_y = max_y - min_y;
         (*q)->num_papers = 1;
         (*q)->mass = p->mass;
         (*q)->x = p->x;

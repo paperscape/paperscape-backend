@@ -3,6 +3,8 @@
 
 typedef struct _quad_tree_node_t {
     struct _quad_tree_node_t *parent;
+    float side_length_x;
+    float side_length_y;
     int num_papers; // if 1, this node is a leaf, else an internal node
     float mass;
     float x;

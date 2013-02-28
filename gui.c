@@ -29,19 +29,19 @@ int id_range_end = 2060000000;
 static int iterate_counter = -500;
 static gboolean map_env_update(map_env_t *map_env) {
     bool converged = false;
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 10; i++) {
         iterate_counter += 1;
-        if (map_env_iterate(map_env, mouse_paper, boost_step_size)) {
+        if (map_env_iterate(map_env, mouse_paper, boost_step_size, iterate_counter > -200)) {
             converged = true;
             break;
         }
         boost_step_size = false;
     }
 
-    map_env_centre_view(map_env);
-    map_env_set_zoom_to_fit_n_standard_deviations(map_env, 2.6, 1000, 1000);
+    //map_env_centre_view(map_env);
+    //map_env_set_zoom_to_fit_n_standard_deviations(map_env, 2.6, 1000, 1000);
 
-    if (false && (iterate_counter > 200 || converged)) {
+    if (false && (iterate_counter > 100 || converged)) {
         iterate_counter = 0;
 
         int y, m, d;
@@ -81,6 +81,7 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
     vstr_reset(vstr);
     vstr_printf(vstr, "included papers: %s\n", included_papers_string);
     map_env_draw(map_env, cr, width, height, vstr);
+    vstr_printf(vstr, "number of iterations: %d\n", iterate_counter);
 
     // draw info to canvas
     cairo_identity_matrix(cr);
@@ -164,6 +165,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
 
     } else if (event->keyval == GDK_KEY_z) {
         map_env_centre_view(map_env);
+        map_env_set_zoom_to_fit_n_standard_deviations(map_env, 2.6, 1000, 1000);
 
     } else if (event->keyval == GDK_KEY_1) {
         map_env_adjust_anti_gravity(map_env, 0.9);
@@ -391,5 +393,6 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     // for starting part way through
     id_range_start = 2110000000;
     id_range_end = id_range_start + 20000000; // plus 2 years
+    //id_range_end = id_range_start +  5000000; // plus 0.5 year
     map_env_select_date_range(map_env, id_range_start, id_range_end);
 }
