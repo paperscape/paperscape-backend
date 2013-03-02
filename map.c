@@ -10,7 +10,7 @@
 #include "quadtree.h"
 #include "map.h"
 
-static double anti_gravity_strength = 0.55;
+static double anti_gravity_strength = 0.4;
 static double link_strength = 0.015;
 static bool do_close_repulsion = false;
 
@@ -686,10 +686,10 @@ static void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2) {
             // q2 is leaf node
             double fac;
             if (do_close_repulsion) {
-                double rad_sum_sq = 1.2 * pow(q1->paper->r + q2->paper->r, 2);
+                double rad_sum_sq = 1.4 * pow(q1->paper->r + q2->paper->r, 2);
                 if (rsq < rad_sum_sq) {
                     // papers overlap, use stronger repulsive force
-                    fac = fmin(100000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * anti_gravity_strength / rsq
+                    fac = fmin(200000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * anti_gravity_strength / rsq
                         + q1->mass * q2->mass * anti_gravity_strength / rad_sum_sq;
                 } else {
                     // normal anti-gravity repulsive force
@@ -708,7 +708,7 @@ static void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2) {
 
         } else {
             // q2 is internal node
-            if (q2->side_length_x * q2->side_length_x + q2->side_length_y * q2->side_length_y < 0.5 * rsq) {
+            if (q2->side_length_x * q2->side_length_x + q2->side_length_y * q2->side_length_y < 0.9 * rsq) {
                 // q1 and the cell q2 are "well separated"
                 // approximate force by centroid of q2
                 double fac = q1->mass * q2->mass * anti_gravity_strength / rsq;
@@ -936,6 +936,48 @@ static void map_env_compute_forces(map_env_t *map_env, bool do_rep) {
                     p2->fy += fy;
                 }
             }
+        }
+    }
+
+    /* attraction to centre of papers with the same category
+     * useful for when including papers that are not connected to the main graph
+     */
+    double centre_x[10], centre_y[10], num[10]; // HACK! only allows 10 categories
+    for (int i = 0; i < 10; i++) {
+        centre_x[i] = 0;
+        centre_y[i] = 0;
+        num[i] = 0;
+    }
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        if (p->num_refs > 0) {
+            centre_x[p->maincat] += p->x;
+            centre_y[p->maincat] += p->y;
+            num[p->maincat] += 1;
+        }
+    }
+    for (int i = 0; i < 10; i++) {
+        if (num[i] > 0) {
+            centre_x[i] /= num[i];
+            centre_y[i] /= num[i];
+        }
+    }
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+
+        double dx = p->x - centre_x[p->maincat];
+        double dy = p->y - centre_y[p->maincat];
+        double r = sqrt(dx*dx + dy*dy);
+        double rest_len = 0.1 * sqrt(num[p->maincat]);
+
+        double fac = 0.01 * link_strength;
+
+        if (r > rest_len) {
+            fac *= (r - rest_len);
+            double fx = dx * fac;
+            double fy = dy * fac;
+            p->fx -= fx;
+            p->fy -= fy;
         }
     }
 }
@@ -1206,7 +1248,8 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     // recompute mass and radius based on num_included_cites
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        p->mass = 0.05 + 0.2 * p->num_included_cites;
+        //p->mass = 0.05 + 0.2 * p->num_included_cites;
+        p->mass = 0.2 + 0.2 * p->num_included_cites;
         p->r = sqrt(p->mass / M_PI);
         if (p->included) {
             if (!p->pos_valid) {
@@ -1231,7 +1274,8 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     map_env->num_papers = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        if (p->included && p->colour == biggest_col) {
+        //if (p->included && p->colour == biggest_col) { // include only those in the biggest connected graph
+        if (p->included) { // include all papers
             map_env->papers[map_env->num_papers++] = p;
         }
     }

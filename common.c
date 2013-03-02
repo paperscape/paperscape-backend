@@ -7,7 +7,7 @@
 #include "common.h"
 
 int date_to_unique_id(int y, int m, int d) {
-    return y * 10000000 + m * 625000 + d * 15625;
+    return (y - 1800) * 10000000 + m * 625000 + d * 15625;
 }
 
 void unique_id_to_date(int id, int *y, int *m, int *d) {
