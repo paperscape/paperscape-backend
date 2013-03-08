@@ -1690,24 +1690,16 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
     //h.PrintJSONPapersList(rw,papersList)
 
     // NOTES
-    if noteshashDb != noteshash {
-        fmt.Fprintf(rw, ",\"note\":%s",string(notes))
-    }
+    fmt.Fprintf(rw, ",\"note\":%s",string(notes))
 
     // GRAPHS
-    if graphshashDb != graphshash {
-        fmt.Fprintf(rw, ",\"grph\":%s",string(graphs))
-    }
+    fmt.Fprintf(rw, ",\"grph\":%s",string(graphs))
 
     // TAGS
-    if tagshashDb != tagshash {
-        fmt.Fprintf(rw, ",\"tag\":%s",string(tags))
-    }
+    fmt.Fprintf(rw, ",\"tag\":%s",string(tags))
 
     // SETTINGS
-    if settingshashDb != settingshash {
-        fmt.Fprintf(rw, ",\"set\":%s",string(settings))
-    }
+    fmt.Fprintf(rw, ",\"set\":%s",string(settings))
 
     // end
     fmt.Fprintf(rw, "}")
