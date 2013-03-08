@@ -1134,7 +1134,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             if req.Form["nh"] != nil { nh = req.Form["nh"][0] }
             if req.Form["gh"] != nil { gh = req.Form["gh"][0] }
             if req.Form["th"] != nil { th = req.Form["th"][0] }
-            if req.Form["sh"] != nil { th = req.Form["sh"][0] }
+            if req.Form["sh"] != nil { sh = req.Form["sh"][0] }
             h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], nh, gh, th, sh, rw)
         } else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
@@ -1662,11 +1662,13 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
     tagshashDb := Sha1(string(tags))
     settingshashDb := Sha1(string(settings))
 
+    fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"nh\":\"%s\",\"gh\":\"%s\",\"th\":\"%s\",\"sh\":\"%s\"",usermail,challenge,noteshashDb,graphshashDb,tagshashDb,settingshashDb)
+
     // If nonzero hashes given, check if they match those stored in db
     // If so, client can proceed with sync without needing load data,
     // just return the hashes
     if noteshash != "" && graphshash != "" && tagshash != "" && settingshash != "" && noteshashDb == noteshash && graphshashDb == graphshash && tagshashDb == tagshash && settingshashDb == settingshash {
-        fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\",\"nh\":\"%s\",\"gh\":\"%s\",\"th\":\"%s\",\"sh\":\"%s\"}",usermail,challenge,noteshashDb,graphshashDb,tagshashDb,settingshashDb)
+        fmt.Fprintf(rw, "}")
         return
     }
 
@@ -1674,11 +1676,12 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
     // Either way, proceed as if this were a login
     stmt = h.papers.StatementBegin("UPDATE userdata SET numlogin = numlogin + 1, lastlogin = NOW() WHERE usermail = ?",h.papers.db.Escape(usermail))
     if !h.papers.StatementEnd(stmt) {
+        fmt.Fprintf(rw, "}")
         return
     }
 
     // output papers in json format
-    fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"", usermail,challenge)
+    //fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"", usermail,challenge)
 
     // PAPERS
     //papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
@@ -1687,16 +1690,24 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
     //h.PrintJSONPapersList(rw,papersList)
 
     // NOTES
-    fmt.Fprintf(rw, ",\"note\":%s,\"nh\":\"%s\"",string(notes),noteshashDb)
+    if noteshashDb != noteshash {
+        fmt.Fprintf(rw, ",\"note\":%s",string(notes))
+    }
 
     // GRAPHS
-    fmt.Fprintf(rw, ",\"grph\":%s,\"gh\":\"%s\"",string(graphs),graphshashDb)
+    if graphshashDb != graphshash {
+        fmt.Fprintf(rw, ",\"grph\":%s",string(graphs))
+    }
 
     // TAGS
-    fmt.Fprintf(rw, ",\"tag\":%s,\"th\":\"%s\"",string(tags),tagshashDb)
+    if tagshashDb != tagshash {
+        fmt.Fprintf(rw, ",\"tag\":%s",string(tags))
+    }
 
     // SETTINGS
-    fmt.Fprintf(rw, ",\"set\":%s,\"sh\":\"%s\"",string(settings),settingshashDb)
+    if settingshashDb != settingshash {
+        fmt.Fprintf(rw, ",\"set\":%s",string(settings))
+    }
 
     // end
     fmt.Fprintf(rw, "}")
