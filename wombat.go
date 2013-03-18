@@ -1281,8 +1281,20 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 /****************************************************************/
 
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
-    authorsJSON, _ := json.Marshal(paper.authors)
-    titleJSON, _ := json.Marshal(paper.title)
+    var err error
+    var authorsJSON, titleJSON []byte
+    
+    authorsJSON, err = json.Marshal(paper.authors)
+    if err != nil {
+        fmt.Printf("ERROR: Author string failed for %d, error: %s\n",paper.id,err)
+        authorsJSON = []byte("\"\"")
+    }
+    titleJSON, err = json.Marshal(paper.title)
+    if err != nil {
+        fmt.Printf("ERROR: Title string failed for %d, error: %s\n",paper.id,err)
+        titleJSON = []byte("\"\"")
+    }
+
     //fmt.Fprintf(w, "{\"id\":%d,\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, authorsJSON, titleJSON, paper.numCites, paper.dNumCites1, paper.dNumCites5)
     fmt.Fprintf(w, "\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", authorsJSON, titleJSON, paper.numCites, paper.dNumCites1, paper.dNumCites5)
     if len(paper.arxiv) > 0 {
