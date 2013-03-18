@@ -1128,6 +1128,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         rw = &MyResponseWriter{gzipResponseWriter{Writer: gz, ResponseWriter: rwIn},0}
     }
 
+    var logDescription string
+
     if req.Form["callback"] != nil {
         // construct a JSON object to return
         rw.Header().Set("Content-Type", "application/json")
@@ -1150,6 +1152,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 giveVersion = true
             }
             h.ProfileChallenge(req.Form["pchal"][0], giveSalt, giveVersion, rw)
+            logDescription = fmt.Sprintf("pchal %s",req.Form["pchal"][0])
         } else if req.Form["pload"] != nil && req.Form["h"] != nil {
             // profile-load: either login request or load request from an autosave
             // h = passHash, nh = notessHash, gh = graphsHash, th = tagsHash, sh = settingshash
@@ -1159,25 +1162,33 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             if req.Form["th"] != nil { th = req.Form["th"][0] }
             if req.Form["sh"] != nil { sh = req.Form["sh"][0] }
             h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], nh, gh, th, sh, rw)
+            logDescription = fmt.Sprintf("pload %s",req.Form["pload"][0])
         } else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt), pv = password version
             h.ProfileChangePassword(req.Form["pchpw"][0], req.Form["h"][0], req.Form["p"][0], req.Form["s"][0], req.Form["pv"][0], rw)
+            logDescription = fmt.Sprintf("pchpw %s pv=%d",req.Form["pchpd"][0],req.Form["pv"][0])
         } else if req.Form["prrp"] != nil {
             // profile-request-reset-password: request reset link sent to email
             h.ProfileRequestResetPassword(req.Form["prrp"][0], rw)
+            logDescription = fmt.Sprintf("prrp %s",req.Form["prrp"][0])
         } else if req.Form["prpw"] != nil {
             // profile-reset-password: resets password request and sends new one to email
             h.ProfileResetPassword(req.Form["prpw"][0], rw)
+            logDescription = fmt.Sprintf("prpw %s",req.Form["prpw"][0])
         } else if req.Form["preg"] != nil {
             // profile-register: register email address as new user 
             h.ProfileRegister(req.Form["preg"][0], rw)
+            logDescription = fmt.Sprintf("preg %s",req.Form["preg"][0])
         } else if req.Form["lload"] != nil {
             // link-load: from a page load
             h.LinkLoad(req.Form["lload"][0], rw)
+            logDescription = fmt.Sprintf("lload %s",req.Form["lload"][0])
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
             h.GetDateBoundaries(rw)
+            // Don't log gdb?
+            //logDescription = fmt.Sprintf("gdb")
         } else if req.Form["gdata[]"] != nil && req.Form["flags[]"] != nil {
             var ids, flags []uint
             for _, strId := range req.Form["gdata[]"] {
@@ -1196,33 +1207,50 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetDataForIDs(ids,flags,rw)
+            logDescription = fmt.Sprintf("gdata (%d)",len(req.Form["gdata[]"]))
         } else if req.Form["chids"] != nil && (req.Form["arx[]"] != nil ||  req.Form["doi[]"] != nil || req.Form["jrn[]"] != nil) {
             // convert-human-ids: convert human IDs to internal IDs
             // arx: list of arxiv IDs
             // jrn: list of journal IDs
             h.ConvertHumanToInternalIds(req.Form["arx[]"],req.Form["doi[]"],req.Form["jrn[]"], rw)
+            logDescription = fmt.Sprintf("chids (%d,%d,%d)",len(req.Form["arx[]"]),len(req.Form["doi[]"]),len(req.Form["jrn[]"]))
         } else if req.Form["sax"] != nil {
             // search-arxiv: search papers for arxiv number
             h.SearchArxiv(req.Form["sax"][0], rw)
+            logDescription = fmt.Sprintf("sax \"%s\"",req.Form["sax"][0])
         } else if req.Form["sau"] != nil {
             // search-author: search papers for authors
             h.SearchAuthor(req.Form["sau"][0], rw)
+            logDescription = fmt.Sprintf("sau \"%s\"",req.Form["sau"][0])
         } else if req.Form["sti"] != nil {
             // search-title: search papers for words in title
             h.SearchTitle(req.Form["sti"][0], rw)
+            logDescription = fmt.Sprintf("sti \"%s\"",req.Form["sti"][0])
         } else if req.Form["sca"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
             // search-category: search papers between given id range, in given category
             // x = include cross lists, f = from, t = to
             h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", req.Form["f"][0], req.Form["t"][0], rw)
+            logDescription = fmt.Sprintf("sca \"%s\" (%d,%d)",req.Form["sca"][0],req.Form["f"][0],req.Form["t"][0])
         } else if req.Form["snp"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
             // search-new-papers: search papers between given id range
             // f = from, t = to
             h.SearchNewPapers(req.Form["f"][0], req.Form["t"][0], rw)
+            logDescription = fmt.Sprintf("snp (%d,%d)",req.Form["f"][0],req.Form["t"][0])
         } else if req.Form["str[]"] != nil {
             // search-trending: search papers that are "trending"
             h.SearchTrending(req.Form["str[]"], rw)
+            // this is actually interesting info:
+            var buf bytes.Buffer
+            for i, str := range req.Form["str[]"] {
+                if i > 0 {
+                    buf.WriteString(",")
+                }
+                buf.WriteString(str)
+            }
+            logDescription = fmt.Sprintf("str \"%s\"",buf.String())
         } else {
             // unknown ajax request
+            logDescription = fmt.Sprintf("unknown")
         }
 
         if rw.bytesWritten == resultBytesStart {
@@ -1240,6 +1268,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s",req.Form["fn"][0]))
         rw.Header().Set("Content-Type", "application/octet-stream")
         fmt.Fprintf(rw, req.Form["echo"][0])
+        logDescription = fmt.Sprintf("echo \"%s\"",req.Form["fn"][0])
     } else if req.Method == "POST" {
         // POST verb
 
@@ -1258,10 +1287,18 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             if req.Form["t"] != nil { t = req.Form["t"][0] }
             if req.Form["s"] != nil { s = req.Form["s"][0] }
             h.ProfileSync(req.Form["psync"][0], req.Form["h"][0], n, req.Form["nh"][0], g, req.Form["gh"][0], t, req.Form["th"][0], s, req.Form["sh"][0], rw)
+            logDescription = fmt.Sprintf("psync %s",req.Form["psync"][0])
         } else if req.Form["lsave"] != nil {
             // link-save: existing code (or empty string if none)
             // n = notes, nh = notes hash, g = graphs, gh = graphs hash, t = tags, th = tags hash
             h.LinkSave(req.Form["lsave"][0], req.Form["n"][0], req.Form["nh"][0], req.Form["g"][0], req.Form["gh"][0], req.Form["t"][0], req.Form["th"][0], rw)
+            var descSaveHash string
+            if req.Form["lsave"][0] != "" {
+                descSaveHash = req.Form["lsave"][0]
+            } else {
+                descSaveHash = "<new>"
+            }
+            logDescription = fmt.Sprintf("lsave %s",descSaveHash)
         } else if req.Form["gdata[]"] != nil && req.Form["flags[]"] != nil {
             var ids, flags []uint
             for _, strId := range req.Form["gdata[]"] {
@@ -1280,8 +1317,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             h.GetDataForIDs(ids,flags,rw)
+            logDescription = fmt.Sprintf("gdata (%d)",len(req.Form["gdata[]"]))
         } else {
             // unknown ajax request
+            logDescription = fmt.Sprintf("unknown")
         }
 
         if rw.bytesWritten == resultBytesStart {
@@ -1297,7 +1336,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
     }
 
     //fmt.Printf("[%s] %s -- %s %s (bytes: %d URL, %d content, %d replied)\n", time.Now().Format(time.RFC3339), req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
-    log.Printf("%s -- %s %s (bytes: %d URL, %d content, %d replied)\n", req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
+    if logDescription != "" {
+        log.Printf("%s -- %s %s -- (bytes: %d URL, %d content, %d replied)\n", req.RemoteAddr, req.Method, logDescription, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
+    }
 
     runtime.GC()
 }
