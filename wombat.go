@@ -2,6 +2,7 @@ package main
 
 import (
     "io"
+    "io/ioutil"
     "flag"
     "os"
     "bufio"
@@ -25,6 +26,7 @@ import (
     //"crypto/aes"
     "sort"
     "net/smtp"
+    "log"
     //"xiwi"
 )
 
@@ -659,17 +661,31 @@ func GenerateUserPassword() (string, int, int64, string) {
     return password, pwdversion, salt, userhash
 }
 
-func SendPscpMail(message []byte, usermail string) {
+func ReadAndReplaceFromFile(path string, dict map[string]string) (message []byte, err error) {
+    message, err = ioutil.ReadFile(path)
 
+    dataStr := string(message)
+    for key, val := range dict {
+        dataStr = strings.Replace(dataStr,key,val,-1)
+    }
+
+    message = []byte(dataStr)
+    return
+}
+
+func SendPscpMail(message []byte, usermail string) {
+    
     var (
         c *smtp.Client
         err error
     )
 
+    //fmt.Println(string(message))
+
     // Connect to the local SMTP server.
     c, err = smtp.Dial("127.0.0.1:25")
     if err != nil {
-        fmt.Println("ERROR: SendPscpMail:", err)
+        log.Print(err)
         return
     }
     // Set the sender and recipient.
@@ -678,13 +694,13 @@ func SendPscpMail(message []byte, usermail string) {
     // Send the email body.
     wc, err := c.Data()
     if err != nil {
-        fmt.Println("ERROR: SendPscpMail:", err)
+        log.Print(err)
         return
     }
     defer wc.Close()
     buf := bytes.NewBufferString(string(message))
     if _, err = buf.WriteTo(wc); err != nil {
-        fmt.Println("ERROR: SendPscpMail:", err)
+        log.Print(err)
         return
     }
 
@@ -1535,22 +1551,12 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
         return
     }
 
-    // generate user message with link
-    w := new(bytes.Buffer)
-    fmt.Fprintf(w,"From: %s\n","Paperscape <noreply@paperscape.org>")
-    fmt.Fprintf(w,"To: %s\n",usermail)
-    fmt.Fprintf(w,"Subject: Paperscape password reset request\n")
-    fmt.Fprintf(w,"Dear Paperscape user,\n\n");
-    fmt.Fprintf(w,"Someone (probably you) has requested that your Paperscape password be reset. To proceed with reseting your password, please follow the link below. This will result in us sending you a new password to this email address. If you are happy with your current password then please ignore this message.\n\n");
-    fmt.Fprintf(w,"http://paperscape.org/?rp=%s\n\n",resetcode);
-    fmt.Fprintf(w,"Goodluck!\n\n");
-    fmt.Fprintf(w,"The Paperscape team\n\n\n");
-    fmt.Fprintf(w,"--------\n\n");
-    fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
-    fmt.Fprintf(w,"You can do so by following this link:\n\n");
-    fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
+    dict := make(map[string]string)
+    dict["@@USERMAIL@@"] = usermail
+    dict["@@RESETCODE@@"] = resetcode
+    message, _ := ReadAndReplaceFromFile("pwd_reset_request.email",dict)
 
-    SendPscpMail(w.Bytes(),usermail)
+    SendPscpMail(message,usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 }
@@ -1576,23 +1582,12 @@ func (h *MyHTTPHandler) ProfileResetPassword(resetcode string, rw http.ResponseW
         return
     }
 
-    // generate user message with link
-    w := new(bytes.Buffer)
-    fmt.Fprintf(w,"From: %s\n","Paperscape <noreply@paperscape.org>")
-    fmt.Fprintf(w,"To: %s\n",usermail)
-    fmt.Fprintf(w,"Subject: Paperscape password has been reset\n")
-    fmt.Fprintf(w,"Dear Paperscape user,\n\n");
-    fmt.Fprintf(w,"We have reset your password for you. Your new password is:\n\n");
-    fmt.Fprintf(w,"Password: %s\n\n",password);
-    fmt.Fprintf(w,"We recommend that you change this password after logging in.\n\n");
-    fmt.Fprintf(w,"Goodluck!\n\n");
-    fmt.Fprintf(w,"The Paperscape team\n\n\n");
-    fmt.Fprintf(w,"--------\n\n");
-    fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
-    fmt.Fprintf(w,"You can do so by following this link:\n\n");
-    fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
+    dict := make(map[string]string)
+    dict["@@USERMAIL@@"] = usermail
+    dict["@@PASSWORD@@"] = password
+    message, _ := ReadAndReplaceFromFile("pwd_reset.email",dict)
 
-    SendPscpMail(w.Bytes(),usermail)
+    SendPscpMail(message,usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 }
@@ -1623,25 +1618,12 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
         return
     }
 
-    // generate user message with new password
-    w := new(bytes.Buffer)
-    fmt.Fprintf(w,"From: %s\n","Paperscape <noreply@paperscape.org>")
-    fmt.Fprintf(w,"To: %s\n",usermail)
-    fmt.Fprintf(w,"Subject: Paperscape user registration\n")
-    fmt.Fprintf(w,"Welcome to Paperscape!\n\n");
-    fmt.Fprintf(w,"Thankyou for signing up with us. Your new password is:\n\n");
-    fmt.Fprintf(w,"Password: %s\n\n",password);
-    fmt.Fprintf(w,"We recommend that you change this password after logging in.\n\n");
-    fmt.Fprintf(w,"Now that you are logged in you can benefit from several cool new features such as:\n");
-    fmt.Fprintf(w," - Autosave: ...\n\n"); // TODO
-    fmt.Fprintf(w,"Goodluck!\n\n");
-    fmt.Fprintf(w,"The Paperscape team\n\n\n");
-    fmt.Fprintf(w,"--------\n\n");
-    fmt.Fprintf(w,"If you have any questions or comments regarding Paperscape please visit the #paperscape IRC channel on freenode.\n");
-    fmt.Fprintf(w,"You can do so by following this link:\n\n");
-    fmt.Fprintf(w,"http://webchat.freenode.net/?channels=paperscape\n");
+    dict := make(map[string]string)
+    dict["@@USERMAIL@@"] = usermail
+    dict["@@PASSWORD@@"] = password
+    message, _ := ReadAndReplaceFromFile("user_registration.email",dict)
 
-    SendPscpMail(w.Bytes(),usermail)
+    SendPscpMail(message,usermail)
 
     fmt.Fprintf(rw, "{\"succ\":\"true\"}")
 }
