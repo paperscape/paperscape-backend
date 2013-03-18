@@ -31,6 +31,7 @@ import (
 // Current version of paperscape.
 // Any client "kea" instances that don't match this will
 // be prompted to do a hard reload of the latest version
+// Kea equivalent is set in profile.js
 var VERSION = "0.1"
 
 // Max number of ids we will convert from human to internal form at a time
@@ -53,18 +54,8 @@ func main() {
     // parse command line options
     flag.Parse()
 
-    // auto-detect some command line arguments that are not given
-    ondpg := false
-    if  _, err := os.Stat("/opt/pscp/arXiv/meta"); err != nil {
-        ondpg = true
-    }
-
     if len(*flagMetaBaseDir) == 0 {
-        if ondpg {
-            *flagMetaBaseDir = "/opt/pscp/data/meta"
-        } else {
-            *flagMetaBaseDir = "/opt/pscp/arXiv/meta"
-        }
+        *flagMetaBaseDir = "/opt/pscp/data/meta"
     }
 
     // connect to MySQL database
@@ -670,8 +661,13 @@ func GenerateUserPassword() (string, int, int64, string) {
 
 func SendPscpMail(message []byte, usermail string) {
 
+    var (
+        c *smtp.Client
+        err error
+    )
+
     // Connect to the local SMTP server.
-    c, err := smtp.Dial("127.0.0.1:25")
+    c, err = smtp.Dial("127.0.0.1:25")
     if err != nil {
         fmt.Println("ERROR: SendPscpMail:", err)
         return
