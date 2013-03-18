@@ -41,7 +41,8 @@ var VERSION = "0.1"
 // it will need to make several calls
 var ID_CONVERSION_LIMIT = 50
 
-var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
+var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
+var flagLogFile = flag.String("log-file", "", "file to output log information to")
 var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
 var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
@@ -55,6 +56,16 @@ func main() {
 
     // parse command line options
     flag.Parse()
+    
+    // set log file to use file instead of stdout
+    if len(*flagLogFile) != 0 {
+        file, err := os.OpenFile(*flagLogFile, os.O_RDWR|os.O_APPEND|os.O_CREATE,0640)
+        if err == nil {
+            log.SetOutput(file)
+        } else {
+            fmt.Println(err)
+        }
+    }
 
     if len(*flagMetaBaseDir) == 0 {
         *flagMetaBaseDir = "/opt/pscp/data/meta"
@@ -575,7 +586,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     if row[5] == nil {
         paper.authors = "(unknown authors)"
     } else if au, ok := row[5].([]byte); !ok {
-        fmt.Printf("ERROR: cannot get authors for id=%d; %v\n", paper.id, row[5])
+        log.Printf("ERROR: cannot get authors for id=%d; %v\n", paper.id, row[5])
         return nil
     } else {
         paper.authors = string(au)
@@ -583,7 +594,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     if row[6] == nil {
         paper.authors = "(unknown title)"
     } else if title, ok := row[6].(string); !ok {
-        fmt.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[6])
+        log.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[6])
         return nil
     } else {
         paper.title = title
@@ -591,7 +602,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     if row[7] == nil {
         paper.publJSON = "";
     } else if publ, ok := row[7].(string); !ok {
-        fmt.Printf("ERROR: cannot get publ for id=%d; %v\n", paper.id, row[7])
+        log.Printf("ERROR: cannot get publ for id=%d; %v\n", paper.id, row[7])
         paper.publJSON = "";
     } else {
         publ2 := string(publ) // convert to string so marshalling does the correct thing
@@ -614,7 +625,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
             paper.dNumCites5 = uint(dNumCites5)
         }
     } else {
-        fmt.Printf("ERROR: cannot get pcite data for id=%d\n", paper.id)
+        log.Printf("ERROR: cannot get pcite data for id=%d\n", paper.id)
     }
 
     papers.QueryEnd()
@@ -661,19 +672,19 @@ func GenerateUserPassword() (string, int, int64, string) {
     return password, pwdversion, salt, userhash
 }
 
-func ReadAndReplaceFromFile(path string, dict map[string]string) (message []byte, err error) {
-    message, err = ioutil.ReadFile(path)
+func ReadAndReplaceFromFile(path string, dict map[string]string) (message string, err error) {
+    var data []byte
+    data, err = ioutil.ReadFile(path)
 
-    dataStr := string(message)
+    message = string(data)
     for key, val := range dict {
-        dataStr = strings.Replace(dataStr,key,val,-1)
+        message = strings.Replace(message,key,val,-1)
     }
 
-    message = []byte(dataStr)
     return
 }
 
-func SendPscpMail(message []byte, usermail string) {
+func SendPscpMail(message string, usermail string) {
     
     var (
         c *smtp.Client
@@ -685,7 +696,7 @@ func SendPscpMail(message []byte, usermail string) {
     // Connect to the local SMTP server.
     c, err = smtp.Dial("127.0.0.1:25")
     if err != nil {
-        log.Print(err)
+        log.Printf("Error: %s",err)
         return
     }
     // Set the sender and recipient.
@@ -694,13 +705,13 @@ func SendPscpMail(message []byte, usermail string) {
     // Send the email body.
     wc, err := c.Data()
     if err != nil {
-        log.Print(err)
+        log.Printf("Error: %s",err)
         return
     }
     defer wc.Close()
-    buf := bytes.NewBufferString(string(message))
+    buf := bytes.NewBufferString(message)
     if _, err = buf.WriteTo(wc); err != nil {
-        log.Print(err)
+        log.Printf("Error: %s",err)
         return
     }
 
@@ -794,7 +805,7 @@ func ParseRefsCitesString(paper *Paper, str string, isRefStr bool) bool {
                 paper.cites = append(paper.cites, link)
             }
         } else {
-            fmt.Printf("malformed reference string at i=%d:%s\n", i, str)
+            log.Printf("malformed reference string at i=%d:%s\n", i, str)
             return false
         }
     }
@@ -1173,7 +1184,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
                     ids = append(ids, uint(preId))
                 } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                    log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
             }
             for _, strId := range req.Form["flags[]"] {
@@ -1181,7 +1192,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 if preId, er := strconv.ParseUint(strId, 16, 0); er == nil {
                     flags = append(flags, uint(preId))
                 } else {
-                    fmt.Printf("ERROR: can't convert flag '%s'; skipping\n", strId)
+                    log.Printf("ERROR: can't convert flag '%s'; skipping\n", strId)
                 }
             }
             h.GetDataForIDs(ids,flags,rw)
@@ -1257,7 +1268,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
                     ids = append(ids, uint(preId))
                 } else {
-                    fmt.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                    log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
             }
             for _, strId := range req.Form["flags[]"] {
@@ -1265,7 +1276,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 if preId, er := strconv.ParseUint(strId, 16, 0); er == nil {
                     flags = append(flags, uint(preId))
                 } else {
-                    fmt.Printf("ERROR: can't convert flag '%s'; skipping\n", strId)
+                    log.Printf("ERROR: can't convert flag '%s'; skipping\n", strId)
                 }
             }
             h.GetDataForIDs(ids,flags,rw)
@@ -1285,7 +1296,8 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "<html><head></head><body><p>Unknown request</p></body>\n")
     }
 
-    fmt.Printf("[%s] %s -- %s %s (bytes: %d URL, %d content, %d replied)\n", time.Now().Format(time.RFC3339), req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
+    //fmt.Printf("[%s] %s -- %s %s (bytes: %d URL, %d content, %d replied)\n", time.Now().Format(time.RFC3339), req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
+    log.Printf("%s -- %s %s (bytes: %d URL, %d content, %d replied)\n", req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
 
     runtime.GC()
 }
@@ -1298,12 +1310,12 @@ func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
     
     authorsJSON, err = json.Marshal(paper.authors)
     if err != nil {
-        fmt.Printf("ERROR: Author string failed for %d, error: %s\n",paper.id,err)
+        log.Printf("ERROR: Author string failed for %d, error: %s\n",paper.id,err)
         authorsJSON = []byte("\"\"")
     }
     titleJSON, err = json.Marshal(paper.title)
     if err != nil {
-        fmt.Printf("ERROR: Title string failed for %d, error: %s\n",paper.id,err)
+        log.Printf("ERROR: Title string failed for %d, error: %s\n",paper.id,err)
         titleJSON = []byte("\"\"")
     }
 
@@ -1471,12 +1483,12 @@ func (h *MyHTTPHandler) ProfileAuthenticate(usermail string, passhash string) (s
     tryhash := Sha256(fmt.Sprintf("%s%d", userhash, challenge))
 
     if passhash != tryhash {
-        fmt.Printf("ERROR: ProfileAuthenticate for '%s' - invalid password:  %s vs %s\n", usermail, passhash, tryhash)
+        log.Printf("ERROR: ProfileAuthenticate for '%s' - invalid password:  %s vs %s\n", usermail, passhash, tryhash)
         return
     }
 
     // we're THROUGH!!
-    fmt.Printf("Succesfully authenticated user '%s'\n",usermail)
+    log.Printf("Succesfully authenticated user '%s'\n",usermail)
     success = true
     return
 }
@@ -1543,7 +1555,7 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
         }
     }
     if resetcode == "" {
-        fmt.Printf("ERROR: ProfileRequestResetPassword couldn't generate a resetcode in %d tries!\n",N)
+        log.Printf("ERROR: ProfileRequestResetPassword couldn't generate a resetcode in %d tries!\n",N)
         return
     }
     stmt = h.papers.StatementBegin("UPDATE userdata SET resetcode = ?, resettime = NOW() WHERE usermail = ?", resetcode, h.papers.db.Escape(usermail))
@@ -1717,14 +1729,14 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
     if len(diffnotes) > 0 {
         var oldSavedNotes []SavedNote
         err = json.Unmarshal([]byte(notes),&oldSavedNotes)
-        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        if err != nil { log.Printf("Unmarshal error: %s\n",err) }
 
         var diffSavedNotes []SavedNote
         err = json.Unmarshal([]byte(diffnotes),&diffSavedNotes)
-        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        if err != nil { log.Printf("Unmarshal error: %s\n",err) }
 
-        fmt.Printf("for user %s, read %d notes from db\n", usermail, len(oldSavedNotes))
-        fmt.Printf("for user %s, read %d diff notes from internets\n", usermail, len(diffSavedNotes))
+        //fmt.Printf("for user %s, read %d notes from db\n", usermail, len(oldSavedNotes))
+        //fmt.Printf("for user %s, read %d diff notes from internets\n", usermail, len(diffSavedNotes))
 
         // Merge
         newSavedNotes := MergeSavedNotes(diffSavedNotes, oldSavedNotes)
@@ -1733,7 +1745,7 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
     }
     // compare with hashes we were sent (should match!!)
     if newNoteshash != noteshash {
-        fmt.Printf("Error: for user %s, new sync notes hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
+        log.Printf("Error: for user %s, new sync notes hashes don't match those sent from client: %s vs %s\n", usermail,newNoteshash,noteshash)
         fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
@@ -1747,24 +1759,24 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
     if len(diffgraphs) > 0 {
         var oldSavedGraphs []SavedMultiGraph
         err = json.Unmarshal([]byte(graphs),&oldSavedGraphs)
-        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        if err != nil { log.Printf("Unmarshal error: %s\n",err) }
 
         var diffSavedGraphs []SavedMultiGraph
         err = json.Unmarshal([]byte(diffgraphs),&diffSavedGraphs)
-        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        if err != nil { log.Printf("Unmarshal error: %s\n",err) }
 
-        fmt.Printf("for user %s, read %d graphs from db\n", usermail, len(oldSavedGraphs))
-        fmt.Printf("for user %s, read %d diff graphs from internets\n", usermail, len(diffSavedGraphs))
+        //fmt.Printf("for user %s, read %d graphs from db\n", usermail, len(oldSavedGraphs))
+        //fmt.Printf("for user %s, read %d diff graphs from internets\n", usermail, len(diffSavedGraphs))
 
         // Merge
         newSavedGraphs := MergeSavedMultiGraphs(diffSavedGraphs, oldSavedGraphs)
         newGraphsJSON, err = json.Marshal(newSavedGraphs)
-        fmt.Printf("%s\n",newGraphsJSON)
+        //fmt.Printf("%s\n",newGraphsJSON)
         newGraphshash = Sha1(string(newGraphsJSON))
     }
     // compare with hashes we were sent (should match!!)
     if newGraphshash != graphshash {
-        fmt.Printf("Error: for user %s, new sync graph hashes don't match those sent from client: %s vs %s\n", usermail,newGraphshash,graphshash)
+        log.Printf("Error: for user %s, new sync graph hashes don't match those sent from client: %s vs %s\n", usermail,newGraphshash,graphshash)
         fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
@@ -1778,14 +1790,14 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
     if len(difftags) > 0 {
         var oldSavedTags []SavedTag
         err = json.Unmarshal([]byte(tags),&oldSavedTags)
-        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        if err != nil { log.Printf("Unmarshal error: %s\n",err) }
 
         var diffSavedTags []SavedTag
         err = json.Unmarshal([]byte(difftags),&diffSavedTags)
-        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        if err != nil { log.Printf("Unmarshal error: %s\n",err) }
 
-        fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldSavedTags))
-        fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(diffSavedTags))
+        //fmt.Printf("for user %s, read %d tags from db\n", usermail, len(oldSavedTags))
+        //fmt.Printf("for user %s, read %d diff tags from internets\n", usermail, len(diffSavedTags))
 
         // Merge
         newSavedTags := MergeSavedTags(diffSavedTags, oldSavedTags)
@@ -1794,7 +1806,7 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
     }
     // compare with hashes we were sent (should match!!)
     if newTagshash != tagshash {
-        fmt.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,newTagshash,tagshash)
+        log.Printf("ERROR: for user %s, new sync tag hashes don't match those sent from client: %s vs %s\n", usermail,newTagshash,tagshash)
         fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
@@ -1808,11 +1820,11 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
     if len(diffsettings) > 0 {
         var oldSavedSettings SavedUserSettings
         err = json.Unmarshal([]byte(settings),&oldSavedSettings)
-        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        if err != nil { log.Printf("Unmarshal error: %s\n",err) }
 
         var diffSavedSettings SavedUserSettings
         err = json.Unmarshal([]byte(diffsettings),&diffSavedSettings)
-        if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
+        if err != nil { log.Printf("Unmarshal error: %s\n",err) }
 
         // Merge
         newSavedSettings := MergeSavedSettings(diffSavedSettings, oldSavedSettings)
@@ -1821,7 +1833,7 @@ func (h *MyHTTPHandler) ProfileSync(usermail string, passhash string, diffnotes 
     }
     // compare with hashes we were sent (should match!!)
     if newSettingshash != settingshash {
-        fmt.Printf("ERROR: for user %s, new sync settings hashes don't match those sent from client: %s vs %s\n", usermail,newSettingshash,settingshash)
+        log.Printf("ERROR: for user %s, new sync settings hashes don't match those sent from client: %s vs %s\n", usermail,newSettingshash,settingshash)
         fmt.Fprintf(rw, "{\"succ\":\"false\"}")
         return
     }
@@ -1899,12 +1911,12 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
     var savedNotes []SavedNote
     err = json.Unmarshal([]byte(notesIn),&savedNotes)
     if err != nil {
-        fmt.Printf("Unmarshal error: %s\n",err)
+        log.Printf("Unmarshal error: %s\n",err)
     }
     notesOut, err = json.Marshal(savedNotes)
-    fmt.Printf("Marshaled notes: %s\n", notesOut)
+    //fmt.Printf("Marshaled notes: %s\n", notesOut)
     if notesInHash != Sha1(string(notesOut)) {
-        fmt.Printf("ERROR: LinkSave notesIn doesn't match notesOut\n")
+        log.Printf("ERROR: LinkSave notesIn doesn't match notesOut\n")
         return
     }
 
@@ -1913,12 +1925,12 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
     var savedGraphs []SavedMultiGraph
     err = json.Unmarshal([]byte(graphsIn),&savedGraphs)
     if err != nil {
-        fmt.Printf("Unmarshal error: %s\n",err)
+        log.Printf("Unmarshal error: %s\n",err)
     }
     graphsOut, err = json.Marshal(savedGraphs)
-    fmt.Printf("Marshaled graphs: %s\n", graphsOut)
+    //fmt.Printf("Marshaled graphs: %s\n", graphsOut)
     if graphsInHash != Sha1(string(graphsOut)) {
-        fmt.Printf("ERROR: LinkSave graphsIn doesn't match graphsOut\n")
+        log.Printf("ERROR: LinkSave graphsIn doesn't match graphsOut\n")
         return
     }
 
@@ -1927,18 +1939,18 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
     var savedTags []SavedTag
     err = json.Unmarshal([]byte(tagsIn),&savedTags)
     if err != nil {
-        fmt.Printf("Unmarshal error: %s\n",err)
+        log.Printf("Unmarshal error: %s\n",err)
     }
     tagsOut, err = json.Marshal(savedTags)
-    fmt.Printf("Marshaled tags: %s\n", tagsOut)
+    //fmt.Printf("Marshaled tags: %s\n", tagsOut)
     if tagsInHash != Sha1(string(tagsOut)) {
-        fmt.Printf("ERROR: LinkSave tagsIn doesn't match tagsOut\n")
+        log.Printf("ERROR: LinkSave tagsIn doesn't match tagsOut\n")
         return
     }
 
     // Check modcode
     if len(modcode) > 16 {
-        fmt.Printf("ERROR: LinkSave given code are too long\n")
+        log.Printf("ERROR: LinkSave given code are too long\n")
         return
     }
     var code string
@@ -1967,7 +1979,7 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
             }
         }
         if code == "" || modcode == "" {
-            fmt.Printf("ERROR: LinkSave couldn't generate a code and modcode in %d tries!\n",N)
+            log.Printf("ERROR: LinkSave couldn't generate a code and modcode in %d tries!\n",N)
             return
         } else {
             stmt := h.papers.StatementBegin("INSERT INTO sharedata (code,modkey,lastloaded) VALUES (?,?,NOW())",h.papers.db.Escape(code),h.papers.db.Escape(modcode))
@@ -2031,7 +2043,7 @@ func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
 
 func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.ResponseWriter) {
     if len(ids) != len(flags) {
-        fmt.Printf("ERROR: GetDataForIDs has length mismatch between ids and flags\n")
+        log.Printf("ERROR: GetDataForIDs has length mismatch between ids and flags\n")
         fmt.Fprintf(rw, "null")
         return
     }
@@ -2039,14 +2051,14 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
     row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
     h.papers.QueryEnd()
     if row == nil {
-        fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from MySQL\n")
+        log.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from MySQL\n")
         fmt.Fprintf(rw, "[]")
         return
     }
     var ok bool
     var db uint64
     if db, ok = row[0].(uint64); !ok {
-        fmt.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from Row\n")
+        log.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from Row\n")
         fmt.Fprintf(rw, "[]")
         return
     }
@@ -2059,7 +2071,7 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
         paper := h.papers.QueryPaper(id, "")
         // check the paper exists
         if paper == nil {
-            fmt.Printf("ERROR: GetDataForIDs could not find paper for id %d; skipping\n", id)
+            log.Printf("ERROR: GetDataForIDs could not find paper for id %d; skipping\n", id)
             continue
         }
         if !first {
