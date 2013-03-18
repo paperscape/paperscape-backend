@@ -448,7 +448,7 @@ func (papers *PapersEnv) StatementBindSingleRow(stmt *mysql.Statement, params ..
         eof, err := stmt.Fetch()
         // expect only one row:
         if err != nil {
-            fmt.Println("MySQL statement error;", err)
+            log.Printf("MySQL statement error; %s\n", err)
             success = false
         } else if eof {
             //fmt.Println("MySQL statement error; eof")
@@ -457,7 +457,7 @@ func (papers *PapersEnv) StatementBindSingleRow(stmt *mysql.Statement, params ..
         }
         err = stmt.FreeResult()
         if err != nil {
-            fmt.Println("MySQL statement error;", err)
+            log.Printf("MySQL statement error; %s\n", err)
             success = false
         }
     } else {
@@ -1151,8 +1151,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 // strengthen in future)
                 giveVersion = true
             }
-            h.ProfileChallenge(req.Form["pchal"][0], giveSalt, giveVersion, rw)
-            logDescription = fmt.Sprintf("pchal %s",req.Form["pchal"][0])
+            success := h.ProfileChallenge(req.Form["pchal"][0], giveSalt, giveVersion, rw)
+            if !success {
+                logDescription = fmt.Sprintf("pchal %s",req.Form["pchal"][0])
+            }
         } else if req.Form["pload"] != nil && req.Form["h"] != nil {
             // profile-load: either login request or load request from an autosave
             // h = passHash, nh = notessHash, gh = graphsHash, th = tagsHash, sh = settingshash
@@ -1161,13 +1163,15 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             if req.Form["gh"] != nil { gh = req.Form["gh"][0] }
             if req.Form["th"] != nil { th = req.Form["th"][0] }
             if req.Form["sh"] != nil { sh = req.Form["sh"][0] }
-            h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], nh, gh, th, sh, rw)
-            logDescription = fmt.Sprintf("pload %s",req.Form["pload"][0])
+            loaded, success := h.ProfileLoad(req.Form["pload"][0], req.Form["h"][0], nh, gh, th, sh, rw)
+            if loaded || !success {
+                logDescription = fmt.Sprintf("pload %s",req.Form["pload"][0])
+            }
         } else if req.Form["pchpw"] != nil && req.Form["h"] != nil && req.Form["p"] != nil && req.Form["s"] != nil && req.Form["pv"] != nil {
             // profile-change-password: change password request
             // h = passHash, p = payload, s = sprinkle (salt), pv = password version
             h.ProfileChangePassword(req.Form["pchpw"][0], req.Form["h"][0], req.Form["p"][0], req.Form["s"][0], req.Form["pv"][0], rw)
-            logDescription = fmt.Sprintf("pchpw %s pv=%d",req.Form["pchpd"][0],req.Form["pv"][0])
+            logDescription = fmt.Sprintf("pchpw %s pv=%s",req.Form["pchpw"][0],req.Form["pv"][0])
         } else if req.Form["prrp"] != nil {
             // profile-request-reset-password: request reset link sent to email
             h.ProfileRequestResetPassword(req.Form["prrp"][0], rw)
@@ -1186,9 +1190,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             logDescription = fmt.Sprintf("lload %s",req.Form["lload"][0])
         } else if req.Form["gdb"] != nil {
             // get-date-boundaries
-            h.GetDateBoundaries(rw)
-            // Don't log gdb?
-            //logDescription = fmt.Sprintf("gdb")
+            success := h.GetDateBoundaries(rw)
+            if !success {
+                logDescription = fmt.Sprintf("gdb")
+            }
         } else if req.Form["gdata[]"] != nil && req.Form["flags[]"] != nil {
             var ids, flags []uint
             for _, strId := range req.Form["gdata[]"] {
@@ -1479,9 +1484,11 @@ func (h *MyHTTPHandler) SetChallenge(usermail string) (challenge int64, success 
 
 /* ProfileChallenge */
 /* check usermail exists and get the 'salt' and/or 'version' */
-func (h *MyHTTPHandler) ProfileChallenge(usermail string, giveSalt bool, giveVersion bool, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileChallenge(usermail string, giveSalt bool, giveVersion bool, rw http.ResponseWriter) (success bool) {
     var salt uint64
     var pwdversion uint64
+
+    success = false
 
     stmt := h.papers.StatementBegin("SELECT salt,pwdversion FROM userdata WHERE usermail = ?",h.papers.db.Escape(usermail))
     if !h.papers.StatementBindSingleRow(stmt,&salt,&pwdversion) {
@@ -1490,8 +1497,8 @@ func (h *MyHTTPHandler) ProfileChallenge(usermail string, giveSalt bool, giveVer
     }
 
     // generate random "challenge" code
-    challenge, success := h.SetChallenge(usermail)
-    if success != true {
+    challenge, ok := h.SetChallenge(usermail)
+    if ok != true {
         fmt.Fprintf(rw, "false")
         return
     }
@@ -1505,6 +1512,9 @@ func (h *MyHTTPHandler) ProfileChallenge(usermail string, giveSalt bool, giveVer
         fmt.Fprintf(rw, ",\"pwdv\":\"%d\"", uint(pwdversion))
     }
     fmt.Fprintf(rw, "}")
+    
+    success = true
+    return
 }
 
 /* ProfileAuthenticate */
@@ -1529,7 +1539,7 @@ func (h *MyHTTPHandler) ProfileAuthenticate(usermail string, passhash string) (s
     }
 
     // we're THROUGH!!
-    log.Printf("Succesfully authenticated user '%s'\n",usermail)
+    //log.Printf("Succesfully authenticated user '%s'\n",usermail)
     success = true
     return
 }
@@ -1683,15 +1693,20 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
 
 /* If given papers/tags hashes don't match with db, send user all their papers and tags.
    Login also uses this function by providing empty hashes. */
-func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash string, graphshash string, tagshash string, settingshash string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash string, graphshash string, tagshash string, settingshash string, rw http.ResponseWriter) (loaded bool, success bool) {
+    
+    // used for logging whether user loaded
+    loaded = false
+    success = false
+
     if !h.ProfileAuthenticate(usermail,passhash) {
         return
     }
 
     // generate random "challenge", as we expect user to reply
     // with a sync request if this is an autosave
-    challenge, success := h.SetChallenge(usermail)
-    if success != true {
+    challenge, ok := h.SetChallenge(usermail)
+    if ok != true {
         return
     }
 
@@ -1712,6 +1727,7 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
     // just return the hashes
     if noteshash != "" && graphshash != "" && tagshash != "" && settingshash != "" && noteshashDb == noteshash && graphshashDb == graphshash && tagshashDb == tagshash && settingshashDb == settingshash {
         fmt.Fprintf(rw, "}")
+        success = true
         return
     }
 
@@ -1722,15 +1738,6 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
         fmt.Fprintf(rw, "}")
         return
     }
-
-    // output papers in json format
-    //fmt.Fprintf(rw, "{\"name\":\"%s\",\"chal\":\"%d\"", usermail,challenge)
-
-    // PAPERS
-    //papersList := h.PaperListFromDatabaseJSON(notes,graphs,tags)
-    //fmt.Printf("for profile %s, read %d papers\n", usermail, len(papersList)) // TEMP
-    //fmt.Fprintf(rw, ",\"papr\":")
-    //h.PrintJSONPapersList(rw,papersList)
 
     // NOTES
     fmt.Fprintf(rw, ",\"note\":%s",string(notes))
@@ -1746,6 +1753,10 @@ func (h *MyHTTPHandler) ProfileLoad(usermail string, passhash string, noteshash 
 
     // end
     fmt.Fprintf(rw, "}")
+    
+    success = true
+    loaded = true
+    return
 }
 
 /* Profile Sync */
@@ -2038,7 +2049,10 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
     fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"}",code,modcode)
 }
 
-func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
+func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
+    
+    success = false
+
     // perform query
     if !h.papers.QueryBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5") {
         return
@@ -2080,6 +2094,8 @@ func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) {
         numResults += 1
     }
     fmt.Fprintf(rw, "}")
+    success = true
+    return
 }
 
 func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.ResponseWriter) {
