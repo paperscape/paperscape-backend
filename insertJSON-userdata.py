@@ -130,7 +130,6 @@ def doWork(dbCursor, dryRun, column, afterLabel, insertStr):
         depth = []
         while not lexer.isEnd():
             c = lexer.nextControlChar()
-            print c
             if lexer.insideObject() and (c == ',' or c == '{') :
                 # get label
                 label = lexer.getString()
