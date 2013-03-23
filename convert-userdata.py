@@ -150,7 +150,7 @@ def doWork(dbCursor, usermail, dryRun):
         print "using original tags column"
         tagsColumn = origTags
     else:
-        tagsColumn = "[{}]".format(','.join("{{\"name\":\"{}\",\"ind\":{},\"blob\":false,\"ids\":[{}]}}".format(tagName, tagIndex, ','.join(str(id) for id in tagIds)) for tagName, tagIndex, tagIds in tags))
+        tagsColumn = "[{}]".format(','.join("{{\"name\":\"{}\",\"ind\":{},\"blob\":false,\"halo\":false,\"ids\":[{}]}}".format(tagName, tagIndex, ','.join(str(id) for id in tagIds)) for tagName, tagIndex, tagIds in tags))
 
     # make notes column
     notes = []
