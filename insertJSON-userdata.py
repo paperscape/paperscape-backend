@@ -107,6 +107,8 @@ class MiniLexer(object):
             self.__pos = item
 
 def doWork(dbCursor, dryRun, column, afterLabel, insertStr):
+    print column, afterLabel, insertStr
+
     query = "SELECT %s, usermail FROM userdata" % column
     hits = dbCursor.execute(query)
     if hits == 0:
@@ -128,25 +130,25 @@ def doWork(dbCursor, dryRun, column, afterLabel, insertStr):
         depth = []
         while not lexer.isEnd():
             c = lexer.nextControlChar()
-            # Make sure we're inside object:
-            if lexer.insideObject() :
+            print c
+            if lexer.insideObject() and (c == ',' or c == '{') :
                 # get label
                 label = lexer.getString()
                 lexer.getChar(':')
-                if label == afterLabel :
+                if afterLabel == "" or label == afterLabel :
                     # Find next insertion point at this depth
                     # (ignore deeper depths ?)
                     while not lexer.isEnd():
                         nc = lexer.nextControlChar()
                         if nc == ',' or nc == '}' :
-                            insertPositions.append(lexer["pos"])
+                            insertPositions.append(lexer["pos"]-1)
                             if nc != '}' :
                                 lexer.getControlChar('}')
                             break
 
         # Do insertion
         for ind in reversed(insertPositions) :
-            columnStr = columnStr[:ind] + insertStr + columnStr[ind:]
+            columnStr = columnStr[:ind] + "," + insertStr + columnStr[ind:]
 
         try :
             # check valid json:
@@ -163,7 +165,9 @@ if __name__ == "__main__":
     cmdParser.add_argument("--db", metavar="<MySQL database>", help="server name (or localhost) of MySQL database to connect to")
     cmdParser.add_argument("--dry-run", action="store_true", help="do not do anything destructive (like modify the database)")
     #cmdParser.add_argument("")
-    #cmdParser.add_argument("usermail", nargs=1, help="usermail")
+    cmdParser.add_argument("column", nargs=1, help="JSON column in userdata to operate on")
+    cmdParser.add_argument("--after-label", metavar="<string>", default="", help="insert after this label (useful when order of JSON is strict)")
+    cmdParser.add_argument("insert", nargs=1, help="label string to insert into objects in format '\"key\":value'")
     args = cmdParser.parse_args()
 
     # connect to our meta-data database
@@ -171,7 +175,7 @@ if __name__ == "__main__":
     dbCursor = dbConnection.cursor()
 
     # do the work
-    doWork(dbCursor, args.dry_run, "tags", "blob", "\"halo\":false,")
+    doWork(dbCursor, args.dry_run, args.column[0], args.after_label, args.insert[0])
 
     # close database connection
     dbConnection.close()
