@@ -149,6 +149,7 @@ type SavedTag struct {
     Name    string    `json:"name"`
     Ind     *uint     `json:"ind"` // index of graph in array
     Blob    *bool     `json:"blob"`
+    Halo    *bool     `json:"halo"`
     Ids     []uint    `json:"ids"`
     Rm      bool      `json:"rm,omitempty"` // remove
 }
@@ -365,6 +366,9 @@ func MergeSavedTags (diffSavedTags []SavedTag, oldSavedTags []SavedTag) []SavedT
         // ### MERGE ###
         if diffTag.Blob != nil {
             oldTagPtr.Blob = diffTag.Blob
+        }
+        if diffTag.Halo != nil {
+            oldTagPtr.Halo = diffTag.Halo
         }
         if diffTag.Ind != nil {
             oldTagPtr.Ind = diffTag.Ind
