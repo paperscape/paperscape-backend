@@ -25,6 +25,8 @@ class MiniLexer(object):
     def __init__(self, str):
         self.__str = str
         self.__pos = 0
+        self.__inString = False
+        self.__depth = []
 
     def isEnd(self):
         return self.__pos >= len(self.__str)
@@ -36,7 +38,7 @@ class MiniLexer(object):
         if not self.isChar(c):
             raise Exception("ERROR: expecting character {}".format(c))
         self.__pos += 1
-
+    
     def getNumber(self):
         neg = False
         if self.isChar('-'):
@@ -62,32 +64,97 @@ class MiniLexer(object):
         self.getChar('"')
         return self.__str[start:end]
 
-def doWork(dbCursor, dryRun):
-    hits = dbCursor.execute("SELECT tags, usermail FROM userdata")
+    def nextControlChar(self):
+        while not self.isEnd() :
+            # JSON shouldn't have two consecutive strings
+            if self.isChar('"') :
+                self.getString()
+            if self.isEnd() : break 
+            c = self.__str[self.__pos]
+            self.__pos += 1
+            # Keep account of our depth
+            if c == '{' :
+                self.__depth.append(0)
+            elif c == '}' :
+                self.__depth.pop()
+            elif c == '[' :
+                self.__depth.append(1)
+            elif c == ']' :
+                self.__depth.pop()
+            if c == ',' or c == '{' or c == '}' or c == '[' or c == ']' or c == ':' :
+                return c
+        return None
+
+    def getControlChar(self,c) :
+        while not self.isEnd() :
+            if self.nextControlChar() == c :
+                return
+        raise Exception("ERROR: expecting character {}".format(c))
+            
+
+    def insideObject(self) :
+        return (len(self.__depth) > 0 and self.__depth[-1] == 0)
+
+    def insideList(self) :
+        return (len(self.__depth) > 0 and self.__depth[-1] == 1)
+
+    def __getitem__(self, index):
+        if index == "pos" :
+            return self.__pos
+
+    def __setitem__(self, index, item):
+        if index == "pos" :
+            self.__pos = item
+
+def doWork(dbCursor, dryRun, column, afterLabel, insertStr):
+    query = "SELECT %s, usermail FROM userdata" % column
+    hits = dbCursor.execute(query)
     if hits == 0:
         print "ERROR:"
         return
 
-    tagsPerUser = [] 
+    columnPerUser = [] 
 
     row = dbCursor.fetchone()
     while row is not None :
-        tagsPerUser.append([row[0],row[1]])
+        columnPerUser.append([row[0],row[1]])
         row = dbCursor.fetchone()
 
-    for i in xrange(len(tagsPerUser)) : 
-        tagsStr = tagsPerUser[i][0]
-        usermail = tagsPerUser[i][1]
-        
-        
+    for columnStr, usermail in columnPerUser : 
+        insertPositions = []
+
+        # Find positions to insert
+        lexer = MiniLexer(columnStr)
+        depth = []
+        while not lexer.isEnd():
+            c = lexer.nextControlChar()
+            # Make sure we're inside object:
+            if lexer.insideObject() :
+                # get label
+                label = lexer.getString()
+                lexer.getChar(':')
+                if label == afterLabel :
+                    # Find next insertion point at this depth
+                    # (ignore deeper depths ?)
+                    while not lexer.isEnd():
+                        nc = lexer.nextControlChar()
+                        if nc == ',' or nc == '}' :
+                            insertPositions.append(lexer["pos"])
+                            if nc != '}' :
+                                lexer.getControlChar('}')
+                            break
+
+        # Do insertion
+        for ind in reversed(insertPositions) :
+            columnStr = columnStr[:ind] + insertStr + columnStr[ind:]
 
         try :
             # check valid json:
-            json.loads(tagsStr)
+            json.loads(columnStr)
 
-            executeSqlQuery(dbCursor, dryRun, "UPDATE userdata SET tags=%s WHERE usermail=%s", (tagsStr, usermail))
+            executeSqlQuery(dbCursor, dryRun, "UPDATE userdata SET tags=%s WHERE usermail=%s", (columnStr, usermail))
         except Exception as e:
-            print "ERROR", e, tagsStr
+            print "ERROR", e, columnStr
 
 
 if __name__ == "__main__":
@@ -104,7 +171,7 @@ if __name__ == "__main__":
     dbCursor = dbConnection.cursor()
 
     # do the work
-    doWork(dbCursor, args.dry_run)
+    doWork(dbCursor, args.dry_run, "tags", "blob", "\"halo\":false,")
 
     # close database connection
     dbConnection.close()
