@@ -34,7 +34,7 @@ import (
 // Any client "kea" instances that don't match this will
 // be prompted to do a hard reload of the latest version
 // Kea equivalent is set in profile.js
-var VERSION = "0.1"
+var VERSION = "0.12"
 
 // Max number of ids we will convert from human to internal form at a time
 // We need some sane limit to stop mysql being spammed! If profile bigger than this,
