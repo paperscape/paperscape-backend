@@ -56,10 +56,10 @@ func main() {
 
     // parse command line options
     flag.Parse()
-    
+
     // set log file to use file instead of stdout
     if len(*flagLogFile) != 0 {
-        file, err := os.OpenFile(*flagLogFile, os.O_RDWR|os.O_APPEND|os.O_CREATE,0640)
+        file, err := os.OpenFile(*flagLogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE,0640)
         if err == nil {
             log.SetOutput(file)
         } else {
@@ -1268,7 +1268,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         }
 
         // tail of JSON object
-        fmt.Fprintf(rw, ",\"bC2S\":%d,\"bS2C\":%d})\n", int64(len(req.URL.String())) + req.ContentLength, rw.bytesWritten)
+        fmt.Fprintf(rw, "})\n")
     } else if req.Method == "POST" && req.Form["echo"] != nil && req.Form["fn"] != nil {
         // POST - echo file so that it can be saved
         rw.Header().Set("Access-Control-Allow-Origin", "*") // for cross domain POSTing; see https://developer.mozilla.org/en/http_access_control
@@ -1338,7 +1338,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         }
 
         // tail of JSON object
-        fmt.Fprintf(rw, ",\"bC2S\":%d,\"bS2C\":%d}\n", int64(len(req.URL.String())) + req.ContentLength, rw.bytesWritten)
+        fmt.Fprintf(rw, "}\n")
     } else {
         // unknown request, return html
         fmt.Fprintf(rw, "<html><head></head><body><p>Unknown request</p></body>\n")
@@ -1346,7 +1346,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 
     //fmt.Printf("[%s] %s -- %s %s (bytes: %d URL, %d content, %d replied)\n", time.Now().Format(time.RFC3339), req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
     if logDescription != "" {
-        log.Printf("%s -- %s %s -- (bytes: %d URL, %d content, %d replied)\n", req.RemoteAddr, req.Method, logDescription, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
+        log.Printf("%s -- %s %s -- bytes: %d URL, %d content, %d replied\n", req.RemoteAddr, req.Method, logDescription, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
     }
 
     runtime.GC()
@@ -1357,7 +1357,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
     var err error
     var authorsJSON, titleJSON []byte
-    
+
     authorsJSON, err = json.Marshal(paper.authors)
     if err != nil {
         log.Printf("ERROR: Author string failed for %d, error: %s\n",paper.id,err)
