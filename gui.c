@@ -26,12 +26,15 @@ paper_t *mouse_paper = NULL;
 int id_range_start = 2050000000;
 int id_range_end = 2060000000;
 
-static int iterate_counter = -500;
+static int iterate_counter = 0;
 static gboolean map_env_update(map_env_t *map_env) {
     bool converged = false;
     for (int i = 0; i < 10; i++) {
         iterate_counter += 1;
-        if (map_env_iterate(map_env, mouse_paper, boost_step_size, iterate_counter > -200)) {
+        if (iterate_counter == 300) {
+            map_env_toggle_do_close_repulsion(map_env);
+        }
+        if (map_env_iterate(map_env, mouse_paper, boost_step_size)) {
             converged = true;
             break;
         }
@@ -140,6 +143,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_inc_num_papers(map_env, 10000);
         */
 
+    } else if (event->keyval == GDK_KEY_g) {
+        map_env_toggle_draw_grid(map_env);
+
     } else if (event->keyval == GDK_KEY_J) {
         // write map to JSON
         int y, m, d;
@@ -153,12 +159,17 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_k) {
         map_env_jolt(map_env, 2.5);
 
-    } else if (event->keyval == GDK_KEY_t) {
-        map_env_toggle_do_tred(map_env);
-    } else if (event->keyval == GDK_KEY_g) {
-        map_env_toggle_draw_grid(map_env);
     } else if (event->keyval == GDK_KEY_l) {
         map_env_toggle_draw_paper_links(map_env);
+
+    } else if (event->keyval == GDK_KEY_q) {
+        gtk_main_quit();
+
+    } else if (event->keyval == GDK_KEY_r) {
+        map_env_toggle_do_close_repulsion(map_env);
+
+    } else if (event->keyval == GDK_KEY_t) {
+        map_env_toggle_do_tred(map_env);
 
     } else if (event->keyval == GDK_KEY_w) {
         write_tiles(map_env, 1000, 1000, "out.png", NULL);
@@ -186,9 +197,6 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_rotate_all(map_env, 0.1);
     } else if (event->keyval == GDK_KEY_Right) {
         map_env_rotate_all(map_env, -0.1);
-
-    } else if (event->keyval == GDK_KEY_q) {
-        gtk_main_quit();
     }
 
     if (!update_running) {
@@ -388,11 +396,12 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     map_env_get_max_id_range(map_env, &id_min, &id_max);
     id_range_start = id_min;
     id_range_end = id_min + 20000000; // plus 2 years
-    map_env_select_date_range(map_env, id_range_start, id_range_end);
 
     // for starting part way through
-    id_range_start = date_to_unique_id(2011, 3, 0);
+    id_range_start = date_to_unique_id(2012, 3, 0);
     id_range_end = id_range_start + 20000000; // plus 2 years
-    //id_range_end = id_range_start +  5000000; // plus 0.5 year
+    id_range_end = id_range_start +  3000000; // plus 0.5 year
+    //id_range_start = id_min; id_range_end = id_max; // full range
+
     map_env_select_date_range(map_env, id_range_start, id_range_end);
 }

@@ -23,6 +23,7 @@ void map_env_zoom(map_env_t *map_env, double screen_x, double screen_y, double a
 void map_env_toggle_do_tred(map_env_t *map_env);
 void map_env_toggle_draw_grid(map_env_t *map_env);
 void map_env_toggle_draw_paper_links(map_env_t *map_env);
+void map_env_toggle_do_close_repulsion(map_env_t *map_env);
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt);
 void map_env_adjust_link_strength(map_env_t *map_env, double amt);
 
@@ -35,7 +36,7 @@ void map_env_rotate_all(map_env_t *map_env, double angle);
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t *info_out);
 void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr);
-bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size, bool do_close_repulsion);
+bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size);
 
 #endif // _INCLUDED_MAP_H
 

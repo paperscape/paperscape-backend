@@ -7,12 +7,10 @@
 
 #include "xiwilib.h"
 #include "common.h"
+#include "force.h"
 #include "quadtree.h"
+#include "octtree.h"
 #include "map.h"
-
-static double anti_gravity_strength = 0.4;
-static double link_strength = 0.015;
-static bool do_close_repulsion = false;
 
 struct _map_env_t {
     // loaded
@@ -24,11 +22,15 @@ struct _map_env_t {
     paper_t **papers;
 
     quad_tree_t *quad_tree;
+    oct_tree_t *oct_tree;
 
     int grid_w;
     int grid_h;
     int grid_d;
     paper_t **grid;
+
+    force_params_t force_params;
+    bool do_3d;
 
     bool do_tred;
     bool draw_grid;
@@ -41,7 +43,7 @@ struct _map_env_t {
     double step_size;
 
     // standard deviation of the positions of the papers
-    double x_sd, y_sd;
+    double x_sd, y_sd, z_sd;
 };
 
 map_env_t *map_env_new() {
@@ -51,10 +53,16 @@ map_env_t *map_env_new() {
     map_env->num_papers = 0;
     map_env->papers = NULL;
     map_env->quad_tree = m_new(quad_tree_t, 1);
+    map_env->oct_tree = m_new(oct_tree_t, 1);
     map_env->grid_w = 160;
     map_env->grid_h = 160;
     map_env->grid_d = 20;
     map_env->grid = m_new0(paper_t*, map_env->grid_w * map_env->grid_h * map_env->grid_d);
+
+    map_env->force_params.do_close_repulsion = false;
+    map_env->force_params.anti_gravity_strength = 0.4;
+    map_env->force_params.link_strength = 0.015;
+    map_env->do_3d = true;
 
     map_env->do_tred = false;
     map_env->draw_grid = false;
@@ -119,6 +127,7 @@ void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers) {
         if (!p->pos_valid) {
             p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
             p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
+            p->z = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
         }
     }
 }
@@ -135,6 +144,7 @@ void map_env_random_papers(map_env_t *map_env, int n) {
         p->mass = M_PI * p->r * p->r;
         p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
         p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->z = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
         p->num_refs = 0;
     }
@@ -156,6 +166,7 @@ void map_env_papers_test1(map_env_t *map_env, int n) {
         p->r = sqrt(p->mass / M_PI);
         p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
         p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->z = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
         if (i == 0) {
             p->num_refs = 0;
@@ -183,6 +194,7 @@ void map_env_papers_test2(map_env_t *map_env, int n) {
         p->r = sqrt(p->mass / M_PI);
         p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
         p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->z = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
         if (i < 2) {
             p->num_refs = 0;
@@ -239,18 +251,25 @@ void map_env_toggle_draw_paper_links(map_env_t *map_env) {
     map_env->draw_paper_links = !map_env->draw_paper_links;
 }
 
+void map_env_toggle_do_close_repulsion(map_env_t *map_env) {
+    map_env->force_params.do_close_repulsion = !map_env->force_params.do_close_repulsion;
+}
+
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt) {
-    anti_gravity_strength *= amt;
+    map_env->force_params.anti_gravity_strength *= amt;
 }
 
 void map_env_adjust_link_strength(map_env_t *map_env, double amt) {
-    link_strength *= amt;
+    map_env->force_params.link_strength *= amt;
 }
 
+static double angle = 0;
+
 void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
-    double x = p->x;
+    //double x = p->x;
+    double x = cos(angle) * p->x + sin(angle) * p->z;
     double y = p->y;
-    double w = 2*p->r;
+    double w = 1.2*p->r;
     if (p->kind == 1) {
         cairo_set_source_rgba(cr, 0.75, 0.75, 1, 1);
     } else if (p->kind == 2) {
@@ -276,7 +295,8 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     cairo_rectangle(cr, x-0.5*w, y-0.5*h, w, h);
     cairo_stroke(cr);
     */
-    double x = p->x;
+    //double x = p->x;
+    double x = cos(angle) * p->x + sin(angle) * p->z;
     double y = p->y;
     double w = p->r;
     double age = p->age;
@@ -393,35 +413,27 @@ void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double 
     }
 }
 
-void map_env_centre_and_orient(map_env_t *map_env) {
-    if (map_env->num_papers == 0) {
-        return;
+void oct_tree_draw_grid(cairo_t *cr, oct_tree_node_t *o, double min_x, double min_y, double min_z, double max_x, double max_y, double max_z) {
+    /*
+    if (o != NULL) {
+        if (o->num_papers == 1) {
+            cairo_rectangle(cr, min_x, min_y, max_x - min_x, max_y - min_y);
+            cairo_fill(cr);
+        } else if (o->num_papers > 1) {
+            double mid_x = 0.5 * (min_x + max_x);
+            double mid_y = 0.5 * (min_y + max_y);
+            cairo_move_to(cr, min_x, mid_y);
+            cairo_line_to(cr, max_x, mid_y);
+            cairo_move_to(cr, mid_x, min_y);
+            cairo_line_to(cr, mid_x, max_y);
+            cairo_stroke(cr);
+            oct_tree_draw_grid(cr, o->q0, min_x, min_y, mid_x, mid_y);
+            oct_tree_draw_grid(cr, o->q1, mid_x, min_y, max_x, mid_y);
+            oct_tree_draw_grid(cr, o->q2, min_x, mid_y, mid_x, max_y);
+            oct_tree_draw_grid(cr, o->q3, mid_x, mid_y, max_x, max_y);
+        }
     }
-
-    // compute the moments of the graph
-    double mom_x = 0.0;
-    double mom_y = 0.0;
-    double mom_xx = 0.0;
-    double mom_xy = 0.0;
-    double mom_yy = 0.0;
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
-        mom_x += p->x;
-        mom_y += p->y;
-        mom_xx += p->x * p->x;
-        mom_xy += p->x * p->y;
-        mom_yy += p->y * p->y;
-    }
-    mom_x /= map_env->num_papers;
-    mom_y /= map_env->num_papers;
-    mom_xx /= map_env->num_papers;
-    mom_xy /= map_env->num_papers;
-    mom_yy /= map_env->num_papers;
-
-    mom_xx = sqrt(mom_xx);
-    mom_yy = sqrt(mom_yy);
-
-    printf("moments: %f %f; %f %f %f\n", mom_x, mom_y, mom_xx, mom_xy, mom_yy);
+    */
 }
 
 static int paper_cmp_id(const void *in1, const void *in2) {
@@ -442,7 +454,15 @@ static int paper_cmp_radius(const void *in1, const void *in2) {
     }
 }
 
-void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
+static int paper_cmp_depth(const void *in1, const void *in2) {
+    paper_t *p1 = *(paper_t **)in1;
+    paper_t *p2 = *(paper_t **)in2;
+    double z1 = -sin(angle) * p1->x + cos(angle) * p1->z;
+    double z2 = -sin(angle) * p2->x + cos(angle) * p2->z;
+    return z1 - z2;
+}
+
+void map_env_draw_2d(map_env_t *map_env, cairo_t *cr, int width, int height) {
     // clear bg
     cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
     cairo_rectangle(cr, 0, 0, width, height);
@@ -463,10 +483,14 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
         cairo_line_to(cr, 100, 0);
         cairo_stroke(cr);
 
-        // the quad tree grid
+        // the quad/oct tree grid
         cairo_set_line_width(cr, line_width_1px);
         cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
-        quad_tree_draw_grid(cr, map_env->quad_tree->root, map_env->quad_tree->min_x, map_env->quad_tree->min_y, map_env->quad_tree->max_x, map_env->quad_tree->max_y);
+        if (!map_env->do_3d) {
+            quad_tree_draw_grid(cr, map_env->quad_tree->root, map_env->quad_tree->min_x, map_env->quad_tree->min_y, map_env->quad_tree->max_x, map_env->quad_tree->max_y);
+        } else {
+            oct_tree_draw_grid(cr, map_env->oct_tree->root, map_env->oct_tree->min_x, map_env->oct_tree->min_y, map_env->oct_tree->min_z, map_env->oct_tree->max_x, map_env->oct_tree->max_y, map_env->oct_tree->max_z);
+        }
 
         /*
         // grid density
@@ -569,6 +593,39 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
     cairo_set_source_rgb(cr, 0, 0, 0);
     cairo_set_font_size(cr, 16);
     draw_big_labels(cr, map_env);
+}
+
+void map_env_draw_3d(map_env_t *map_env, cairo_t *cr, int width, int height) {
+    // clear bg
+    cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
+    cairo_rectangle(cr, 0, 0, width, height);
+    cairo_fill(cr);
+
+    cairo_set_matrix(cr, &map_env->tr_matrix);
+    cairo_translate(cr, 0.5 * width / map_env->tr_matrix.xx, 0.5 * height / map_env->tr_matrix.yy);
+
+    // sort the papers array by z-depth, smallest first
+    qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_depth);
+
+    angle += 0.05;
+
+    // draw papers, furthers away first
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        draw_paper_bg(cr, map_env, p);
+        draw_paper(cr, map_env, p);
+    }
+
+    // sort the papers array by id
+    qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_id);
+}
+
+void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
+    if (!map_env->do_3d) {
+        map_env_draw_2d(map_env, cr, width, height);
+    } else {
+        map_env_draw_3d(map_env, cr, width, height);
+    }
 
     // create info string to return
     if (vstr_info != NULL) {
@@ -584,10 +641,10 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
         }
         vstr_printf(vstr_info, "energy: %.3g\n", map_env->energy);
         vstr_printf(vstr_info, "step size: %.3g\n", map_env->step_size);
-        vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", anti_gravity_strength);
-        vstr_printf(vstr_info, "link strength: %.3f\n", link_strength);
+        vstr_printf(vstr_info, "do close repulsion: %d\n", map_env->force_params.do_close_repulsion);
+        vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", map_env->force_params.anti_gravity_strength);
+        vstr_printf(vstr_info, "link strength: %.3f\n", map_env->force_params.link_strength);
         vstr_printf(vstr_info, "transitive reduction: %d\n", map_env->do_tred);
-        vstr_printf(vstr_info, "do close repulsion: %d\n", do_close_repulsion);
     }
 }
 
@@ -617,7 +674,11 @@ void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr) {
         if (i > 0) {
             vstr_printf(vstr, ",");
         }
-        vstr_printf(vstr, "[%d,%d,%d,%d,%d,", p->id, p->kind, double_for_json(p->x), double_for_json(p->y), double_for_json(p->r));
+        vstr_printf(vstr, "[%d,%d,%d,%d,", p->id, p->kind, double_for_json(p->x), double_for_json(p->y));
+        if (map_env->do_3d) {
+            vstr_printf(vstr, "%d,", double_for_json(p->z));
+        }
+        vstr_printf(vstr, "%d,", double_for_json(p->r));
         vstr_add_json_str(vstr, p->authors);
         vstr_add_str(vstr, ",");
         vstr_add_json_str(vstr, p->title);
@@ -666,135 +727,25 @@ static void map_env_init_forces(map_env_t *map_env) {
     }
 }
 
-// q1 is a leaf against which we check q2
-static void quad_tree_node_forces2(quad_tree_node_t *q1, quad_tree_node_t *q2) {
-    if (q2 == NULL) {
-        // q2 is empty node
-    } else {
-        // q2 is leaf or internal node
-
-        // compute distance from q1 to centroid of q2
-        double dx = q1->x - q2->x;
-        double dy = q1->y - q2->y;
-        double rsq = dx * dx + dy * dy;
-        if (rsq < 1e-6) {
-            // minimum distance cut-off
-            rsq = 1e-6;
-        }
-
-        if (q2->num_papers == 1) {
-            // q2 is leaf node
-            double fac;
-            if (do_close_repulsion) {
-                double rad_sum_sq = 1.4 * pow(q1->paper->r + q2->paper->r, 2);
-                if (rsq < rad_sum_sq) {
-                    // papers overlap, use stronger repulsive force
-                    fac = fmin(200000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * anti_gravity_strength / rsq
-                        + q1->mass * q2->mass * anti_gravity_strength / rad_sum_sq;
-                } else {
-                    // normal anti-gravity repulsive force
-                    fac = q1->mass * q2->mass * anti_gravity_strength / rsq;
-                }
-            } else {
-                // normal anti-gravity repulsive force
-                fac = q1->mass * q2->mass * anti_gravity_strength / rsq;
-            }
-            double fx = dx * fac;
-            double fy = dy * fac;
-            q1->fx += fx;
-            q1->fy += fy;
-            q2->fx -= fx;
-            q2->fy -= fy;
-
-        } else {
-            // q2 is internal node
-            if (q2->side_length_x * q2->side_length_x + q2->side_length_y * q2->side_length_y < 0.9 * rsq) {
-                // q1 and the cell q2 are "well separated"
-                // approximate force by centroid of q2
-                double fac = q1->mass * q2->mass * anti_gravity_strength / rsq;
-                double fx = dx * fac;
-                double fy = dy * fac;
-                q1->fx += fx;
-                q1->fy += fy;
-                q2->fx -= fx;
-                q2->fy -= fy;
-
-            } else {
-                // q1 and q2 are not "well separated"
-                // descend into children of q2
-                quad_tree_node_forces2(q1, q2->q0);
-                quad_tree_node_forces2(q1, q2->q1);
-                quad_tree_node_forces2(q1, q2->q2);
-                quad_tree_node_forces2(q1, q2->q3);
-            }
-        }
-    }
-}
-
-void quad_tree_node_forces1(quad_tree_node_t *q) {
-    assert(q->num_papers == 1); // must be a leaf node
-    for (quad_tree_node_t *q2 = q; q2->parent != NULL; q2 = q2->parent) {
-        quad_tree_node_t *parent = q2->parent;
-        assert(parent->num_papers > 1); // all parents should be internal nodes
-        if (parent->q0 != q2) { quad_tree_node_forces2(q, parent->q0); }
-        if (parent->q1 != q2) { quad_tree_node_forces2(q, parent->q1); }
-        if (parent->q2 != q2) { quad_tree_node_forces2(q, parent->q2); }
-        if (parent->q3 != q2) { quad_tree_node_forces2(q, parent->q3); }
-    }
-}
-
-void quad_tree_node_forces0(quad_tree_node_t *q) {
-    if (q == NULL) {
-    } else if (q->num_papers == 1) {
-        quad_tree_node_forces1(q);
-    } else {
-        quad_tree_node_forces0(q->q0);
-        quad_tree_node_forces0(q->q1);
-        quad_tree_node_forces0(q->q2);
-        quad_tree_node_forces0(q->q3);
-    }
-}
-
-void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, double fy) {
-    if (q == NULL) {
-    } else {
-        fx *= q->mass;
-        fy *= q->mass;
-        fx += q->fx;
-        fy += q->fy;
-
-        if (q->num_papers == 1) {
-            q->paper->fx += fx;
-            q->paper->fy += fy;
-        } else {
-            fx /= q->mass;
-            fy /= q->mass;
-            quad_tree_node_forces_propagate(q->q0, fx, fy);
-            quad_tree_node_forces_propagate(q->q1, fx, fy);
-            quad_tree_node_forces_propagate(q->q2, fx, fy);
-            quad_tree_node_forces_propagate(q->q3, fx, fy);
-        }
-    }
-}
-
-void quad_tree_forces(quad_tree_t *qt) {
-    quad_tree_node_forces0(qt->root);
-    quad_tree_node_forces_propagate(qt->root, 0, 0);
-}
-
-static void map_env_compute_forces(map_env_t *map_env, bool do_rep) {
+static void map_env_compute_forces(map_env_t *map_env) {
+    // reset the forces
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
-
-        // reset the forces
         p->fx = 0;
         p->fy = 0;
+        p->fz = 0;
     }
 
-    // compute paper-paper forces using a quad tree
-    quad_tree_build(map_env->num_papers, map_env->papers, map_env->quad_tree);
-    do_close_repulsion = do_rep;
-    quad_tree_forces(map_env->quad_tree);
+    // compute paper-paper forces
+    if (!map_env->do_3d) {
+        quad_tree_build(map_env->num_papers, map_env->papers, map_env->quad_tree);
+        quad_tree_forces(&map_env->force_params, map_env->quad_tree);
+        compute_attractive_link_force_2d(&map_env->force_params, map_env->do_tred, map_env->num_papers, map_env->papers);
+    } else {
+        oct_tree_build(map_env->num_papers, map_env->papers, map_env->oct_tree);
+        oct_tree_forces(&map_env->force_params, map_env->oct_tree);
+        compute_attractive_link_force_3d(&map_env->force_params, map_env->do_tred, map_env->num_papers, map_env->papers);
+    }
 
     /*
     // naive gravity/anti-gravity
@@ -868,7 +819,7 @@ static void map_env_compute_forces(map_env_t *map_env, bool do_rep) {
             double r = sqrt(dx*dx + dy*dy);
             if (r > 1e-2) {
                 //double fac = 0.5 * p1->mass * p2->mass / (r*r*r*r);
-                double fac = anti_gravity_strength / (r*r*r);
+                double fac = map_env->force_params.anti_gravity_strength / (r*r*r);
                 if (p1->colour != p2->colour) {
                     fac = 0.8 / (r*r*r*r);
                 }
@@ -893,51 +844,6 @@ static void map_env_compute_forces(map_env_t *map_env, bool do_rep) {
         p->fy += fy;
     }
     */
-
-    // attraction due to links
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p1 = map_env->papers[i];
-        for (int j = 0; j < p1->num_refs; j++) {
-            paper_t *p2 = p1->refs[j];
-            if ((!map_env->do_tred || p1->refs_tred_computed[j]) && p2->included) {
-                double dx = p1->x - p2->x;
-                double dy = p1->y - p2->y;
-                double r = sqrt(dx*dx + dy*dy);
-                double rest_len = 1.1 * (p1->r + p2->r);
-
-                double fac = 2.4 * link_strength;
-
-                if (map_env->do_tred) {
-                    fac = link_strength * p1->refs_tred_computed[j];
-                    //fac *= p1->refs_tred_computed[j];
-                }
-
-                if (r > 1e-2) {
-                    fac *= (r - rest_len) * fabs(r - rest_len) / r;
-                    double fx = dx * fac;
-                    double fy = dy * fac;
-
-                    /*
-                    // rotate pairs so the earliest one is above the other
-                    dy /= r;
-                    dx /= r;
-                    if (p1->index < p2->index) {
-                        fac = -0.1 * dx;
-                    } else {
-                        fac = 0.1 * dx;
-                    }
-                    fx += fac * dy;
-                    fy -= fac * dx;
-                    */
-
-                    p1->fx -= fx;
-                    p1->fy -= fy;
-                    p2->fx += fx;
-                    p2->fy += fy;
-                }
-            }
-        }
-    }
 
     /* attraction to centre of papers with the same category
      * useful for when including papers that are not connected to the main graph
@@ -970,7 +876,7 @@ static void map_env_compute_forces(map_env_t *map_env, bool do_rep) {
         double r = sqrt(dx*dx + dy*dy);
         double rest_len = 0.1 * sqrt(num[p->maincat]);
 
-        double fac = 0.01 * link_strength;
+        double fac = 0.01 * map_env->force_params.link_strength;
 
         if (r > rest_len) {
             fac *= (r - rest_len);
@@ -982,8 +888,8 @@ static void map_env_compute_forces(map_env_t *map_env, bool do_rep) {
     }
 }
 
-bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size, bool do_rep) {
-    map_env_compute_forces(map_env, do_rep);
+bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size) {
+    map_env_compute_forces(map_env);
 
     if (boost_step_size) {
         if (map_env->step_size < 1) {
@@ -997,8 +903,10 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
     double energy = 0;
     double x_sum = 0;
     double y_sum = 0;
+    double z_sum = 0;
     double xsq_sum = 0;
     double ysq_sum = 0;
+    double zsq_sum = 0;
     double total_mass = 0;
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
@@ -1008,25 +916,35 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
 
         p->fx /= p->mass;
         p->fy /= p->mass;
+        p->fz /= p->mass;
 
         double fmagsq = p->fx * p->fx + p->fy * p->fy;
+        if (map_env->do_3d) {
+            fmagsq += p->fz * p->fz;
+        }
         energy += fmagsq;
 
         double dt = map_env->step_size / sqrt(fmagsq);
 
         p->x += dt * p->fx;
         p->y += dt * p->fy;
+        if (map_env->do_3d) {
+            p->z += dt * p->fz;
+        }
 
         x_sum += p->x * p->mass;
         y_sum += p->y * p->mass;
+        z_sum += p->z * p->mass;
         xsq_sum += p->x * p->x * p->mass;
         ysq_sum += p->y * p->y * p->mass;
+        zsq_sum += p->z * p->z * p->mass;
         total_mass += p->mass;
     }
 
     // centre papers on the centre of mass
     x_sum /= total_mass;
     y_sum /= total_mass;
+    z_sum /= total_mass;
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         if (p == hold_still) {
@@ -1034,13 +952,20 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
         }
         p->x -= x_sum;
         p->y -= y_sum;
+        if (!map_env->do_3d) {
+            p->z = 0;
+        } else {
+            p->z -= z_sum;
+        }
     }
 
-    // compute standard deviation in x and y
+    // compute standard deviation in x, y and z
     xsq_sum /= total_mass;
     ysq_sum /= total_mass;
+    zsq_sum /= total_mass;
     map_env->x_sd = sqrt(xsq_sum - x_sum * x_sum);
     map_env->y_sd = sqrt(ysq_sum - y_sum * y_sum);
+    map_env->z_sd = sqrt(zsq_sum - z_sum * z_sum);
 
     // adjust the step size
     if (energy < map_env->energy) {
@@ -1136,6 +1061,7 @@ static void map_env_compute_best_start_position_for_paper(map_env_t* map_env, pa
     // compute initial position for newly added paper (average of all its references)
     double x = 0;
     double y = 0;
+    double z = 0;
     int n = 0;
     // average x- and y-pos of references
     for (int j = 0; j < p->num_refs; j++) {
@@ -1143,16 +1069,19 @@ static void map_env_compute_best_start_position_for_paper(map_env_t* map_env, pa
         if (p2->included) {
             x += p2->x;
             y += p2->y;
+            z += p2->z;
             n += 1;
         }
     }
     if (n == 0) {
         p->x = map_env->grid_w * (-0.5 + 1.0 * random() / RAND_MAX);
         p->y = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->z = map_env->grid_h * (-0.5 + 1.0 * random() / RAND_MAX);
     } else {
         // add some random element to average, mainly so we don't put it at the same pos for n=1
         p->x = x / n + (-0.5 + 1.0 * random() / RAND_MAX);
         p->y = y / n + (-0.5 + 1.0 * random() / RAND_MAX);
+        p->z = z / n + (-0.5 + 1.0 * random() / RAND_MAX);
     }
 }
 
@@ -1274,8 +1203,8 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     map_env->num_papers = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        //if (p->included && p->colour == biggest_col) { // include only those in the biggest connected graph
-        if (p->included) { // include all papers
+        if (p->included && p->colour == biggest_col) { // include only those in the biggest connected graph
+        //if (p->included) { // include all papers
             map_env->papers[map_env->num_papers++] = p;
         }
     }
@@ -1288,6 +1217,7 @@ void map_env_jolt(map_env_t *map_env, double amt) {
         paper_t *p = map_env->papers[i];
         p->x += amt * (-0.5 + 1.0 * random() / RAND_MAX);
         p->y += amt * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->z += amt * (-0.5 + 1.0 * random() / RAND_MAX);
     }
 }
 

@@ -1,0 +1,75 @@
+#include <math.h>
+
+#include "xiwilib.h"
+#include "common.h"
+#include "force.h"
+
+void compute_attractive_link_force_2d(force_params_t *param, bool do_tred, int num_papers, paper_t **papers) {
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p1 = papers[i];
+        for (int j = 0; j < p1->num_refs; j++) {
+            paper_t *p2 = p1->refs[j];
+            if ((!do_tred || p1->refs_tred_computed[j]) && p2->included) {
+                double dx = p1->x - p2->x;
+                double dy = p1->y - p2->y;
+                double r = sqrt(dx*dx + dy*dy);
+                double rest_len = 1.1 * (p1->r + p2->r);
+
+                double fac = 2.4 * param->link_strength;
+
+                if (do_tred) {
+                    fac = param->link_strength * p1->refs_tred_computed[j];
+                    //fac *= p1->refs_tred_computed[j];
+                }
+
+                if (r > 1e-2) {
+                    fac *= (r - rest_len) * fabs(r - rest_len) / r;
+                    double fx = dx * fac;
+                    double fy = dy * fac;
+
+                    p1->fx -= fx;
+                    p1->fy -= fy;
+                    p2->fx += fx;
+                    p2->fy += fy;
+                }
+            }
+        }
+    }
+}
+
+void compute_attractive_link_force_3d(force_params_t *param, bool do_tred, int num_papers, paper_t **papers) {
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p1 = papers[i];
+        for (int j = 0; j < p1->num_refs; j++) {
+            paper_t *p2 = p1->refs[j];
+            if ((!do_tred || p1->refs_tred_computed[j]) && p2->included) {
+                double dx = p1->x - p2->x;
+                double dy = p1->y - p2->y;
+                double dz = p1->z - p2->z;
+                double r = sqrt(dx*dx + dy*dy + dz*dz);
+                double rest_len = 1.1 * (p1->r + p2->r);
+
+                double fac = 2.4 * param->link_strength;
+
+                if (do_tred) {
+                    fac = param->link_strength * p1->refs_tred_computed[j];
+                    //fac *= p1->refs_tred_computed[j];
+                }
+
+                if (r > 1e-2) {
+                    fac *= (r - rest_len) * fabs(r - rest_len) / r;
+                    double fx = dx * fac;
+                    double fy = dy * fac;
+                    double fz = dz * fac;
+
+                    p1->fx -= fx;
+                    p1->fy -= fy;
+                    p1->fz -= fz;
+                    p2->fx += fx;
+                    p2->fy += fy;
+                    p2->fz += fz;
+                }
+            }
+        }
+    }
+}

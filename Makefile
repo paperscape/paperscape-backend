@@ -6,6 +6,10 @@ SRC = \
 	common.c \
 	tred.c \
 	quadtree.c \
+	octtree.c \
+	quadtreeforce.c \
+	octtreeforce.c \
+	force.c \
 	map.c \
 	mysql.c \
 	gui.c \

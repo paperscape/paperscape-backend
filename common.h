@@ -16,6 +16,7 @@ typedef struct _paper_t {
     bool pos_valid;
     float x;
     float y;
+    float z;
 
     // stuff for colouring
     int colour;
@@ -36,6 +37,7 @@ typedef struct _paper_t {
     float mass;
     float fx;
     float fy;
+    float fz;
 } paper_t;
 
 int date_to_unique_id(int y, int m, int d);

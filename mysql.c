@@ -182,6 +182,7 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         paper->pos_valid = false;
         paper->x = 0;
         paper->y = 0;
+        paper->z = 0;
         i += 1;
     }
     env->num_papers = i;
@@ -240,6 +241,7 @@ static bool env_load_pos(env_t *env) {
             paper->pos_valid = true;
             paper->x = atof(row[1]);
             paper->y = atof(row[2]);
+            paper->z = 0;
             total_pos += 1;
         }
     }
