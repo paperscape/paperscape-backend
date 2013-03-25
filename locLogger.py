@@ -77,19 +77,19 @@ def getIpLocation (ip, date) :
         dom = parseString(xmlSource)
 
         try :
-            ipLoc["city"] = getFirstTag("geoplugin_city",dom)
+            ipLoc["city"] = getFirstTag("geoplugin_city",dom).decode('utf-8')
         except : None
         try :
-            ipLoc["region"] = getFirstTag("geoplugin_region",dom)
+            ipLoc["region"] = getFirstTag("geoplugin_region",dom).decode('utf-8')
         except : None
         try :
-            ipLoc["country"] = getFirstTag("geoplugin_countryName",dom)
+            ipLoc["country"] = getFirstTag("geoplugin_countryName",dom).decode('utf-8')
         except : None
         try: 
-            ipLoc["latitude"] = getFirstTag("geoplugin_latitude",dom)
+            ipLoc["latitude"] = getFirstTag("geoplugin_latitude",dom).decode('utf-8')
         except : None
         try :
-            ipLoc["longitude"] = getFirstTag("geoplugin_longitude",dom)
+            ipLoc["longitude"] = getFirstTag("geoplugin_longitude",dom).decode('utf-8')
         except : None
     
         dom.unlink()
@@ -175,7 +175,7 @@ def doWork(inputLog, outputLog, errorLog) :
             ip = (items[2].split(':'))[0]
        
             remainder = (' ').join(items[3:])
-            remainder = remainder.split('--')[1].strip()
+            remainder = remainder.split('--')[1].strip().decode('utf-8')
 
             ipLoc, err = getIpLocation(ip, logDate)
             
