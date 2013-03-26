@@ -217,11 +217,11 @@ def doWork(inputLog, outputLog, errorLog) :
 if __name__ == "__main__":
 
     cmdParser = argparse.ArgumentParser(description="Give geo ip data for wombat log")
-    cmdParser.add_argument("--dir", metavar="<dir>", default="./", help="Working directory")
-    cmdParser.add_argument("--input", metavar="<file>", default="wombat.log", help="Input log file")
+    cmdParser.add_argument("--out-dir", metavar="<dir>", default="./", help="Working directory")
+    cmdParser.add_argument("--input", metavar="<file>", default="/opt/pscp/logs/wombat.log", help="Input log file")
     cmdParser.add_argument("--output", metavar="<file>", default="wombat-loc.log", help="Output log file")
     cmdParser.add_argument("--error", metavar="<file>", default="wombat-loc.err", help="Erorr log file")
     args = cmdParser.parse_args()
 
     # do the work
-    doWork(args.dir + args.input,args.dir + args.output, args.dir + args.error)
+    doWork(args.input,args.out_dir + args.output, args.out_dir + args.error)
