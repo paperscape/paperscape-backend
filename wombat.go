@@ -1225,6 +1225,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // jrn: list of journal IDs
             h.ConvertHumanToInternalIds(req.Form["arx[]"],req.Form["doi[]"],req.Form["jrn[]"], rw)
             logDescription = fmt.Sprintf("chids (%d,%d,%d)",len(req.Form["arx[]"]),len(req.Form["doi[]"]),len(req.Form["jrn[]"]))
+        } else if req.Form["sge"] != nil {
+            // search-general: do fulltext search of authors and titles
+            h.SearchGeneral(req.Form["sge"][0], rw)
+            logDescription = fmt.Sprintf("sge \"%s\"",req.Form["sge"][0])
         } else if req.Form["sax"] != nil {
             // search-arxiv: search papers for arxiv number
             h.SearchArxiv(req.Form["sax"][0], rw)
@@ -2392,6 +2396,40 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     fmt.Fprintf(rw, ",")
     PrintJSONAllCites(rw, paper, 0)
     fmt.Fprintf(rw, "}]}")
+}
+
+func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWriter) {
+
+    stmt := h.papers.StatementBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id = " + *flagPciteTable + ".id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 25",h.papers.db.Escape(searchString))
+
+    var id,numCites uint64
+    var refStr []byte
+    
+    numResults := 0
+    fmt.Fprintf(rw, "[")
+    if stmt != nil {
+        stmt.BindResult(&id,&numCites,&refStr)
+        for {
+            eof, err := stmt.Fetch()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+                break
+            } else if eof { break }
+            if numResults > 0 {
+                fmt.Fprintf(rw, ",")
+            }
+            fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"ref\":", id, numCites)
+            ParseRefsCitesStringToJSONListOfIds(refStr, rw)
+            fmt.Fprintf(rw, "}")
+            numResults += 1
+        }
+        err := stmt.FreeResult()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
+        }
+    }
+    h.papers.StatementEnd(stmt) 
+    fmt.Fprintf(rw, "]")
 }
 
 // TODO use prepared statements to gaurd against sql injection
