@@ -2418,7 +2418,7 @@ func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWrite
             if numResults > 0 {
                 fmt.Fprintf(rw, ",")
             }
-            fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"ref\":", id, numCites)
+            fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"o\":%d,\"ref\":", id, numCites,numResults)
             ParseRefsCitesStringToJSONListOfIds(refStr, rw)
             fmt.Fprintf(rw, "}")
             numResults += 1
