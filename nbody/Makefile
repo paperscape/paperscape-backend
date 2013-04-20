@@ -18,8 +18,8 @@ SRC = \
 	main.c \
 
 OBJ = $(SRC:.c=.o)
-LIB = -lm -lmysqlclient ../clib/xiwilib.a
-PROG = mapgen
+LIB = -lm -lmysqlclient ../../clib/xiwilib.a
+PROG = nbody
 
 $(PROG): $(OBJ)
 	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LIB)
