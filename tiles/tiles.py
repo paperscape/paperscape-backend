@@ -85,6 +85,7 @@ class Graph(object):
 def do_work(db_cursor, pos_filename, kws_filename):
     with open(pos_filename) as f:
         papers = json.load(f)
+    print 'parsed {} papers'.format(len(papers))
     #papers = papers[:2000]
     for i, paper in enumerate(papers):
         age = 1.0 * i / len(papers)
@@ -94,8 +95,8 @@ def do_work(db_cursor, pos_filename, kws_filename):
     with open(kws_filename) as f:
         kws = json.load(f)
 
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 8000, 8000) # try RGB24
-    make_tile(graph, kws, surface, 0, 0, 0.15, 99)
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 8741, 7733) # try RGB24
+    make_tile(graph, kws, surface, 0, 0, 0.125, 90)
     surface.finish()
     return
 

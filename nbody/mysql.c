@@ -12,12 +12,20 @@
 #define VSTR_2 (2)
 #define VSTR_MAX (3)
 
+typedef struct _keyword_pool_t {
+    int alloc;
+    int used;
+    keyword_t *keywords;
+    struct _keyword_pool_t *next;
+} keyword_pool_t;
+
 typedef struct _env_t {
     vstr_t *vstr[VSTR_MAX];
     bool close_mysql;
     MYSQL mysql;
     int num_papers;
     paper_t *papers;
+    keyword_pool_t *keyword_pool;
 } env_t;
 
 static bool have_error(env_t *env) {
@@ -32,6 +40,7 @@ static bool env_set_up(env_t* env) {
     env->close_mysql = false;
     env->num_papers = 0;
     env->papers = NULL;
+    env->keyword_pool = NULL;
 
     // initialise the connection object
     if (mysql_init(&env->mysql) == NULL) {
@@ -55,6 +64,14 @@ static void env_finish(env_t* env) {
     for (int i = 0; i < VSTR_MAX; i++) {
         vstr_free(env->vstr[i]);
     }
+
+    // free the keyword pool container, but not the actual keywords
+    for (keyword_pool_t *kwp = env->keyword_pool; kwp != NULL;) {
+        keyword_pool_t *next = kwp->next;
+        m_free(kwp);
+        kwp = next;
+    }
+
     if (env->close_mysql) {
         mysql_close(&env->mysql);
     }
@@ -190,6 +207,8 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         paper->authors = strdup(row[3]);
         paper->title = strdup(row[4]);
         paper->pos_valid = false;
+        paper->num_keywords = 0;
+        paper->keywords = NULL;
         paper->x = 0;
         paper->y = 0;
         paper->z = 0;
@@ -262,24 +281,17 @@ static bool env_load_pos(env_t *env) {
     return true;
 }
 
-static bool env_load_refs(env_t *env, unsigned int min_id) {
+static bool env_load_refs(env_t *env) {
     MYSQL_RES *result;
     MYSQL_ROW row;
     unsigned long *lens;
 
-    if (min_id == 0) {
-        printf("reading pcite\n");
-    } else {
-        printf("reading pcite for id>=%u\n", min_id);
-    }
+    printf("reading pcite\n");
 
     // get the refs blobs from the pcite table
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT id,refs FROM pcite");
-    if (min_id > 0) {
-        vstr_printf(vstr, " WHERE id>=%u", min_id);
-    }
     if (vstr_had_error(vstr)) {
         return false;
     }
@@ -356,6 +368,131 @@ static bool env_build_cites(env_t *env) {
     return true;
 }
 
+static keyword_t *env_get_or_create_keyword(env_t *env, const char *kw, const char *kw_end) {
+    if (kw_end <= kw) {
+        return NULL;
+    }
+
+    keyword_pool_t *kwp;
+
+    // first search for keyword to see if we already have it
+    for (kwp = env->keyword_pool; kwp != NULL; kwp = kwp->next) {
+        for (int i = 0; i < kwp->used; i++) {
+            if (strncmp(kwp->keywords[i].keyword, kw, kw_end - kw) == 0 && kwp->keywords[i].keyword[kw_end - kw] == '\0') {
+                //printf("found keyword %s\n", kwp->keywords[i].keyword);
+                return &kwp->keywords[i];
+            }
+        }
+    }
+
+    // not found, so make a new keyword object
+    kwp = env->keyword_pool;
+    if (kwp == NULL || kwp->used >= kwp->alloc) {
+        // need to allocate memory for the keyword object
+        kwp = m_new(keyword_pool_t, 1);
+        if (kwp == NULL) {
+            return NULL;
+        }
+        if (env->keyword_pool == NULL) {
+            kwp->alloc = 1024;
+        } else {
+            kwp->alloc = env->keyword_pool->alloc * 2;
+        }
+        kwp->used = 0;
+        kwp->keywords = m_new(keyword_t, kwp->alloc);
+        if (kwp->keywords == NULL) {
+            m_free(kwp);
+            return NULL;
+        }
+        kwp->next = env->keyword_pool;
+        env->keyword_pool = kwp;
+    }
+
+    kwp->keywords[kwp->used].keyword = strndup(kw, kw_end - kw);
+    //printf("created keyword %s\n", kwp->keywords[kwp->used].keyword);
+    return &kwp->keywords[kwp->used++];
+}
+
+static bool env_load_keywords(env_t *env) {
+    MYSQL_RES *result;
+    MYSQL_ROW row;
+    unsigned long *lens;
+
+    printf("reading keywords\n");
+
+    // get the keywords from the mapskw table
+    vstr_t *vstr = env->vstr[VSTR_0];
+    vstr_reset(vstr);
+    vstr_printf(vstr, "SELECT id,keywords FROM mapskw");
+    if (vstr_had_error(vstr)) {
+        return false;
+    }
+    if (!env_query_many_rows(env, vstr_str(vstr), 2, &result)) {
+        return false;
+    }
+
+    int total_keywords = 0;
+    while ((row = mysql_fetch_row(result))) {
+        lens = mysql_fetch_lengths(result);
+        paper_t *paper = env_get_paper_by_id(env, atoi(row[0]));
+        if (paper != NULL) {
+            unsigned long len = lens[1];
+            if (len == 0) {
+                paper->num_keywords = 0;
+                paper->keywords = NULL;
+            } else {
+                const char *kws_start = row[1];
+                const char *kws_end = row[1] + len;
+
+                // count number of keywords
+                paper->num_keywords = 1;
+                for (const char *kw = kws_start; kw < kws_end; kw++) {
+                    if (*kw == ',') {
+                        paper->num_keywords += 1;
+                    }
+                }
+
+                // allocate memory
+                paper->keywords = m_new(keyword_t*, paper->num_keywords);
+                if (paper->keywords == NULL) {
+                    mysql_free_result(result);
+                    return false;
+                }
+
+                // populate keyword list for this paper
+                paper->num_keywords = 0;
+                for (const char *kw = kws_start; kw < kws_end;) {
+                    const char *kw_end = kw;
+                    while (kw_end < kws_end && *kw_end != ',') {
+                        kw_end++;
+                    }
+                    keyword_t *keyword = env_get_or_create_keyword(env, kw, kw_end);
+                    if (keyword != NULL) {
+                        paper->keywords[paper->num_keywords++] = keyword;
+                    }
+                    kw = kw_end;
+                    if (kw < kws_end) {
+                        kw += 1; // skip comma
+                    }
+                    if (paper->num_keywords > 2) {
+                        break;
+                    }
+                }
+                total_keywords += paper->num_keywords;
+            }
+        }
+    }
+    mysql_free_result(result);
+
+    int unique_keywords = 0;
+    for (keyword_pool_t *kwp = env->keyword_pool; kwp != NULL; kwp = kwp->next) {
+        unique_keywords += kwp->used;
+    }
+    printf("read %d unique, %d total keywords\n", unique_keywords, total_keywords);
+
+    return true;
+}
+
 bool mysql_load_papers(const char *where_clause, int *num_papers_out, paper_t **papers_out) {
     // set up environment
     env_t env;
@@ -367,10 +504,11 @@ bool mysql_load_papers(const char *where_clause, int *num_papers_out, paper_t **
     // load the DB
     env_load_ids(&env, where_clause);
     //env_load_pos(&env);
-    env_load_refs(&env, 0);
+    env_load_refs(&env);
+    //env_load_keywords(&env);
     env_build_cites(&env);
 
-    // pull down the MySQL environment (doesn't free the papers)
+    // pull down the MySQL environment (doesn't free the papers or keywords)
     env_finish(&env);
 
     // return the papers

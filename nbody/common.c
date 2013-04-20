@@ -39,20 +39,60 @@ void recompute_num_included_cites(int num_papers, paper_t *papers) {
     }
 }
 
-static void paper_paint(paper_t *p, int colour) {
-    if (!p->included || p->colour == colour) {
-        return;
+typedef struct _paper_stack_t {
+    int alloc;
+    int used;
+    paper_t **stack;
+} paper_stack_t;
+
+static paper_stack_t *paper_stack_new() {
+    paper_stack_t *s = m_new(paper_stack_t, 1);
+    s->alloc = 1024;
+    s->used = 0;
+    s->stack = m_new(paper_t*, s->alloc);
+    return s;
+}
+
+static void paper_stack_free(paper_stack_t *s) {
+    m_free(s->stack);
+    m_free(s);
+}
+
+static void paper_stack_push(paper_stack_t *s, paper_t *p) {
+    if (s->used >= s->alloc) {
+        s->alloc *= 2;
+        s->stack = m_renew(paper_t*, s->stack, s->alloc);
     }
+    s->stack[s->used++] = p;
+}
+
+static paper_t *paper_stack_pop(paper_stack_t *s) {
+    assert(s->used > 0);
+    return s->stack[--s->used];
+}
+
+static void paper_paint(paper_t *p, int colour, paper_stack_t *stack) {
     assert(p->colour == 0);
     p->colour = colour;
-    for (int i = 0; i < p->num_refs; i++) {
-        if (p->refs[i]->included) {
-            paper_paint(p->refs[i], colour);
+    paper_stack_push(stack, p);
+    while (stack->used > 0) {
+        p = paper_stack_pop(stack);
+        assert(p->colour == colour);
+        for (int i = 0; i < p->num_refs; i++) {
+            paper_t *p2 = p->refs[i];
+            if (p2->included && p2->colour != colour) {
+                assert(p2->colour == 0);
+                p2->colour = colour;
+                paper_stack_push(stack, p2);
+            }
         }
-    }
-    for (int i = 0; i < p->num_cites; i++) {
-        if (p->cites[i]->included) {
-            paper_paint(p->cites[i], colour);
+        for (int i = 0; i < p->num_cites; i++) {
+            paper_t *p2 = p->cites[i];
+            if (p2->included && p2->colour != colour) {
+                assert(p2->colour == 0);
+                p2->colour = colour;
+                paper_stack_push(stack, p2);
+            }
         }
     }
 }
@@ -67,12 +107,14 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
 
     // assign colour
     int cur_colour = 1;
+    paper_stack_t *paper_stack = paper_stack_new();
     for (int i = 0; i < num_papers; i++) {
         paper_t *paper = &papers[i];
         if (paper->included && paper->colour == 0) {
-            paper_paint(paper, cur_colour++);
+            paper_paint(paper, cur_colour++, paper_stack);
         }
     }
+    paper_stack_free(paper_stack);
 
     // compute and assign num_with_my_colour for each paper
     int *num_with_col = m_new0(int, cur_colour);

@@ -1,28 +1,39 @@
-- Pipeline for map generation should be:
-  - C nbody does the hard work and outputs JSON [{id,x,y,r}].
-  - Python script to generate keywords for papers, outputs to a DB table.
-  - Python script to work out regions and assign them names, at multiple levels.
-    Outputs JSON [{x,y,name}], or possible region boundary.
-  - Python script to generate jpg tiles.
+First, just get physics part of arXiv working.  It's already 625k papers, and other
+categories don't work so well because we have poor references for them (so no links
+and all being small dots means no structure in the map).
 
-- Tile (jpg) a la google maps up to a certain zoom.  When changing the date range, only
-  need to auto-zoom-out to the level where the tiles kick in which would be nice.
+--> Do graph refinement to layout the big structure better.
 
-- Also download the list of all papers for the map, [{id,x,y,r,kind}].
+--> Fix quad-tree boundary errors.
 
-- Connect the disconnected papers by loading all past papers, but those not
-  in the current date range do not take part in the quad-tree anti-gravity force
-  calculation, just in the spring calculation.
+--> Pipeline for map generation should be:
+    --> C nbody does the hard work and outputs JSON [{id,x,y,r}].
+    --> Python script to generate keywords for papers, outputs to a DB table.
+    --> Python script to work out regions and assign them names, at multiple levels.
+        Outputs JSON [{x,y,name}], or possible region boundary.
+    --> Python script to generate jpg tiles.
 
-- Connect the completely disconnected papers (ie no refs) using keywords as
-  links.
+--> Tile (jpg) a la google maps up to a certain zoom.  When changing the date range, only
+    need to auto-zoom-out to the level where the tiles kick in which would be nice.
 
-- Use different colours for the different sub-categories of astro-ph.
+--> Also download the list of all papers for the map, [{id,x,y,r,kind}].
 
-- Can we put astro-ph on the same map as hep-*?  To connect them in a sensible
-  way, could tred the graph and only keep those links connected astro and hep that
-  are greater than some threshold.
-  --> actually, it looks like simply adding them works well.
+--> Connect the disconnected papers by loading all past papers, but those not
+    in the current date range do not take part in the quad-tree anti-gravity force
+    calculation, just in the spring calculation.
+
+--> Connect the completely disconnected papers (ie no refs) using keywords as
+    links.
+    --> doesn't seem to work very well, since they all cluster around the
+        same spot, since average of keyword position is in the centre.
+
+--> Use different colours for the different sub-categories of astro-ph, and cond-mat,
+    physics, etc.
+
+--> Can we put astro-ph on the same map as hep-*?  To connect them in a sensible
+    way, could tred the graph and only keep those links connected astro and hep that
+    are greater than some threshold.
+    --> actually, it looks like simply adding them works well.
 
 ================================================================================
 = ATTIC

@@ -13,6 +13,9 @@ typedef struct _paper_t {
     const char *authors;
     const char *title;
 
+    int num_keywords;
+    struct _keyword_t **keywords;
+
     bool pos_valid;
     float x;
     float y;
@@ -39,6 +42,13 @@ typedef struct _paper_t {
     float fy;
     float fz;
 } paper_t;
+
+typedef struct _keyword_t {
+    char *keyword;
+    int num_papers; // number of papers with this keyword
+    float x;
+    float y;
+} keyword_t;
 
 int date_to_unique_id(int y, int m, int d);
 void unique_id_to_date(int id, int *y, int *m, int *d);

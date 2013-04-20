@@ -18,7 +18,7 @@ guint statusbar_context_id;
 
 const char *included_papers_string = NULL;
 bool update_running = true;
-bool boost_step_size = false;
+int boost_step_size = 0;
 bool mouse_held = false;
 bool mouse_dragged;
 double mouse_last_x = 0, mouse_last_y = 0;
@@ -36,11 +36,13 @@ static gboolean map_env_update(map_env_t *map_env) {
             map_env_toggle_do_close_repulsion(map_env);
         }
         */
-        if (map_env_iterate(map_env, mouse_paper, boost_step_size)) {
+        if (map_env_iterate(map_env, mouse_paper, boost_step_size > 0)) {
             converged = true;
             break;
         }
-        boost_step_size = false;
+        if (boost_step_size > 0) {
+            boost_step_size -= 1;
+        }
     }
 
     //map_env_centre_view(map_env);
@@ -71,7 +73,7 @@ static gboolean map_env_update(map_env_t *map_env) {
             }
         }
         map_env_select_date_range(map_env, id_range_start, id_range_end);
-        boost_step_size = true;
+        boost_step_size += 3;
     }
 
     // force a redraw
@@ -112,7 +114,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         }
 
     } else if (event->keyval == GDK_KEY_Tab) {
-        boost_step_size = true;
+        boost_step_size += 1;
 
     } else if (event->keyval >= GDK_KEY_a && event->keyval <= GDK_KEY_f) {
 

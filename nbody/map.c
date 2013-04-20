@@ -765,6 +765,68 @@ void attract_to_centre_of_category(map_env_t *map_env) {
     }
 }
 
+void compute_keyword_force_2d(force_params_t *param, int num_papers, paper_t **papers) {
+    // reset keyword locations
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p = papers[i];
+        for (int j = 0; j < p->num_keywords; j++) {
+            keyword_t *kw = p->keywords[j];
+            kw->num_papers = 0;
+            kw->x = 0;
+            kw->y = 0;
+        }
+    }
+
+    // compute keyword locations, by averaging papers that have that keyword
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p = papers[i];
+        for (int j = 0; j < p->num_keywords; j++) {
+            keyword_t *kw = p->keywords[j];
+            kw->num_papers += 1;
+            kw->x += p->x;
+            kw->y += p->y;
+        }
+    }
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p = papers[i];
+        for (int j = 0; j < p->num_keywords; j++) {
+            keyword_t *kw = p->keywords[j];
+            if (kw->num_papers > 0) {
+                kw->x /= kw->num_papers;
+                kw->y /= kw->num_papers;
+                kw->num_papers = 0;
+            }
+        }
+    }
+
+    // compute forces due to keywords
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p = papers[i];
+        //if (p->num_refs > 0) {
+            //continue;
+        //}
+        for (int j = 0; j < p->num_keywords; j++) {
+            keyword_t *kw = p->keywords[j];
+
+            double dx = p->x - kw->x;
+            double dy = p->y - kw->y;
+            double r = sqrt(dx*dx + dy*dy);
+            double rest_len = 10;//0.1 * sqrt(num[p->maincat]);
+
+            double fac = 0.1 * param->link_strength;
+
+            if (r > rest_len) {
+                fac *= (r - rest_len);
+                double fx = dx * fac;
+                double fy = dy * fac;
+
+                p->fx -= fx;
+                p->fy -= fy;
+            }
+        }
+    }
+}
+
 static void map_env_compute_forces(map_env_t *map_env) {
     // reset the forces
     for (int i = 0; i < map_env->num_papers; i++) {
@@ -779,6 +841,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
         quad_tree_build(map_env->num_papers, map_env->papers, map_env->quad_tree);
         quad_tree_forces(&map_env->force_params, map_env->quad_tree);
         compute_attractive_link_force_2d(&map_env->force_params, map_env->do_tred, map_env->num_papers, map_env->papers);
+        //compute_keyword_force_2d(&map_env->force_params, map_env->num_papers, map_env->papers);
     } else {
         oct_tree_build(map_env->num_papers, map_env->papers, map_env->oct_tree);
         oct_tree_forces(&map_env->force_params, map_env->oct_tree);
@@ -891,9 +954,9 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
 
     if (boost_step_size) {
         if (map_env->step_size < 1) {
-            map_env->step_size = 1.5;
+            map_env->step_size = 2;
         } else {
-            map_env->step_size *= 1.5;
+            map_env->step_size *= 2;
         }
     }
 
@@ -916,13 +979,15 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
         p->fy /= p->mass;
         p->fz /= p->mass;
 
-        double fmagsq = p->fx * p->fx + p->fy * p->fy;
+        double fmag = p->fx * p->fx + p->fy * p->fy;
         if (map_env->do_3d) {
-            fmagsq += p->fz * p->fz;
+            fmag += p->fz * p->fz;
         }
-        energy += fmagsq;
+        fmag = sqrt(fmag);
 
-        double dt = map_env->step_size / sqrt(fmagsq);
+        energy += fmag;
+
+        double dt = map_env->step_size / fmag;
 
         p->x += dt * p->fx;
         p->y += dt * p->fy;
