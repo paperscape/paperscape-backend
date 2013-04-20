@@ -31,9 +31,11 @@ static gboolean map_env_update(map_env_t *map_env) {
     bool converged = false;
     for (int i = 0; i < 10; i++) {
         iterate_counter += 1;
-        if (iterate_counter == 300) {
+        /*
+        if (iterate_counter == 500) {
             map_env_toggle_do_close_repulsion(map_env);
         }
+        */
         if (map_env_iterate(map_env, mouse_paper, boost_step_size)) {
             converged = true;
             break;
@@ -176,7 +178,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
 
     } else if (event->keyval == GDK_KEY_z) {
         map_env_centre_view(map_env);
-        map_env_set_zoom_to_fit_n_standard_deviations(map_env, 2.6, 1000, 1000);
+        map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, 1000, 1000);
 
     } else if (event->keyval == GDK_KEY_1) {
         map_env_adjust_anti_gravity(map_env, 0.9);
@@ -401,7 +403,7 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     id_range_start = date_to_unique_id(2012, 3, 0);
     id_range_end = id_range_start + 20000000; // plus 2 years
     id_range_end = id_range_start +  3000000; // plus 0.5 year
-    //id_range_start = id_min; id_range_end = id_max; // full range
+    id_range_start = id_min; id_range_end = id_max; // full range
 
     map_env_select_date_range(map_env, id_range_start, id_range_end);
 }

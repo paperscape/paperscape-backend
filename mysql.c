@@ -140,7 +140,7 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
     // get the ids
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,maincat,authors,title FROM meta_data");
+    vstr_printf(vstr, "SELECT id,maincat,allcats,authors,title FROM meta_data");
     if (where_clause != NULL && where_clause[0] != 0) {
         vstr_printf(vstr, " WHERE (%s)", where_clause);
     }
@@ -148,7 +148,7 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         return false;
     }
 
-    if (!env_query_many_rows(env, vstr_str(vstr), 4, &result)) {
+    if (!env_query_many_rows(env, vstr_str(vstr), 5, &result)) {
         return false;
     }
     int i = 0;
@@ -172,13 +172,23 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
             paper->maincat = 2;
         } else if (strcmp(row[1], "hep-ex") == 0) {
             paper->maincat = 3;
+        } else if (strcmp(row[1], "hep-lat") == 0) {
+            paper->maincat = 6;
         } else if (strcmp(row[1], "gr-qc") == 0) {
             paper->maincat = 4;
+        } else if (strcmp(row[1], "astro-ph") == 0) {
+            if (strncmp(row[2], "astro-ph.GA", 11) == 0) {
+                paper->maincat = 5;
+            } else if (strncmp(row[2], "astro-ph.HE", 11) == 0) {
+                paper->maincat = 7;
+            } else {
+                paper->maincat = 8;
+            }
         } else {
-            paper->maincat = 5;
+            paper->maincat = 9;
         }
-        paper->authors = strdup(row[2]);
-        paper->title = strdup(row[3]);
+        paper->authors = strdup(row[3]);
+        paper->title = strdup(row[4]);
         paper->pos_valid = false;
         paper->x = 0;
         paper->y = 0;

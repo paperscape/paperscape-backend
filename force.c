@@ -22,6 +22,17 @@ void compute_attractive_link_force_2d(force_params_t *param, bool do_tred, int n
                     //fac *= p1->refs_tred_computed[j];
                 }
 
+                // loosen the force between papers in different categories
+                if (p1->kind != p2->kind) {
+                    fac *= 0.5;
+                }
+
+                // loosen the force between papers of different age
+                fac *= 1.01 - fabs(p1->age - p2->age);
+
+                // normalise refs so each paper has 1 unit for all references (doesn't really produce a good graph)
+                fac /= p1->num_refs;
+
                 if (r > 1e-2) {
                     fac *= (r - rest_len) * fabs(r - rest_len) / r;
                     double fx = dx * fac;

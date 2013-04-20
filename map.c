@@ -62,7 +62,7 @@ map_env_t *map_env_new() {
     map_env->force_params.do_close_repulsion = false;
     map_env->force_params.anti_gravity_strength = 0.4;
     map_env->force_params.link_strength = 0.015;
-    map_env->do_3d = true;
+    map_env->do_3d = false;
 
     map_env->do_tred = false;
     map_env->draw_grid = false;
@@ -265,22 +265,30 @@ void map_env_adjust_link_strength(map_env_t *map_env, double amt) {
 
 static double angle = 0;
 
+void paper_colour(paper_t *p, double *r, double *g, double *b) {
+    switch (p->kind) {
+        case 1:  *r = 0.0; *g = 0.0; *b = 1.0; break; // hep-th: blue
+        case 2:  *r = 0.0; *g = 1.0; *b = 0.0; break; // hep-ph: green
+        case 3:  *r = 1.0; *g = 1.0; *b = 0.0; break; // hep-ex: yellow
+        case 4:  *r = 0.0; *g = 1.0; *b = 1.0; break; // gr-qc,inspire: cyan
+        case 5:  *r = 1.0; *g = 0.0; *b = 1.0; break; // astro-ph.GA: purple
+        case 6:  *r = 0.70; *g = 0.36; *b = 0.20; break; // hep-lat: tan brown
+        case 7:  *r = 0.62; *g = 0.86; *b = 0.24; break; // astro-ph.HE: lime green
+        case 8:  *r = 0.89; *g = 0.53; *b = 0.60; break; // astro-ph.*: skin pink
+        case 9:  *r = 0.7; *g = 1.0; *b = 0.3; break; // other:
+        default: *r = 0.8; *g = 0.8; *b = 0.8; break;
+    }
+}
+
 void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     //double x = p->x;
     double x = cos(angle) * p->x + sin(angle) * p->z;
     double y = p->y;
-    double w = 1.2*p->r;
-    if (p->kind == 1) {
-        cairo_set_source_rgba(cr, 0.75, 0.75, 1, 1);
-    } else if (p->kind == 2) {
-        cairo_set_source_rgba(cr, 0.75, 1, 0.75, 1);
-    } else if (p->kind == 3) {
-        cairo_set_source_rgba(cr, 1, 1, 0.75, 1);
-    } else if (p->kind == 4) {
-        cairo_set_source_rgba(cr, 0.75, 1, 1, 1);
-    } else {
-        cairo_set_source_rgba(cr, 1, 0.75, 1, 1);
-    }
+    double w = 2*p->r;
+    double r, g, b;
+    paper_colour(p, &r, &g, &b);
+    cairo_set_source_rgba(cr, 0.75 + 0.349 * r, 0.75 + 0.349 * g, 0.75 + 0.349 * b, 1);
+    //cairo_rectangle(cr, x - 2*w, y - w, 4*w, 2*w);
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
 }
@@ -314,27 +322,7 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
 
     // basic colour of paper
     double r, g, b;
-    if (p->kind == 1) {
-        r = 0;
-        g = 0;
-        b = 1;
-    } else if (p->kind == 2) {
-        r = 0;
-        g = 1;
-        b = 0;
-    } else if (p->kind == 3) {
-        r = 1;
-        g = 1;
-        b = 0;
-    } else if (p->kind == 4) {
-        r = 0;
-        g = 1;
-        b = 1;
-    } else {
-        r = 1;
-        g = 0;
-        b = 1;
-    }
+    paper_colour(p, &r, &g, &b);
 
     // older papers are more saturated in colour
     double saturation = 0.6 * (1 - age);
@@ -580,8 +568,11 @@ void map_env_draw_2d(map_env_t *map_env, cairo_t *cr, int width, int height) {
     // sort the papers array by id
     qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_id);
 
-    // paper text
+    // set transform for drawing text
     cairo_identity_matrix(cr);
+    cairo_translate(cr, 0.5 * width, 0.5 * height);
+
+    // paper text
     cairo_set_source_rgb(cr, 0, 0, 0);
     cairo_set_font_size(cr, 10);
     for (int i = 0; i < map_env->num_papers; i++) {
@@ -674,14 +665,17 @@ void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr) {
         if (i > 0) {
             vstr_printf(vstr, ",");
         }
-        vstr_printf(vstr, "[%d,%d,%d,%d,", p->id, p->kind, double_for_json(p->x), double_for_json(p->y));
+        vstr_printf(vstr, "[%d,%d,%d", p->id, double_for_json(p->x), double_for_json(p->y));
         if (map_env->do_3d) {
-            vstr_printf(vstr, "%d,", double_for_json(p->z));
+            vstr_printf(vstr, ",%d", double_for_json(p->z));
         }
-        vstr_printf(vstr, "%d,", double_for_json(p->r));
+        vstr_printf(vstr, ",%d", double_for_json(p->r));
+        /*
+        vstr_add_str(vstr, ",");
         vstr_add_json_str(vstr, p->authors);
         vstr_add_str(vstr, ",");
         vstr_add_json_str(vstr, p->title);
+        */
         vstr_add_str(vstr, "]");
     }
     vstr_printf(vstr, "]");
@@ -724,6 +718,50 @@ static void map_env_init_forces(map_env_t *map_env) {
     }
     if (grid_depth_overflow) {
         printf("grid depth overflow\n");
+    }
+}
+
+/* attraction to centre of papers with the same category
+ * useful for when including papers that are not connected to the main graph
+ */
+void attract_to_centre_of_category(map_env_t *map_env) {
+    double centre_x[10], centre_y[10], num[10]; // HACK! only allows 10 categories
+    for (int i = 0; i < 10; i++) {
+        centre_x[i] = 0;
+        centre_y[i] = 0;
+        num[i] = 0;
+    }
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        if (p->num_refs > 0) {
+            centre_x[p->maincat] += p->x;
+            centre_y[p->maincat] += p->y;
+            num[p->maincat] += 1;
+        }
+    }
+    for (int i = 0; i < 10; i++) {
+        if (num[i] > 0) {
+            centre_x[i] /= num[i];
+            centre_y[i] /= num[i];
+        }
+    }
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+
+        double dx = p->x - centre_x[p->maincat];
+        double dy = p->y - centre_y[p->maincat];
+        double r = sqrt(dx*dx + dy*dy);
+        double rest_len = 0.1 * sqrt(num[p->maincat]);
+
+        double fac = 0.01 * map_env->force_params.link_strength;
+
+        if (r > rest_len) {
+            fac *= (r - rest_len);
+            double fx = dx * fac;
+            double fy = dy * fac;
+            p->fx -= fx;
+            p->fy -= fy;
+        }
     }
 }
 
@@ -845,47 +883,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     }
     */
 
-    /* attraction to centre of papers with the same category
-     * useful for when including papers that are not connected to the main graph
-     */
-    double centre_x[10], centre_y[10], num[10]; // HACK! only allows 10 categories
-    for (int i = 0; i < 10; i++) {
-        centre_x[i] = 0;
-        centre_y[i] = 0;
-        num[i] = 0;
-    }
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
-        if (p->num_refs > 0) {
-            centre_x[p->maincat] += p->x;
-            centre_y[p->maincat] += p->y;
-            num[p->maincat] += 1;
-        }
-    }
-    for (int i = 0; i < 10; i++) {
-        if (num[i] > 0) {
-            centre_x[i] /= num[i];
-            centre_y[i] /= num[i];
-        }
-    }
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
-
-        double dx = p->x - centre_x[p->maincat];
-        double dy = p->y - centre_y[p->maincat];
-        double r = sqrt(dx*dx + dy*dy);
-        double rest_len = 0.1 * sqrt(num[p->maincat]);
-
-        double fac = 0.01 * map_env->force_params.link_strength;
-
-        if (r > rest_len) {
-            fac *= (r - rest_len);
-            double fx = dx * fac;
-            double fy = dy * fac;
-            p->fx -= fx;
-            p->fy -= fy;
-        }
-    }
+    //attract_to_centre_of_category(map_env);
 }
 
 bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size) {
