@@ -2,38 +2,114 @@ First, just get physics part of arXiv working.  It's already 625k papers, and ot
 categories don't work so well because we have poor references for them (so no links
 and all being small dots means no structure in the map).
 
---> Do graph refinement to layout the big structure better.
+Major areas of work follow.
 
---> Fix quad-tree boundary errors.
+--------------------------------------------------------------------------------
+--  Connecting the disconnected pieces
+--------------------------------------------------------------------------------
 
---> Pipeline for map generation should be:
-    --> C nbody does the hard work and outputs JSON [{id,x,y,r}].
-    --> Python script to generate keywords for papers, outputs to a DB table.
-    --> Python script to work out regions and assign them names, at multiple levels.
-        Outputs JSON [{x,y,name}], or possible region boundary.
-    --> Python script to generate jpg tiles.
+Out of the 625k papers, 540k of them are connected (ie form the big graph).  The
+rest form the disconnected pieces, which we need to somehow connect to the big
+graph so they get placed in a sensible location.
 
---> Tile (jpg) a la google maps up to a certain zoom.  When changing the date range, only
-    need to auto-zoom-out to the level where the tiles kick in which would be nice.
+Of the disconnected pieces, here is how they are distributed:
 
---> Also download the list of all papers for the map, [{id,x,y,r,kind}].
+    size 1 occured 78086 times
+    size 2 occured 1921 times
+    size 3 occured 447 times
+    size 4 occured 162 times
+    size 5 occured 71 times
+    size 6 occured 45 times
+    size 7 occured 21 times
+    size 8 occured 11 times
+    size 9 occured 7 times
+    size 10 occured 6 times
+    size 11 occured 1 times
+    size 12 occured 2 times
+    size 14 occured 3 times
+    size 15 occured 2 times
+    size 18 occured 3 times
+    size 19 occured 1 times
+    size 20 occured 1 times
+    size 23 occured 1 times
+    size 45 occured 1 times
 
---> Connect the disconnected papers by loading all past papers, but those not
-    in the current date range do not take part in the quad-tree anti-gravity force
-    calculation, just in the spring calculation.
+For the single disconnected papers, they are generally ones who's references we
+fail to extract.  As long as we can extract at least on correct reference, these
+would be fixed.  This is a good start.  Nevertheless, there are always going to
+be ones which fail, or have no references at all.
 
---> Connect the completely disconnected papers (ie no refs) using keywords as
-    links.
-    --> doesn't seem to work very well, since they all cluster around the
-        same spot, since average of keyword position is in the centre.
+For the size-45 piece, it's on hurricanes and weather, mostly by S.Jewson.
 
---> Use different colours for the different sub-categories of astro-ph, and cond-mat,
-    physics, etc.
+We could try loading all spires papers, but only to compute connectivity.
+Spires papers would not take part in the quad-tree anti-gravity force calculation,
+just in the spring calculation.  But this will still leave some papers disconnected.
 
---> Can we put astro-ph on the same map as hep-*?  To connect them in a sensible
-    way, could tred the graph and only keep those links connected astro and hep that
-    are greater than some threshold.
-    --> actually, it looks like simply adding them works well.
+Strategy to connect the disconnected pieces: for each disconnected piece, choose
+1 paper to be the root (eg the one with highest number of citations).  Then make
+fake links from this paper to the main graph.  The fake links can be:
+    --> Main category, or all categories, of this paper, attracted to centre of
+        that category in the big graph.
+    --> Links made from keywords (of either the single root paper, or all papers
+        in the disconnected piece) going to 2 or 3 papers in the main graph that
+        also have those keywords.  Note: doesn't work connecting keyword of 1
+        paper to average position of other papers with that keyword, because then
+        everything just gravitates to the centre of the graph.
+
+--------------------------------------------------------------------------------
+--  Speeding up and improving nbody code
+--------------------------------------------------------------------------------
+
+--> Do graph refinement to layout the big structure better.  Using eg SAG.
+
+--> Fix quad-tree boundary errors.  Try making the quads square.  Also add an
+    option that does further quad descent on the last 100 or so iterations to
+    perfect the graph.
+
+--> Improve the contact force between papers so they don't overlap at all.
+
+--> Fine tune the parameters for anti-gravity and spring so that we have
+    isolated structures, but not too spread out.
+
+--> When you zoom right in, there is a lot of blank area in between papers.
+    This is a general "feature" of the graph layout algorithm and the fact
+    we are using circles.  It's difficult to fix...
+
+--------------------------------------------------------------------------------
+--  Develop the daily pipeline to generate the tiles and labels
+--------------------------------------------------------------------------------
+
+The daily pipeline must add new papers for the day and regenerate the graph.
+It would use existing locations for papers from previous days.
+
+Pipeline for map generation should be split up as:
+
+--> C nbody does the hard work and outputs JSON [{id,x,y,r}].
+
+--> Program to generate keywords for papers, outputs to a DB table.  This is
+    actually orthogonal to maps, and can be used in, eg, kea.
+
+--> Program to work out regions and assign them names, at multiple levels.
+    Outputs JSON [{x,y,name}], or possible region boundary.
+
+--> Program to generate tiles.  Probably best to save as png because there is
+    so much information that it has similar size to jpg (for high enough quality).
+
+    This program can't be in python because it needs to load a lot of stuff into
+    memory.  Some numbers: python took almost 1gig to load the 625k papers, whilst
+    go took about 250meg.  Problem with go is that it doesn't have a good
+    graphics output package (would like to use cairo), and it's also a bit slow
+    loading lots of data from mysql.
+
+--------------------------------------------------------------------------------
+--  Tile generation and style
+--------------------------------------------------------------------------------
+
+When zoomed right in, instead of sending tiles, could send just location, radius
+and category, and the front end can render it on the fly.
+
+Need to use different colours for the different sub-categories of astro-ph, and
+cond-mat, physics, etc.  Need to come up with lots of different colours!
 
 ================================================================================
 = ATTIC
@@ -62,3 +138,8 @@ Try 3D for map generation.  More dimensions makes a better layout.
         small number of planes and shift their orientation and size to simulate pan
         and zoom.
 
+Connect the completely disconnected papers using keywords as links, linking to the
+average position of all papers with that keyword.
+    --> Doesn't seem to work very well, since they all cluster around the
+        same spot, since average of keyword position, for all keywords, is in the
+        centre of the graph.

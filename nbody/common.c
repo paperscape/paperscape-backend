@@ -127,9 +127,10 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
 
     if (verbose) {
         // compute histogram
-        int hist_s[100];
-        int hist_n[100];
+        int hist_max = 100;
         int hist_num = 0;
+        int *hist_s = m_new(int, hist_max);
+        int *hist_n = m_new(int, hist_max);
         for (int colour = 1; colour < cur_colour; colour++) {
             int n = num_with_col[colour];
 
@@ -139,7 +140,7 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
                     break;
                 }
             }
-            if (i == hist_num && hist_num < 100) {
+            if (i == hist_num && hist_num < hist_max) {
                 hist_num += 1;
                 hist_s[i] = n;
                 hist_n[i] = 0;
@@ -147,7 +148,7 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
             hist_n[i] += 1;
         }
 
-        printf("%d colours\n", cur_colour - 1);
+        printf("%d colours, %d unique sizes\n", cur_colour - 1, hist_num);
         for (int i = 0; i < hist_num; i++) {
             printf("size %d occured %d times\n", hist_s[i], hist_n[i]);
         }
