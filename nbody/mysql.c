@@ -201,8 +201,14 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
             } else {
                 paper->maincat = 8;
             }
-        } else {
+        } else if (strcmp(row[1], "cond-mat") == 0) {
             paper->maincat = 9;
+        } else if (strcmp(row[1], "quant-ph") == 0) {
+            paper->maincat = 10;
+        } else if (strcmp(row[1], "physics") == 0) {
+            paper->maincat = 11;
+        } else {
+            paper->maincat = 12;
         }
         paper->authors = strdup(row[3]);
         paper->title = strdup(row[4]);

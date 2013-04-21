@@ -148,6 +148,22 @@ void quad_tree_build(int num_papers, paper_t** papers, quad_tree_t *qt) {
         if (p->y > qt->max_y) { qt->max_y = p->y; }
     }
 
+    // increase the bounding box so it's square
+    {
+        double dx = qt->max_x - qt->min_x;
+        double dy = qt->max_y - qt->min_y;
+        if (dx > dy) {
+            double cen_y = 0.5 * (qt->min_y + qt->max_y);
+            qt->min_y = cen_y - 0.5 * dx;
+            qt->max_y = cen_y + 0.5 * dx;
+        } else {
+            double cen_x = 0.5 * (qt->min_x + qt->max_x);
+            qt->min_x = cen_x - 0.5 * dy;
+            qt->max_x = cen_x + 0.5 * dy;
+        }
+        //printf("quad tree bounding box: (%f,%f) -- (%f,%f)\n", qt->min_x, qt->min_y, qt->max_x, qt->max_y);
+    }
+
     // build the quad tree
     quad_tree_pool_init();
     for (int i = 0; i < num_papers; i++) {

@@ -60,8 +60,8 @@ map_env_t *map_env_new() {
     map_env->grid = m_new0(paper_t*, map_env->grid_w * map_env->grid_h * map_env->grid_d);
 
     map_env->force_params.do_close_repulsion = false;
-    map_env->force_params.anti_gravity_strength = 0.4;
-    map_env->force_params.link_strength = 0.015;
+    map_env->force_params.anti_gravity_strength = 0.8;
+    map_env->force_params.link_strength = 0.01;
     map_env->do_3d = false;
 
     map_env->do_tred = false;
@@ -275,7 +275,10 @@ void paper_colour(paper_t *p, double *r, double *g, double *b) {
         case 6:  *r = 0.70; *g = 0.36; *b = 0.20; break; // hep-lat: tan brown
         case 7:  *r = 0.62; *g = 0.86; *b = 0.24; break; // astro-ph.HE: lime green
         case 8:  *r = 0.89; *g = 0.53; *b = 0.60; break; // astro-ph.*: skin pink
-        case 9:  *r = 0.7; *g = 1.0; *b = 0.3; break; // other:
+        case 9:  *r = 0.6; *g = 0.4; *b = 0.4; break; // cond-mat
+        case 10:  *r = 0.4; *g = 0.7; *b = 0.7; break; // quant-ph
+        case 11:  *r = 0.0; *g = 0.5; *b = 0.0; break; // physics: dark green
+        case 12:  *r = 0.7; *g = 1.0; *b = 0.3; break; // other:
         default: *r = 0.8; *g = 0.8; *b = 0.8; break;
     }
 }

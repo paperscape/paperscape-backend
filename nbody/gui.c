@@ -21,6 +21,7 @@ bool update_running = true;
 int boost_step_size = 0;
 bool mouse_held = false;
 bool mouse_dragged;
+bool lock_view_all = true;
 double mouse_last_x = 0, mouse_last_y = 0;
 paper_t *mouse_paper = NULL;
 int id_range_start = 2050000000;
@@ -36,6 +37,7 @@ static gboolean map_env_update(map_env_t *map_env) {
             map_env_toggle_do_close_repulsion(map_env);
         }
         */
+        printf("nbody iteration %d\n", iterate_counter);
         if (map_env_iterate(map_env, mouse_paper, boost_step_size > 0)) {
             converged = true;
             break;
@@ -87,7 +89,13 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
 
     vstr_reset(vstr);
     vstr_printf(vstr, "included papers: %s\n", included_papers_string);
-    map_env_draw(map_env, cr, width, height, vstr);
+    if (iterate_counter > 0) {
+        if (lock_view_all) {
+            map_env_centre_view(map_env);
+            map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, width, height);
+        }
+        map_env_draw(map_env, cr, width, height, vstr);
+    }
     vstr_printf(vstr, "number of iterations: %d\n", iterate_counter);
 
     // draw info to canvas
@@ -181,6 +189,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_z) {
         map_env_centre_view(map_env);
         map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, 1000, 1000);
+
+    } else if (event->keyval == GDK_KEY_Z) {
+        lock_view_all = !lock_view_all;
 
     } else if (event->keyval == GDK_KEY_1) {
         map_env_adjust_anti_gravity(map_env, 0.9);
