@@ -8,6 +8,7 @@ typedef struct _paper_t {
     short num_refs;
     short num_cites;
     struct _paper_t **refs;
+    byte *refs_ref_freq;
     struct _paper_t **cites;
     int index;
     const char *authors;

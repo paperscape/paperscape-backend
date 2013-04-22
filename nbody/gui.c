@@ -183,6 +183,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_t) {
         map_env_toggle_do_tred(map_env);
 
+    } else if (event->keyval == GDK_KEY_v) {
+        map_env_toggle_use_ref_freq(map_env);
+
     } else if (event->keyval == GDK_KEY_w) {
         write_tiles(map_env, 1000, 1000, "out.png", NULL);
 

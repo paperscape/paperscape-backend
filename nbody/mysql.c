@@ -181,6 +181,8 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         paper->num_refs = 0;
         paper->num_cites = 0;
         paper->refs = NULL;
+        paper->refs_ref_freq = NULL;
+        paper->cites = NULL;
         if (row[1] == NULL) {
             paper->maincat = 4;
         } else if (strcmp(row[1], "hep-th") == 0) {
@@ -314,6 +316,7 @@ static bool env_load_refs(env_t *env) {
             if (len == 0) {
                 paper->num_refs = 0;
                 paper->refs = NULL;
+                paper->refs_ref_freq = NULL;
             } else {
                 if (len % 10 != 0) {
                     printf("length of refs blob should be a multiple of 10; got %lu\n", len);
@@ -321,7 +324,8 @@ static bool env_load_refs(env_t *env) {
                     return false;
                 }
                 paper->refs = m_new(paper_t*, len / 10);
-                if (paper->refs == NULL) {
+                paper->refs_ref_freq = m_new(byte, len / 10);
+                if (paper->refs == NULL || paper->refs_ref_freq == NULL) {
                     mysql_free_result(result);
                     return false;
                 }
@@ -332,6 +336,11 @@ static bool env_load_refs(env_t *env) {
                     paper->refs[paper->num_refs] = env_get_paper_by_id(env, id);
                     if (paper->refs[paper->num_refs] != NULL) {
                         paper->refs[paper->num_refs]->num_cites += 1;
+                        unsigned short ref_freq = decode_le16(buf + 6);
+                        if (ref_freq > 255) {
+                            ref_freq = 255;
+                        }
+                        paper->refs_ref_freq[paper->num_refs] = ref_freq;
                         paper->num_refs++;
                     }
                 }

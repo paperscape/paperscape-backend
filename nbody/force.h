@@ -3,6 +3,7 @@
 
 typedef struct _force_params_t {
     bool do_close_repulsion;
+    bool use_ref_freq;
     double anti_gravity_strength;
     double link_strength;
 } force_params_t;

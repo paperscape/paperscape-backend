@@ -60,8 +60,9 @@ map_env_t *map_env_new() {
     map_env->grid = m_new0(paper_t*, map_env->grid_w * map_env->grid_h * map_env->grid_d);
 
     map_env->force_params.do_close_repulsion = false;
+    map_env->force_params.use_ref_freq = true;
     map_env->force_params.anti_gravity_strength = 0.8;
-    map_env->force_params.link_strength = 0.01;
+    map_env->force_params.link_strength = 0.025;
     map_env->do_3d = false;
 
     map_env->do_tred = false;
@@ -253,6 +254,10 @@ void map_env_toggle_draw_paper_links(map_env_t *map_env) {
 
 void map_env_toggle_do_close_repulsion(map_env_t *map_env) {
     map_env->force_params.do_close_repulsion = !map_env->force_params.do_close_repulsion;
+}
+
+void map_env_toggle_use_ref_freq(map_env_t *map_env) {
+    map_env->force_params.use_ref_freq = !map_env->force_params.use_ref_freq;
 }
 
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt) {
@@ -636,6 +641,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
         vstr_printf(vstr_info, "energy: %.3g\n", map_env->energy);
         vstr_printf(vstr_info, "step size: %.3g\n", map_env->step_size);
         vstr_printf(vstr_info, "do close repulsion: %d\n", map_env->force_params.do_close_repulsion);
+        vstr_printf(vstr_info, "use ref freq: %d\n", map_env->force_params.use_ref_freq);
         vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", map_env->force_params.anti_gravity_strength);
         vstr_printf(vstr_info, "link strength: %.3f\n", map_env->force_params.link_strength);
         vstr_printf(vstr_info, "transitive reduction: %d\n", map_env->do_tred);

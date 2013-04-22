@@ -15,11 +15,14 @@ void compute_attractive_link_force_2d(force_params_t *param, bool do_tred, int n
                 double r = sqrt(dx*dx + dy*dy);
                 double rest_len = 1.1 * (p1->r + p2->r);
 
-                double fac = 2.4 * param->link_strength;
+                double fac = param->link_strength;
+
+                if (param->use_ref_freq) {
+                    fac *= 0.65 * p1->refs_ref_freq[j];
+                }
 
                 if (do_tred) {
-                    fac = param->link_strength * p1->refs_tred_computed[j];
-                    //fac *= p1->refs_tred_computed[j];
+                    fac *= p1->refs_tred_computed[j];
                 }
 
                 // loosen the force between papers in different categories

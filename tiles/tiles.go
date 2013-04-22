@@ -134,6 +134,22 @@ func QueryCategories(db *mysql.Client, id uint) string {
     return maincat
 }
 
+func getPaperById(papers []*Paper, id uint) *Paper {
+    lo := 0;
+    hi := len(papers)
+    for lo <= hi {
+        mid := (lo + hi) / 2
+        if id == papers[mid].id {
+            return papers[mid]
+        } else if id < papers[mid].id {
+            hi = mid - 1
+        } else {
+            lo = mid + 1
+        }
+    }
+    return nil
+}
+
 func QueryCategories2(db *mysql.Client, papers []*Paper) {
     // execute the query
     err := db.Query("SELECT id,maincat,allcats FROM meta_data")
@@ -164,8 +180,9 @@ func QueryCategories2(db *mysql.Client, papers []*Paper) {
         if maincat, ok = row[1].(string); !ok { continue }
         //if allcats, ok = row[2].(string); !ok { continue }
 
-        if papers[0].id == uint(id) {
-            papers[0].maincat = maincat
+        paper := getPaperById(papers, uint(id))
+        if paper != nil {
+            paper.maincat = maincat
         }
     }
 
@@ -181,6 +198,10 @@ func MakePaper(db *mysql.Client, id uint, x int, y int, radius int, age float64)
     paper.age = float32(age)
     //paper.maincat = QueryCategories(db, id)
 
+    return paper
+}
+
+func (paper *Paper) setColour() {
     // basic colour of paper
     var r, g, b float64
     if paper.maincat == "hep-th" {
@@ -199,6 +220,12 @@ func MakePaper(db *mysql.Client, id uint, x int, y int, radius int, age float64)
         r, g, b = 0.62, 0.86, 0.24 // lime green
     } else if paper.maincat == "astro-ph" {
         r, g, b = 0.89, 0.53, 0.6 // skin pink
+    } else if paper.maincat == "cont-mat" {
+        r, g, b = 0.6, 0.4, 0.4
+    } else if paper.maincat == "quant-ph" {
+        r, g, b = 0.4, 0.7, 0.7
+    } else if paper.maincat == "physics" {
+        r, g, b = 0, 0.5, 0 // dark green
     } else {
         r, g, b = 0.7, 1, 0.3
     }
@@ -207,6 +234,7 @@ func MakePaper(db *mysql.Client, id uint, x int, y int, radius int, age float64)
     paper.colBG = color.RGBA{uint8(255 * (0.7 + 0.3 * r)), uint8(255 * (0.7 + 0.3 * g)), uint8(255 * (0.7 + 0.3 * b)), 255}
 
     // older papers are more saturated in colour
+    age := float64(paper.age)
     saturation := 0.4 * (1 - age)
 
     // foreground colour; newer papers tend towards red
@@ -215,8 +243,6 @@ func MakePaper(db *mysql.Client, id uint, x int, y int, radius int, age float64)
     g = saturation + (g * (1 - age)      ) * (1 - saturation)
     b = saturation + (b * (1 - age)      ) * (1 - saturation)
     paper.colFG = color.RGBA{uint8(255 * r), uint8(255 * g), uint8(255 * b), 255}
-
-    return paper
 }
 
 func ReadGraph(db *mysql.Client, posFilename string) *Graph {
@@ -247,6 +273,10 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
     }
 
     QueryCategories2(db, graph.papers)
+
+    for _, paper := range graph.papers {
+        paper.setColour()
+    }
 
     fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(papers), graph.bounds.Min.X, graph.bounds.Min.Y, graph.bounds.Max.X, graph.bounds.Max.Y)
     return graph
@@ -303,6 +333,7 @@ type Canvas struct {
 }
 
 func NewCanvas(w int, h int, scale int) *Canvas {
+    fmt.Printf("canvas size: %dx%d\n", w, h)
     canv := new(Canvas)
     canv.img = image.NewRGBA(image.Rect(0, 0, w, h))
     canv.x0 = -w / 2
@@ -361,16 +392,15 @@ func (canv *Canvas) CircleStroke(pt image.Point, radius int, col color.Color) {
 
 func DoWork(db *mysql.Client, posFilename string) {
     graph := ReadGraph(db, posFilename)
-    return
-    canv := NewCanvas(graph.bounds.Dx() / 10, graph.bounds.Dy() / 10, 8)
+    canv := NewCanvas(graph.bounds.Dx() / 15, graph.bounds.Dy() / 15, 12)
     canv.Clear(HTMLColour(0x445566))
     for _, paper := range graph.papers {
-        canv.CircleFill(image.Pt(paper.x, paper.y), 2*paper.radius, paper.colBG);
+        canv.CircleFill(image.Pt(paper.x, paper.y), 2*paper.radius, paper.colBG)
     }
     for _, paper := range graph.papers {
-        canv.CircleFill(image.Pt(paper.x, paper.y), paper.radius, paper.colFG);
-        canv.CircleStroke(image.Pt(paper.x, paper.y), paper.radius, color.Black);
+        canv.CircleFill(image.Pt(paper.x, paper.y), paper.radius, paper.colFG)
+        //canv.CircleStroke(image.Pt(paper.x, paper.y), paper.radius, color.Black)
     }
-    canv.EncodePNG("out-.png")
+    canv.EncodePNG("out-2.png")
     //canv.EncodeJPEG("out-.jpg")
 }

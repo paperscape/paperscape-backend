@@ -24,6 +24,7 @@ void map_env_toggle_do_tred(map_env_t *map_env);
 void map_env_toggle_draw_grid(map_env_t *map_env);
 void map_env_toggle_draw_paper_links(map_env_t *map_env);
 void map_env_toggle_do_close_repulsion(map_env_t *map_env);
+void map_env_toggle_use_ref_freq(map_env_t *map_env);
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt);
 void map_env_adjust_link_strength(map_env_t *map_env, double amt);
 
