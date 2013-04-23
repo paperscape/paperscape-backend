@@ -48,8 +48,8 @@ func main() {
     // parse command line options
     flag.Parse()
 
-    if flag.NArg() != 1 {
-        log.Fatal("need to specify map.json file")
+    if flag.NArg() != 2 {
+        log.Fatal("need to specify map.json file, and output file (without extension)")
     }
 
     if len(*flagMetaBaseDir) == 0 {
@@ -64,7 +64,7 @@ func main() {
     }
     defer db.Close()
 
-    DoWork(db, flag.Arg(0))
+    DoWork(db, flag.Arg(0), flag.Arg(1))
 }
 
 type Paper struct {
@@ -327,8 +327,8 @@ func (c *circle_stroke) At(x, y int) color.Color {
 
 type Canvas struct {
     img     draw.Image
-    x0      int
-    y0      int
+    w, h    int         // cached versions from img
+    x0, y0  int
     scale   int
 }
 
@@ -336,6 +336,8 @@ func NewCanvas(w int, h int, scale int) *Canvas {
     fmt.Printf("canvas size: %dx%d\n", w, h)
     canv := new(Canvas)
     canv.img = image.NewRGBA(image.Rect(0, 0, w, h))
+    canv.w = w
+    canv.h = h
     canv.x0 = -w / 2
     canv.y0 = -h / 2
     canv.scale = scale
@@ -352,7 +354,7 @@ func (canv *Canvas) EncodePNG(filename string) {
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Printf("saved %vx%v png to %v\n", canv.img.Bounds().Dx(), canv.img.Bounds().Dy(), filename)
+    fmt.Printf("saved %vx%v png to %v\n", canv.w, canv.h, filename)
 }
 
 func (canv *Canvas) EncodeJPEG(filename string) {
@@ -365,7 +367,7 @@ func (canv *Canvas) EncodeJPEG(filename string) {
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Printf("saved %vx%v jpeg to %v\n", canv.img.Bounds().Dx(), canv.img.Bounds().Dy(), filename)
+    fmt.Printf("saved %vx%v jpeg to %v\n", canv.w, canv.h, filename)
 }
 
 func HTMLColour(col uint) color.RGBA {
@@ -390,17 +392,45 @@ func (canv *Canvas) CircleStroke(pt image.Point, radius int, col color.Color) {
     draw.DrawMask(canv.img, canv.img.Bounds(), &image.Uniform{col}, image.ZP, &circle_stroke{pt, radius}, image.ZP, draw.Over)
 }
 
-func DoWork(db *mysql.Client, posFilename string) {
+func DoWork(db *mysql.Client, posFilename string, outFilename string) {
     graph := ReadGraph(db, posFilename)
     canv := NewCanvas(graph.bounds.Dx() / 15, graph.bounds.Dy() / 15, 12)
     canv.Clear(HTMLColour(0x445566))
     for _, paper := range graph.papers {
         canv.CircleFill(image.Pt(paper.x, paper.y), 2*paper.radius, paper.colBG)
     }
+    /* work in progress here
+    for v := 0; v < canv.h; v++ {
+        for u := 0; u < canv.w; u++ {
+            x := (u + canv.x0) * canv.scale
+            y := (v + canv.y0) * canv.scale
+            ptR := 0
+            ptG := 0
+            ptB := 0
+            n := 0
+            for _, paper := range graph.papers {
+                if (paper.x - x)**2 + (paper.y - y)**2 < 400**2 {
+                    r, g, b, _ = paper.colBG.RGBA()
+                    ptR += r >> 8
+                    ptG += g >> 8
+                    ptB += b >> 8
+                    n += 1
+                }
+            }
+            if n > 0 {
+                ptR /= n
+                ptG /= n
+                ptB /= n
+                put pixel
+            }
+        }
+    }
+    */
+
     for _, paper := range graph.papers {
         canv.CircleFill(image.Pt(paper.x, paper.y), paper.radius, paper.colFG)
         //canv.CircleStroke(image.Pt(paper.x, paper.y), paper.radius, color.Black)
     }
-    canv.EncodePNG("out-2.png")
+    canv.EncodePNG(outFilename + ".png")
     //canv.EncodeJPEG("out-.jpg")
 }

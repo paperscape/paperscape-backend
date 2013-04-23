@@ -30,7 +30,7 @@ static void quad_tree_node_forces2(force_params_t *param, quad_tree_node_t *q1, 
                 double rad_sum_sq = 1.2 * pow(q1->paper->r + q2->paper->r, 2);
                 if (rsq < rad_sum_sq) {
                     // papers overlap, use stronger repulsive force
-                    fac = fmin(200000, (exp(rad_sum_sq - rsq) - 1)) * 1000 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * param->anti_gravity_strength / rsq
+                    fac = fmin(200000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * param->anti_gravity_strength / rsq
                         + q1->mass * q2->mass * param->anti_gravity_strength / rad_sum_sq;
                 } else {
                     // normal anti-gravity repulsive force
