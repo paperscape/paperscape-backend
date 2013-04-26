@@ -62,14 +62,17 @@ fake links from this paper to the main graph.  The fake links can be:
 
 --> Do graph refinement to layout the big structure better.  Using eg SAG.
 
---> Fix quad-tree boundary errors.  Try making the quads square.  Also add an
-    option that does further quad descent on the last 100 or so iterations to
-    perfect the graph.
+--> Add an option that does further quad descent on the last 100 or so
+    iterations to remove any artificial "lines" due to quad tree division.
 
 --> Improve the contact force between papers so they don't overlap at all.
 
 --> Fine tune the parameters for anti-gravity and spring so that we have
-    isolated structures, but not too spread out.
+    isolated structures, but not too spread out.  This has now been greatly
+    improved by switching from F=kx^2 to F=kx for the spring force law.
+    Still need to tune parameters (basically ratio of gravity constant to
+    spring constant), and for that we need to improve the speed of nbody
+    by doing graph refinement.
 
 --> When you zoom right in, there is a lot of blank area in between papers.
     This is a general "feature" of the graph layout algorithm and the fact
@@ -105,11 +108,40 @@ Pipeline for map generation should be split up as:
 --  Tile generation and style
 --------------------------------------------------------------------------------
 
-When zoomed right in, instead of sending tiles, could send just location, radius
-and category, and the front end can render it on the fly.
+--> Work out a nicer way to render the background (ie instead of 2*radius halo
+    for each paper).
 
-Need to use different colours for the different sub-categories of astro-ph, and
-cond-mat, physics, etc.  Need to come up with lots of different colours!
+    Idea: for each point in the canvas, work out its main arXiv category by
+    looking for the majority of papers within a certain radius of that point.
+    Use this majority-category to colour the point accordingly.
+
+--> When zoomed right in, instead of sending tiles, could send just location,
+    radius and category, and the front end can render it on the fly.
+
+--> Need to use different colours for the different sub-categories of astro-ph,
+    and cond-mat, physics, etc.  Need to come up with lots of different colours!
+
+--------------------------------------------------------------------------------
+--  Keywords and area labels
+--------------------------------------------------------------------------------
+
+The program keywords/getkeywords.py extracts keywords for each paper, and puts
+them in a DB table, mapskw.  It is useful also for other things, so is not in
+the mapgen/ directory.
+
+We need to label areas of the graph.  Labelling should have level-of-detail, so
+the more you zoom in, the more specific the labels become.
+
+For the outer most label, probably just arXiv category is enough.
+
+For the next level, probably can do it by hand, since it won't change often.
+For example, pick papers with large citations and assign them an appropriate
+label.
+
+For high detail, needs to be automatic, so would use generated keywords.
+
+Would be nice to delineate regions (like country borders) associated with the
+same keywords, but this might be difficult to do nicely.
 
 ================================================================================
 = ATTIC
