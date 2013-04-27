@@ -392,16 +392,24 @@ func (canv *Canvas) CircleStroke(pt image.Point, radius int, col color.Color) {
     draw.DrawMask(canv.img, canv.img.Bounds(), &image.Uniform{col}, image.ZP, &circle_stroke{pt, radius}, image.ZP, draw.Over)
 }
 
+func sq(x int) int {
+    return x * x;
+}
+
 func DoWork(db *mysql.Client, posFilename string, outFilename string) {
     graph := ReadGraph(db, posFilename)
-    canv := NewCanvas(graph.bounds.Dx() / 15, graph.bounds.Dy() / 15, 12)
+    canv := NewCanvas(graph.bounds.Dx() / 150, graph.bounds.Dy() / 150, 120)
     canv.Clear(HTMLColour(0x445566))
+    // simple halo background circle for each paper
     for _, paper := range graph.papers {
         canv.CircleFill(image.Pt(paper.x, paper.y), 2*paper.radius, paper.colBG)
     }
-    /* work in progress here
-    for v := 0; v < canv.h; v++ {
-        for u := 0; u < canv.w; u++ {
+
+    /*
+    // area-based background; doesn't work and is very slow!
+    for v := 0; v + 1 < canv.h; v += 2 {
+        fmt.Println("here", v)
+        for u := 0; u + 1 < canv.w; u += 2 {
             x := (u + canv.x0) * canv.scale
             y := (v + canv.y0) * canv.scale
             ptR := 0
@@ -409,11 +417,11 @@ func DoWork(db *mysql.Client, posFilename string, outFilename string) {
             ptB := 0
             n := 0
             for _, paper := range graph.papers {
-                if (paper.x - x)**2 + (paper.y - y)**2 < 400**2 {
-                    r, g, b, _ = paper.colBG.RGBA()
-                    ptR += r >> 8
-                    ptG += g >> 8
-                    ptB += b >> 8
+                if sq(paper.x - x) + sq(paper.y - y) < sq(50) {
+                    r, g, b, _ := paper.colBG.RGBA()
+                    ptR += int(r >> 8)
+                    ptG += int(g >> 8)
+                    ptB += int(b >> 8)
                     n += 1
                 }
             }
@@ -421,7 +429,10 @@ func DoWork(db *mysql.Client, posFilename string, outFilename string) {
                 ptR /= n
                 ptG /= n
                 ptB /= n
-                put pixel
+                canv.img.Set(u, v, color.RGBA{uint8(ptR), uint8(ptG), uint8(ptB), 255})
+                canv.img.Set(u+1, v, color.RGBA{uint8(ptR), uint8(ptG), uint8(ptB), 255})
+                canv.img.Set(u, v+1, color.RGBA{uint8(ptR), uint8(ptG), uint8(ptB), 255})
+                canv.img.Set(u+1, v+1, color.RGBA{uint8(ptR), uint8(ptG), uint8(ptB), 255})
             }
         }
     }
