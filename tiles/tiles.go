@@ -19,6 +19,7 @@ import (
     //"bytes"
     //"time"
     //"strings"
+    "math"
     //"math/rand"
     //"crypto/sha1"
     //"crypto/sha256"
@@ -28,11 +29,12 @@ import (
     //"net/smtp"
     "log"
     //"xiwi"
-    "image"
-    "image/color"
-    "image/draw"
-    "image/png"
-    "image/jpeg"
+    //"image"
+    //"image/color"
+    //"image/draw"
+    //"image/png"
+    //"image/jpeg"
+    "github.com/ungerik/go-cairo"
 )
 
 var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
@@ -67,6 +69,10 @@ func main() {
     DoWork(db, flag.Arg(0), flag.Arg(1))
 }
 
+type CairoColor struct {
+    r, g, b float64
+}
+
 type Paper struct {
     id      uint
     maincat string
@@ -74,13 +80,14 @@ type Paper struct {
     y       int
     radius  int
     age     float32
-    colBG   color.Color
-    colFG   color.Color
+    colBG   CairoColor
+    colFG   CairoColor
 }
 
 type Graph struct {
     papers  []*Paper
-    bounds  image.Rectangle
+    MinX, MinY, MaxX, MaxY int
+    BoundsX, BoundsY int
 }
 
 func QueryCategories(db *mysql.Client, id uint) string {
@@ -135,8 +142,8 @@ func QueryCategories(db *mysql.Client, id uint) string {
 }
 
 func getPaperById(papers []*Paper, id uint) *Paper {
-    lo := 0;
-    hi := len(papers)
+    lo := 0
+    hi := len(papers) - 1
     for lo <= hi {
         mid := (lo + hi) / 2
         if id == papers[mid].id {
@@ -231,7 +238,7 @@ func (paper *Paper) setColour() {
     }
 
     // background colour
-    paper.colBG = color.RGBA{uint8(255 * (0.7 + 0.3 * r)), uint8(255 * (0.7 + 0.3 * g)), uint8(255 * (0.7 + 0.3 * b)), 255}
+    paper.colBG = CairoColor{0.7 + 0.3 * r, 0.7 + 0.3 * g, 0.7 + 0.3 * b}
 
     // older papers are more saturated in colour
     age := float64(paper.age)
@@ -242,7 +249,7 @@ func (paper *Paper) setColour() {
     r = saturation + (r * (1 - age) + age) * (1 - saturation)
     g = saturation + (g * (1 - age)      ) * (1 - saturation)
     b = saturation + (b * (1 - age)      ) * (1 - saturation)
-    paper.colFG = color.RGBA{uint8(255 * r), uint8(255 * g), uint8(255 * b), 255}
+    paper.colFG = CairoColor{r, g, b}
 }
 
 func ReadGraph(db *mysql.Client, posFilename string) *Graph {
@@ -258,6 +265,7 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
         log.Fatal(err)
     }
 
+    //papers = papers[0:10000]
     fmt.Printf("parsed %v papers\n", len(papers))
 
     graph := new(Graph)
@@ -266,11 +274,14 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
         var age float64 = float64(index) / float64(len(papers))
         paperObj := MakePaper(db, uint(paper[0]), paper[1], paper[2], paper[3], age)
         graph.papers[index] = paperObj
-        if paperObj.x < graph.bounds.Min.X { graph.bounds.Min.X = paperObj.x }
-        if paperObj.y < graph.bounds.Min.Y { graph.bounds.Min.Y = paperObj.y }
-        if paperObj.x > graph.bounds.Max.X { graph.bounds.Max.X = paperObj.x }
-        if paperObj.y > graph.bounds.Max.Y { graph.bounds.Max.Y = paperObj.y }
+        if paperObj.x < graph.MinX { graph.MinX = paperObj.x }
+        if paperObj.y < graph.MinY { graph.MinY = paperObj.y }
+        if paperObj.x > graph.MaxX { graph.MaxX = paperObj.x }
+        if paperObj.y > graph.MaxY { graph.MaxY = paperObj.y }
     }
+
+    graph.BoundsX = graph.MaxX - graph.MinX
+    graph.BoundsY = graph.MaxY - graph.MinY
 
     QueryCategories2(db, graph.papers)
 
@@ -278,170 +289,220 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
         paper.setColour()
     }
 
-    fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(papers), graph.bounds.Min.X, graph.bounds.Min.Y, graph.bounds.Max.X, graph.bounds.Max.Y)
+    fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
     return graph
 }
 
-type circle struct {
-    p image.Point
-    r int
+type QuadTreeNode struct {
+    //Parent          *QuadTreeNode
+    //SideLength      int
+    Leaf            *Paper
+    Q0, Q1, Q2, Q3  *QuadTreeNode
 }
 
-func (c *circle) ColorModel() color.Model {
-    return color.AlphaModel
+type QuadTree struct {
+    MinX, MinY, MaxX, MaxY  int
+    Root                    *QuadTreeNode
 }
 
-func (c *circle) Bounds() image.Rectangle {
-    return image.Rect(c.p.X-c.r, c.p.Y-c.r, c.p.X+c.r, c.p.Y+c.r)
-}
+func QuadTreeInsertPaper(parent *QuadTreeNode, q **QuadTreeNode, paper *Paper, MinX, MinY, MaxX, MaxY int) {
+    if *q == nil {
+        // hit an empty node; create a new leaf cell and put this paper in it
+        *q = new(QuadTreeNode)
+        //(*q).Parent = parent
+        //(*q).SideLength = MaxX - MinX
+        (*q).Leaf = paper
 
-func (c *circle) At(x, y int) color.Color {
-    xx, yy, rr := float64(x-c.p.X)+0.5, float64(y-c.p.Y)+0.5, float64(c.r)
-    if xx*xx+yy*yy < rr*rr {
-        return color.Alpha{255}
+    } else if (*q).Leaf != nil {
+        // hit a leaf; turn it into an internal node and re-insert the papers
+        oldPaper := (*q).Leaf
+        (*q).Leaf = nil
+        (*q).Q0 = nil
+        (*q).Q1 = nil
+        (*q).Q2 = nil
+        (*q).Q3 = nil
+        QuadTreeInsertPaper(parent, q, oldPaper, MinX, MinY, MaxX, MaxY)
+        QuadTreeInsertPaper(parent, q, paper, MinX, MinY, MaxX, MaxY)
+
+    } else {
+        // hit an internal node
+
+        // check cell size didn't get too small
+        if (MaxX <= MinX + 1 || MaxY <= MinY + 1) {
+            log.Println("ERROR: QuadTreeInsertPaper hit minimum cell size")
+            return
+        }
+
+        // compute the dividing x and y positions
+        MidX := (MinX + MaxX) / 2
+        MidY := (MinY + MaxY) / 2
+
+        // insert the new paper in the correct cell
+        if ((paper.y) < MidY) {
+            if ((paper.x) < MidX) {
+                QuadTreeInsertPaper(*q, &(*q).Q0, paper, MinX, MinY, MidX, MidY)
+            } else {
+                QuadTreeInsertPaper(*q, &(*q).Q1, paper, MidX, MinY, MaxX, MidY)
+            }
+        } else {
+            if ((paper.x) < MidX) {
+                QuadTreeInsertPaper(*q, &(*q).Q2, paper, MinX, MidY, MidX, MaxY)
+            } else {
+                QuadTreeInsertPaper(*q, &(*q).Q3, paper, MidX, MidY, MaxX, MaxY)
+            }
+        }
     }
-    return color.Alpha{0}
 }
 
-type circle_stroke struct {
-    p image.Point
-    r int
-}
+func BuildQuadTree(papers []*Paper) *QuadTree {
+    qt := new(QuadTree)
 
-func (c *circle_stroke) ColorModel() color.Model {
-    return color.AlphaModel
-}
-
-func (c *circle_stroke) Bounds() image.Rectangle {
-    return image.Rect(c.p.X-c.r, c.p.Y-c.r, c.p.X+c.r, c.p.Y+c.r)
-}
-
-func (c *circle_stroke) At(x, y int) color.Color {
-    xx, yy, rr := float64(x-c.p.X)+0.5, float64(y-c.p.Y)+0.5, float64(c.r)
-    dist := xx*xx+yy*yy - rr*rr
-    if dist < 0 && dist > -1 {
-        return color.Alpha{255}
+    // if no papers, return
+    if len(papers) == 0 {
+        return qt
     }
-    return color.Alpha{0}
-}
 
-type Canvas struct {
-    img     draw.Image
-    w, h    int         // cached versions from img
-    x0, y0  int
-    scale   int
-}
-
-func NewCanvas(w int, h int, scale int) *Canvas {
-    fmt.Printf("canvas size: %dx%d\n", w, h)
-    canv := new(Canvas)
-    canv.img = image.NewRGBA(image.Rect(0, 0, w, h))
-    canv.w = w
-    canv.h = h
-    canv.x0 = -w / 2
-    canv.y0 = -h / 2
-    canv.scale = scale
-    return canv
-}
-
-func (canv *Canvas) EncodePNG(filename string) {
-    file, err := os.Create(filename)
-    if err != nil {
-        log.Fatal(err)
+    // first work out the bounding box of all papers
+    qt.MinX = papers[0].x
+    qt.MinY = papers[0].y
+    qt.MaxX = papers[0].x
+    qt.MaxY = papers[0].y
+    for _, paper := range papers {
+        if (paper.x < qt.MinX) { qt.MinX = paper.x; }
+        if (paper.y < qt.MinY) { qt.MinY = paper.y; }
+        if (paper.x > qt.MaxX) { qt.MaxX = paper.x; }
+        if (paper.y > qt.MaxY) { qt.MaxY = paper.y; }
     }
-    defer file.Close()
-    err = png.Encode(file, canv.img)
-    if err != nil {
-        log.Fatal(err)
+
+    // increase the bounding box so it's square
+    {
+        dx := qt.MaxX - qt.MinX
+        dy := qt.MaxY - qt.MinY
+        if dx > dy {
+            cen_y := (qt.MinY + qt.MaxY) / 2
+            qt.MinY = cen_y - dx / 2
+            qt.MaxY = cen_y + dx / 2
+        } else {
+            cen_x := (qt.MinX + qt.MaxX) / 2
+            qt.MinX = cen_x - dy / 2
+            qt.MaxX = cen_x + dy / 2
+        }
     }
-    fmt.Printf("saved %vx%v png to %v\n", canv.w, canv.h, filename)
-}
 
-func (canv *Canvas) EncodeJPEG(filename string) {
-    file, err := os.Create(filename)
-    if err != nil {
-        log.Fatal(err)
+    // build the quad tree
+    for _, paper := range papers {
+        QuadTreeInsertPaper(nil, &qt.Root, paper, qt.MinX, qt.MinY, qt.MaxX, qt.MaxY)
     }
-    defer file.Close()
-    err = jpeg.Encode(file, canv.img, nil)
-    if err != nil {
-        log.Fatal(err)
+
+    fmt.Printf("quad tree bounding box: (%v,%v) -- (%v,%v)\n", qt.MinX, qt.MinY, qt.MaxX, qt.MaxY)
+    return qt
+}
+
+func (q *QuadTreeNode) ApplyIfWithin(MinX, MinY, MaxX, MaxY int, x, y, r int, f func(paper *Paper)) {
+    if q == nil {
+    } else if q.Leaf != nil {
+        r += q.Leaf.radius
+        if x - r <= q.Leaf.x && q.Leaf.x <= x + r && y - r <= q.Leaf.y && q.Leaf.y <= y + r {
+            f(q.Leaf)
+        }
+    } else if ((MinX <= x - r && x - r < MaxX) || (MinX <= x + r && x + r < MaxX) || (x - r < MinX && x + r >= MaxX)) &&
+              ((MinY <= y - r && y - r < MaxY) || (MinY <= y + r && y + r < MaxY) || (y - r < MinY && y + r >= MaxY)) {
+        MidX := (MinX + MaxX) / 2
+        MidY := (MinY + MaxY) / 2
+        q.Q0.ApplyIfWithin(MinX, MinY, MidX, MidY, x, y, r, f)
+        q.Q1.ApplyIfWithin(MidX, MinY, MaxX, MidY, x, y, r, f)
+        q.Q2.ApplyIfWithin(MinX, MidY, MidX, MaxY, x, y, r, f)
+        q.Q3.ApplyIfWithin(MidX, MidY, MaxX, MaxY, x, y, r, f)
     }
-    fmt.Printf("saved %vx%v jpeg to %v\n", canv.w, canv.h, filename)
 }
 
-func HTMLColour(col uint) color.RGBA {
-    return color.RGBA{uint8((col >> 16) & 0xff), uint8((col >> 8) & 0xff), uint8(col & 0xff), 255}
+func (qt *QuadTree) ApplyIfWithin(x, y, r int, f func(paper *Paper)) {
+    qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, r, f)
 }
 
-func (canv *Canvas) Clear(col color.Color) {
-    draw.Draw(canv.img, canv.img.Bounds(), &image.Uniform{col}, image.ZP, draw.Src)
-}
-
-func (canv *Canvas) CircleFill(pt image.Point, radius int, col color.Color) {
-    pt.X = pt.X / canv.scale - canv.x0
-    pt.Y = pt.Y / canv.scale - canv.y0
-    radius /= canv.scale
-    draw.DrawMask(canv.img, canv.img.Bounds(), &image.Uniform{col}, image.ZP, &circle{pt, radius}, image.ZP, draw.Over)
-}
-
-func (canv *Canvas) CircleStroke(pt image.Point, radius int, col color.Color) {
-    pt.X = pt.X / canv.scale - canv.x0
-    pt.Y = pt.Y / canv.scale - canv.y0
-    radius /= canv.scale
-    draw.DrawMask(canv.img, canv.img.Bounds(), &image.Uniform{col}, image.ZP, &circle_stroke{pt, radius}, image.ZP, draw.Over)
-}
-
-func sq(x int) int {
-    return x * x;
+func sq(x float64) float64 {
+    return x * x
 }
 
 func DoWork(db *mysql.Client, posFilename string, outFilename string) {
     graph := ReadGraph(db, posFilename)
-    canv := NewCanvas(graph.bounds.Dx() / 150, graph.bounds.Dy() / 150, 120)
-    canv.Clear(HTMLColour(0x445566))
-    // simple halo background circle for each paper
-    for _, paper := range graph.papers {
-        canv.CircleFill(image.Pt(paper.x, paper.y), 2*paper.radius, paper.colBG)
+    qt := BuildQuadTree(graph.papers)
+
+    surf := cairo.NewSurface(cairo.FORMAT_RGB24, graph.BoundsX / 12, graph.BoundsY / 12)
+    surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
+    surf.Paint()
+
+    matrix := new(cairo.Matrix)
+    matrix.Xx = float64(surf.GetWidth()) / float64(graph.BoundsX)
+    matrix.Yy = float64(surf.GetHeight()) / float64(graph.BoundsY)
+    if matrix.Xx < matrix.Yy {
+        matrix.Yy = matrix.Xx
+    } else {
+        matrix.Xx = matrix.Yy
     }
+    matrix.X0 = 0.5 * float64(surf.GetWidth())
+    matrix.Y0 = 0.5 * float64(surf.GetHeight())
+
+    surf.SetMatrix(*matrix)
 
     /*
-    // area-based background; doesn't work and is very slow!
-    for v := 0; v + 1 < canv.h; v += 2 {
-        fmt.Println("here", v)
-        for u := 0; u + 1 < canv.w; u += 2 {
-            x := (u + canv.x0) * canv.scale
-            y := (v + canv.y0) * canv.scale
-            ptR := 0
-            ptG := 0
-            ptB := 0
-            n := 0
-            for _, paper := range graph.papers {
-                if sq(paper.x - x) + sq(paper.y - y) < sq(50) {
-                    r, g, b, _ := paper.colBG.RGBA()
-                    ptR += int(r >> 8)
-                    ptG += int(g >> 8)
-                    ptB += int(b >> 8)
-                    n += 1
-                }
-            }
-            if n > 0 {
-                ptR /= n
-                ptG /= n
-                ptB /= n
-                canv.img.Set(u, v, color.RGBA{uint8(ptR), uint8(ptG), uint8(ptB), 255})
-                canv.img.Set(u+1, v, color.RGBA{uint8(ptR), uint8(ptG), uint8(ptB), 255})
-                canv.img.Set(u, v+1, color.RGBA{uint8(ptR), uint8(ptG), uint8(ptB), 255})
-                canv.img.Set(u+1, v+1, color.RGBA{uint8(ptR), uint8(ptG), uint8(ptB), 255})
-            }
-        }
+    // simple halo background circle for each paper
+    for _, paper := range graph.papers {
+        surf.SetSourceRGB(paper.colBG.r, paper.colBG.g, paper.colBG.b)
+        surf.Arc(float64(paper.x), float64(paper.y), 2 * float64(paper.radius), 0, 2 * math.Pi)
+        surf.Fill()
     }
     */
 
-    for _, paper := range graph.papers {
-        canv.CircleFill(image.Pt(paper.x, paper.y), paper.radius, paper.colFG)
-        //canv.CircleStroke(image.Pt(paper.x, paper.y), paper.radius, color.Black)
+    // area-based background
+    fmt.Println("rendering background")
+    surf.IdentityMatrix()
+    matrixInv := *matrix
+    matrixInv.Invert()
+    for v := 0; v + 1 < surf.GetHeight(); v += 2 {
+        for u := 0; u + 1 < surf.GetWidth(); u += 2 {
+            x, y := matrixInv.TransformPoint(float64(u), float64(v))
+            ptR := 0.0
+            ptG := 0.0
+            ptB := 0.0
+            n := 0
+            qt.ApplyIfWithin(int(x), int(y), 200, func(paper *Paper) {
+                ptR += paper.colBG.r
+                ptG += paper.colBG.g
+                ptB += paper.colBG.b
+                n += 1
+            })
+            if n > 10 {
+                if n < 20 {
+                    ptR += float64(20 - n) * 4.0/15
+                    ptG += float64(20 - n) * 5.0/15
+                    ptB += float64(20 - n) * 6.0/15
+                    n = 20
+                }
+                ptR /= float64(n)
+                ptG /= float64(n)
+                ptB /= float64(n)
+                surf.SetSourceRGB(ptR, ptG, ptB)
+                surf.Rectangle(float64(u), float64(v), 2, 2)
+                surf.Fill()
+            }
+        }
     }
-    canv.EncodePNG(outFilename + ".png")
+
+    // foreground
+    fmt.Println("rendering foreground")
+    surf.SetMatrix(*matrix)
+    surf.SetLineWidth(3)
+    for _, paper := range graph.papers {
+        surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+        surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
+        surf.FillPreserve()
+        surf.SetSourceRGB(0, 0, 0)
+        surf.Stroke()
+    }
+
+    fmt.Println("writing file")
+    surf.WriteToPNG(outFilename + ".png")
     //canv.EncodeJPEG("out-.jpg")
+    surf.Finish()
 }
