@@ -2400,15 +2400,17 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
 
 func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWriter) {
 
-    stmt := h.papers.StatementBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id = " + *flagPciteTable + ".id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 25",h.papers.db.Escape(searchString))
+    //stmt := h.papers.StatementBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id = " + *flagPciteTable + ".id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 25",h.papers.db.Escape(searchString))
+    stmt := h.papers.StatementBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id = " + *flagPciteTable + ".id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 25",h.papers.db.Escape(searchString))
 
     var id,numCites uint64
-    var refStr []byte
+    //var refStr []byte
     
     numResults := 0
     fmt.Fprintf(rw, "[")
     if stmt != nil {
-        stmt.BindResult(&id,&numCites,&refStr)
+        //stmt.BindResult(&id,&numCites,&refStr)
+        stmt.BindResult(&id,&numCites)
         for {
             eof, err := stmt.Fetch()
             if err != nil {
@@ -2418,9 +2420,10 @@ func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWrite
             if numResults > 0 {
                 fmt.Fprintf(rw, ",")
             }
-            fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"o\":%d,\"ref\":", id, numCites,numResults)
-            ParseRefsCitesStringToJSONListOfIds(refStr, rw)
-            fmt.Fprintf(rw, "}")
+            //fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"o\":%d,\"ref\":", id, numCites,numResults)
+            //ParseRefsCitesStringToJSONListOfIds(refStr, rw)
+            //fmt.Fprintf(rw, "}")
+            fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"o\":%d}", id, numCites,numResults)
             numResults += 1
         }
         err := stmt.FreeResult()
@@ -2573,7 +2576,8 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
 // builds a JSON list with id, numCites, refs for up to 500 results
 func (h *MyHTTPHandler) SearchGeneric(whereClause string, rw http.ResponseWriter) {
     // build basic query
-    query := "SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id=" + *flagPciteTable + ".id AND (" + whereClause + ")"
+    //query := "SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id=" + *flagPciteTable + ".id AND (" + whereClause + ")"
+    query := "SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id=" + *flagPciteTable + ".id AND (" + whereClause + ")"
 
     // don't include results that we have no way of uniquely identifying (ie must have arxiv or publ info)
     query += " AND (meta_data.arxiv IS NOT NULL OR meta_data.publ IS NOT NULL)"
@@ -2609,17 +2613,18 @@ func (h *MyHTTPHandler) SearchGeneric(whereClause string, rw http.ResponseWriter
         var ok bool
         var id uint64
         var numCites uint64
-        var refStr []byte
+        //var refStr []byte
         if id, ok = row[0].(uint64); !ok { continue }
         if numCites, ok = row[1].(uint64); !ok { numCites = 0 }
-        if refStr, ok = row[2].([]byte); !ok { /* refStr is empty, that's okay */ }
+        //if refStr, ok = row[2].([]byte); !ok { /* refStr is empty, that's okay */ }
 
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
-        fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"ref\":", id, numCites)
-        ParseRefsCitesStringToJSONListOfIds(refStr, rw)
-        fmt.Fprintf(rw, "}")
+        //fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"ref\":", id, numCites)
+        //ParseRefsCitesStringToJSONListOfIds(refStr, rw)
+        //fmt.Fprintf(rw, "}")
+        fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d}", id, numCites)
         numResults += 1
     }
     fmt.Fprintf(rw, "]")
@@ -2641,7 +2646,8 @@ func (h *MyHTTPHandler) SearchNewPapers(idFrom string, idTo string, rw http.Resp
         idTo = "4000000000";
     }
 
-    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.allcats," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+    //if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.allcats," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.allcats," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
         fmt.Fprintf(rw, "[]")
         return
     }
@@ -2669,34 +2675,36 @@ func (h *MyHTTPHandler) SearchNewPapers(idFrom string, idTo string, rw http.Resp
         var id uint64
         var allcats string
         var numCites uint64
-        var refStr []byte
+        //var refStr []byte
         if id, ok = row[0].(uint64); !ok { continue }
         if allcats, ok = row[1].(string); !ok { continue }
         if numCites, ok = row[2].(uint64); !ok { numCites = 0 }
-        if refStr, ok = row[3].([]byte); !ok { }
+        //if refStr, ok = row[3].([]byte); !ok { }
 
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
-        fmt.Fprintf(rw, "{\"id\":%d,\"cat\":\"%s\",\"nc\":%d,\"ref\":", id, allcats, numCites)
-        ParseRefsCitesStringToJSONListOfIds(refStr, rw)
-        fmt.Fprintf(rw, "}")
+        //fmt.Fprintf(rw, "{\"id\":%d,\"cat\":\"%s\",\"nc\":%d,\"ref\":", id, allcats, numCites)
+        //ParseRefsCitesStringToJSONListOfIds(refStr, rw)
+        //fmt.Fprintf(rw, "}")
+        fmt.Fprintf(rw, "{\"id\":%d,\"cat\":\"%s\",\"nc\":%d}", id, allcats, numCites)
         numResults += 1
     }
     fmt.Fprintf(rw, "]")
 }
 
-func ParseRefsCitesStringToJSONListOfIds(blob []byte, rw http.ResponseWriter) {
-    fmt.Fprintf(rw, "[")
-    for i := 0; i + 10 <= len(blob); i += 10 {
-        refId := getLE32(blob, i)
-        if i > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        fmt.Fprintf(rw, "%d", refId)
-    }
-    fmt.Fprintf(rw, "]")
-}
+// *OBSOLETE*
+//func ParseRefsCitesStringToJSONListOfIds(blob []byte, rw http.ResponseWriter) {
+//    fmt.Fprintf(rw, "[")
+//    for i := 0; i + 10 <= len(blob); i += 10 {
+//        refId := getLE32(blob, i)
+//        if i > 0 {
+//            fmt.Fprintf(rw, ",")
+//        }
+//        fmt.Fprintf(rw, "%d", refId)
+//    }
+//    fmt.Fprintf(rw, "]")
+//}
 
 // searches for trending papers
 // returns list of id and numCites
