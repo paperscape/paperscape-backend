@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <gtk/gtk.h>
+#include <sys/time.h>
 
 #include "xiwilib.h"
 #include "common.h"
@@ -30,6 +31,9 @@ int id_range_end = 2060000000;
 static int iterate_counter = 0;
 static gboolean map_env_update(map_env_t *map_env) {
     bool converged = false;
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     for (int i = 0; i < 10; i++) {
         iterate_counter += 1;
         /*
@@ -46,6 +50,9 @@ static gboolean map_env_update(map_env_t *map_env) {
             boost_step_size -= 1;
         }
     }
+    gettimeofday(&tp, NULL);
+    int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+    printf("%f seconds per iteration\n", (end_time - start_time) / 10.0 / 1000.0);
 
     //map_env_centre_view(map_env);
     //map_env_set_zoom_to_fit_n_standard_deviations(map_env, 2.6, 1000, 1000);

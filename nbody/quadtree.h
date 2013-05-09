@@ -3,9 +3,8 @@
 
 typedef struct _quad_tree_node_t {
     struct _quad_tree_node_t *parent;
-    float side_length_x;
-    float side_length_y;
-    int num_papers; // if 1, this node is a leaf, else an internal node
+    float side_length;  // cells are square
+    int num_papers;     // if 1, this node is a leaf, else an internal node
     float mass;
     float x;
     float y;
@@ -26,6 +25,7 @@ typedef struct _quad_tree_node_t {
 } quad_tree_node_t;
 
 typedef struct _quad_tree_t {
+    struct _quad_tree_pool_t *quad_tree_pool;
     double min_x;
     double min_y;
     double max_x;
@@ -33,6 +33,7 @@ typedef struct _quad_tree_t {
     quad_tree_node_t *root;
 } quad_tree_t;
 
+quad_tree_t *quad_tree_new();
 void quad_tree_build(int num_papers, paper_t** papers, quad_tree_t *qt);
 
 #endif // _INCLUDED_QUADTREE_H

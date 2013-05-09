@@ -23,41 +23,30 @@ quad_tree_pool_t *quad_tree_pool_new(int alloc, quad_tree_pool_t *next) {
     return qtp;
 }
 
-static quad_tree_pool_t *quad_tree_pool = NULL;
-
-void quad_tree_pool_free_all() {
-    for (quad_tree_pool_t *qtp = quad_tree_pool; qtp != NULL; qtp = qtp->next) {
+void quad_tree_pool_free_all(quad_tree_pool_t *qtp) {
+    for (; qtp != NULL; qtp = qtp->next) {
         qtp->num_nodes_used = 0;
     }
 }
 
-void quad_tree_pool_init() {
-    if (quad_tree_pool == NULL) {
-        quad_tree_pool = quad_tree_pool_new(1024, NULL);
-    } else {
-        quad_tree_pool_free_all();
-    }
-}
-
-quad_tree_node_t *quad_tree_pool_alloc() {
+quad_tree_node_t *quad_tree_pool_alloc(quad_tree_t *qt) {
     // look for a free node
-    for (quad_tree_pool_t *qtp = quad_tree_pool; qtp != NULL; qtp = qtp->next) {
+    for (quad_tree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
         if (qtp->num_nodes_used < qtp->num_nodes_alloc) {
             return &qtp->nodes[qtp->num_nodes_used++];
         }
     }
     // ran out of pre-allocated nodes, so allocate some more
-    quad_tree_pool = quad_tree_pool_new(quad_tree_pool->num_nodes_alloc * 2, quad_tree_pool);
-    return &quad_tree_pool->nodes[quad_tree_pool->num_nodes_used++];
+    qt->quad_tree_pool = quad_tree_pool_new(qt->quad_tree_pool->num_nodes_alloc * 2, qt->quad_tree_pool);
+    return &qt->quad_tree_pool->nodes[qt->quad_tree_pool->num_nodes_used++];
 }
 
-void quad_tree_insert_paper(quad_tree_node_t *parent, quad_tree_node_t **q, paper_t *p, int depth, double min_x, double min_y, double max_x, double max_y) {
+void quad_tree_insert_paper(quad_tree_t *qt, quad_tree_node_t *parent, quad_tree_node_t **q, paper_t *p, int depth, double min_x, double min_y, double max_x, double max_y) {
     if (*q == NULL) {
         // hit an empty node; create a new leaf cell and put this paper in it
-        *q = quad_tree_pool_alloc();
+        *q = quad_tree_pool_alloc(qt);
         (*q)->parent = parent;
-        (*q)->side_length_x = max_x - min_x;
-        (*q)->side_length_y = max_y - min_y;
+        (*q)->side_length = max_x - min_x;
         (*q)->num_papers = 1;
         (*q)->mass = p->mass;
         (*q)->x = p->x;
@@ -80,9 +69,9 @@ void quad_tree_insert_paper(quad_tree_node_t *parent, quad_tree_node_t **q, pape
         (*q)->q2 = NULL;
         (*q)->q3 = NULL;
         (*q)->num_papers = 0; // so it treats this node as an internal node
-        quad_tree_insert_paper(parent, q, p0, depth, min_x, min_y, max_x, max_y);
+        quad_tree_insert_paper(qt, parent, q, p0, depth, min_x, min_y, max_x, max_y);
         (*q)->num_papers = 0; // so it treats this node as an internal node
-        quad_tree_insert_paper(parent, q, p, depth, min_x, min_y, max_x, max_y);
+        quad_tree_insert_paper(qt, parent, q, p, depth, min_x, min_y, max_x, max_y);
         (*q)->num_papers = 2; // we now have 2 papers in this node
 
     } else {
@@ -108,18 +97,25 @@ void quad_tree_insert_paper(quad_tree_node_t *parent, quad_tree_node_t **q, pape
         // insert the new paper in the correct cell
         if (p->y < mid_y) {
             if (p->x < mid_x) {
-                quad_tree_insert_paper(*q, &(*q)->q0, p, depth + 1, min_x, min_y, mid_x, mid_y);
+                quad_tree_insert_paper(qt, *q, &(*q)->q0, p, depth + 1, min_x, min_y, mid_x, mid_y);
             } else {
-                quad_tree_insert_paper(*q, &(*q)->q1, p, depth + 1, mid_x, min_y, max_x, mid_y);
+                quad_tree_insert_paper(qt, *q, &(*q)->q1, p, depth + 1, mid_x, min_y, max_x, mid_y);
             }
         } else {
             if (p->x < mid_x) {
-                quad_tree_insert_paper(*q, &(*q)->q2, p, depth + 1, min_x, mid_y, mid_x, max_y);
+                quad_tree_insert_paper(qt, *q, &(*q)->q2, p, depth + 1, min_x, mid_y, mid_x, max_y);
             } else {
-                quad_tree_insert_paper(*q, &(*q)->q3, p, depth + 1, mid_x, mid_y, max_x, max_y);
+                quad_tree_insert_paper(qt, *q, &(*q)->q3, p, depth + 1, mid_x, mid_y, max_x, max_y);
             }
         }
     }
+}
+
+quad_tree_t *quad_tree_new() {
+    quad_tree_t *qt = m_new(quad_tree_t, 1);
+    qt->quad_tree_pool = quad_tree_pool_new(1024, NULL);
+    qt->root = NULL;
+    return qt;
 }
 
 void quad_tree_build(int num_papers, paper_t** papers, quad_tree_t *qt) {
@@ -165,9 +161,9 @@ void quad_tree_build(int num_papers, paper_t** papers, quad_tree_t *qt) {
     }
 
     // build the quad tree
-    quad_tree_pool_init();
+    quad_tree_pool_free_all(qt->quad_tree_pool);
     for (int i = 0; i < num_papers; i++) {
         paper_t *p = papers[i];
-        quad_tree_insert_paper(NULL, &qt->root, p, 0, qt->min_x, qt->min_y, qt->max_x, qt->max_y);
+        quad_tree_insert_paper(qt, NULL, &qt->root, p, 0, qt->min_x, qt->min_y, qt->max_x, qt->max_y);
     }
 }

@@ -52,7 +52,7 @@ map_env_t *map_env_new() {
     map_env->all_papers = NULL;
     map_env->num_papers = 0;
     map_env->papers = NULL;
-    map_env->quad_tree = m_new(quad_tree_t, 1);
+    map_env->quad_tree = quad_tree_new();
     map_env->oct_tree = m_new(oct_tree_t, 1);
     map_env->grid_w = 160;
     map_env->grid_h = 160;
