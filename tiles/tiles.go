@@ -430,6 +430,7 @@ func DoWork(db *mysql.Client, posFilename string, outFilename string) {
 
     surf := cairo.NewSurface(cairo.FORMAT_RGB24, graph.BoundsX / 12, graph.BoundsY / 12)
     surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
+    //surf.SetSourceRGB(0, 0, 0)
     surf.Paint()
 
     matrix := new(cairo.Matrix)
@@ -443,19 +444,17 @@ func DoWork(db *mysql.Client, posFilename string, outFilename string) {
     matrix.X0 = 0.5 * float64(surf.GetWidth())
     matrix.Y0 = 0.5 * float64(surf.GetHeight())
 
-    surf.SetMatrix(*matrix)
+    fmt.Println("rendering background")
 
-    /*
     // simple halo background circle for each paper
+    surf.SetMatrix(*matrix)
     for _, paper := range graph.papers {
         surf.SetSourceRGB(paper.colBG.r, paper.colBG.g, paper.colBG.b)
         surf.Arc(float64(paper.x), float64(paper.y), 2 * float64(paper.radius), 0, 2 * math.Pi)
         surf.Fill()
     }
-    */
 
     // area-based background
-    fmt.Println("rendering background")
     surf.IdentityMatrix()
     matrixInv := *matrix
     matrixInv.Invert()
@@ -487,6 +486,47 @@ func DoWork(db *mysql.Client, posFilename string, outFilename string) {
                 surf.Fill()
             }
         }
+    }
+
+    // apply smoothing
+    {
+        data := surf.GetData()
+        w := surf.GetStride()
+        fmt.Println(surf.GetFormat())
+        data2 := make([]byte, len(data))
+        for v := 1; v + 1 < surf.GetHeight(); v += 1 {
+            for u := 1; u + 1 < surf.GetWidth(); u += 1 {
+                var r, g, b uint
+                /*
+                if data[v * w + u * 4 + 0] == 0 && data[v * w + u * 4 + 1] == 0 && data[v * w + u * 4 + 2] == 0 {
+                    r = 5*0x44
+                    g = 5*0x55
+                    b = 5*0x66
+                } else {
+                    */
+                    b = uint(data[(v - 1) * w + (u + 0) * 4 + 0]) +
+                        uint(data[(v + 0) * w + (u - 1) * 4 + 0]) +
+                        uint(data[(v + 0) * w + (u + 0) * 4 + 0]) +
+                        uint(data[(v + 0) * w + (u + 1) * 4 + 0]) +
+                        uint(data[(v + 1) * w + (u + 0) * 4 + 0])
+                    g = uint(data[(v - 1) * w + (u + 0) * 4 + 1]) +
+                        uint(data[(v + 0) * w + (u - 1) * 4 + 1]) +
+                        uint(data[(v + 0) * w + (u + 0) * 4 + 1]) +
+                        uint(data[(v + 0) * w + (u + 1) * 4 + 1]) +
+                        uint(data[(v + 1) * w + (u + 0) * 4 + 1])
+                    r = uint(data[(v - 1) * w + (u + 0) * 4 + 2]) +
+                        uint(data[(v + 0) * w + (u - 1) * 4 + 2]) +
+                        uint(data[(v + 0) * w + (u + 0) * 4 + 2]) +
+                        uint(data[(v + 0) * w + (u + 1) * 4 + 2]) +
+                        uint(data[(v + 1) * w + (u + 0) * 4 + 2])
+                //}
+
+                data2[v * w + u * 4 + 0] = byte(b / 5)
+                data2[v * w + u * 4 + 1] = byte(g / 5)
+                data2[v * w + u * 4 + 2] = byte(r / 5)
+            }
+        }
+        surf.SetData(data2)
     }
 
     // foreground
