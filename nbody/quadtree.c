@@ -4,7 +4,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "common.h"
+#include "layout.h"
 #include "quadtree.h"
 
 typedef struct _quad_tree_pool_t {
@@ -41,24 +41,24 @@ quad_tree_node_t *quad_tree_pool_alloc(quad_tree_t *qt) {
     return &qt->quad_tree_pool->nodes[qt->quad_tree_pool->num_nodes_used++];
 }
 
-void quad_tree_insert_paper(quad_tree_t *qt, quad_tree_node_t *parent, quad_tree_node_t **q, paper_t *p, double min_x, double min_y, double max_x, double max_y) {
+void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, quad_tree_node_t **q, layout_node_t *ln, double min_x, double min_y, double max_x, double max_y) {
     if (*q == NULL) {
-        // hit an empty node; create a new leaf cell and put this paper in it
+        // hit an empty node; create a new leaf cell and put this layout-node in it
         *q = quad_tree_pool_alloc(qt);
         (*q)->parent = parent;
         (*q)->side_length = max_x - min_x;
         (*q)->num_items = 1;
-        (*q)->mass = p->mass;
-        (*q)->x = p->x;
-        (*q)->y = p->y;
+        (*q)->mass = ln->mass;
+        (*q)->x = ln->x;
+        (*q)->y = ln->y;
         (*q)->fx = 0;
         (*q)->fy = 0;
-        (*q)->r = p->r;
-        (*q)->item = p;
+        (*q)->radius = ln->radius;
+        (*q)->item = ln;
 
     } else if ((*q)->num_items == 1) {
-        // hit a leaf; turn it into an internal node and re-insert the papers
-        paper_t *p0 = (*q)->item;
+        // hit a leaf; turn it into an internal node and re-insert the layout-nodes
+        layout_node_t *ln0 = (*q)->item;
         (*q)->mass = 0;
         (*q)->x = 0;
         (*q)->y = 0;
@@ -69,19 +69,19 @@ void quad_tree_insert_paper(quad_tree_t *qt, quad_tree_node_t *parent, quad_tree
         (*q)->q2 = NULL;
         (*q)->q3 = NULL;
         (*q)->num_items = 0; // so it treats this node as an internal node
-        quad_tree_insert_paper(qt, parent, q, p0, min_x, min_y, max_x, max_y);
+        quad_tree_insert_layout_node(qt, parent, q, ln0, min_x, min_y, max_x, max_y);
         (*q)->num_items = 0; // so it treats this node as an internal node
-        quad_tree_insert_paper(qt, parent, q, p, min_x, min_y, max_x, max_y);
-        (*q)->num_items = 2; // we now have 2 papers in this node
+        quad_tree_insert_layout_node(qt, parent, q, ln, min_x, min_y, max_x, max_y);
+        (*q)->num_items = 2; // we now have 2 layout-nodes in this node
 
     } else {
         // hit an internal node
 
         // update centre of mass and mass of cell
         (*q)->num_items += 1;
-        double new_mass = (*q)->mass + p->mass;
-        (*q)->x = ((*q)->mass * (*q)->x + p->mass * p->x) / new_mass;
-        (*q)->y = ((*q)->mass * (*q)->y + p->mass * p->y) / new_mass;
+        double new_mass = (*q)->mass + ln->mass;
+        (*q)->x = ((*q)->mass * (*q)->x + ln->mass * ln->x) / new_mass;
+        (*q)->y = ((*q)->mass * (*q)->y + ln->mass * ln->y) / new_mass;
         (*q)->mass = new_mass;
 
         // check cell size didn't get too small
@@ -94,18 +94,18 @@ void quad_tree_insert_paper(quad_tree_t *qt, quad_tree_node_t *parent, quad_tree
         double mid_x = 0.5 * (min_x + max_x);
         double mid_y = 0.5 * (min_y + max_y);
 
-        // insert the new paper in the correct cell
-        if (p->y < mid_y) {
-            if (p->x < mid_x) {
-                quad_tree_insert_paper(qt, *q, &(*q)->q0, p, min_x, min_y, mid_x, mid_y);
+        // insert the new layout-node in the correct cell
+        if (ln->y < mid_y) {
+            if (ln->x < mid_x) {
+                quad_tree_insert_layout_node(qt, *q, &(*q)->q0, ln, min_x, min_y, mid_x, mid_y);
             } else {
-                quad_tree_insert_paper(qt, *q, &(*q)->q1, p, mid_x, min_y, max_x, mid_y);
+                quad_tree_insert_layout_node(qt, *q, &(*q)->q1, ln, mid_x, min_y, max_x, mid_y);
             }
         } else {
-            if (p->x < mid_x) {
-                quad_tree_insert_paper(qt, *q, &(*q)->q2, p, min_x, mid_y, mid_x, max_y);
+            if (ln->x < mid_x) {
+                quad_tree_insert_layout_node(qt, *q, &(*q)->q2, ln, min_x, mid_y, mid_x, max_y);
             } else {
-                quad_tree_insert_paper(qt, *q, &(*q)->q3, p, mid_x, mid_y, max_x, max_y);
+                quad_tree_insert_layout_node(qt, *q, &(*q)->q3, ln, mid_x, mid_y, max_x, max_y);
             }
         }
     }
@@ -118,11 +118,11 @@ quad_tree_t *quad_tree_new() {
     return qt;
 }
 
-void quad_tree_build(int num_papers, paper_t** papers, quad_tree_t *qt) {
+void quad_tree_build(layout_t *layout, quad_tree_t *qt) {
     qt->root = NULL;
 
-    // if no papers, return
-    if (num_papers == 0) {
+    // if no nodes, return
+    if (layout->num_nodes == 0) {
         qt->min_x = 0;
         qt->min_y = 0;
         qt->max_x = 0;
@@ -130,18 +130,18 @@ void quad_tree_build(int num_papers, paper_t** papers, quad_tree_t *qt) {
         return;
     }
 
-    // first work out the bounding box of all papers
-    paper_t *p0 = papers[0];
-    qt->min_x = p0->x;
-    qt->min_y = p0->y;
-    qt->max_x = p0->x;
-    qt->max_y = p0->y;
-    for (int i = 1; i < num_papers; i++) {
-        paper_t *p = papers[i];
-        if (p->x < qt->min_x) { qt->min_x = p->x; }
-        if (p->y < qt->min_y) { qt->min_y = p->y; }
-        if (p->x > qt->max_x) { qt->max_x = p->x; }
-        if (p->y > qt->max_y) { qt->max_y = p->y; }
+    // first work out the bounding box of all nodes
+    layout_node_t *n0 = &layout->nodes[0];
+    qt->min_x = n0->x;
+    qt->min_y = n0->y;
+    qt->max_x = n0->x;
+    qt->max_y = n0->y;
+    for (int i = 1; i < layout->num_nodes; i++) {
+        layout_node_t *n = &layout->nodes[i];
+        if (n->x < qt->min_x) { qt->min_x = n->x; }
+        if (n->y < qt->min_y) { qt->min_y = n->y; }
+        if (n->x > qt->max_x) { qt->max_x = n->x; }
+        if (n->y > qt->max_y) { qt->max_y = n->y; }
     }
 
     // increase the bounding box so it's square
@@ -162,8 +162,7 @@ void quad_tree_build(int num_papers, paper_t** papers, quad_tree_t *qt) {
 
     // build the quad tree
     quad_tree_pool_free_all(qt->quad_tree_pool);
-    for (int i = 0; i < num_papers; i++) {
-        paper_t *p = papers[i];
-        quad_tree_insert_paper(qt, NULL, &qt->root, p, qt->min_x, qt->min_y, qt->max_x, qt->max_y);
+    for (int i = 0; i < layout->num_nodes; i++) {
+        quad_tree_insert_layout_node(qt, NULL, &qt->root, &layout->nodes[i], qt->min_x, qt->min_y, qt->max_x, qt->max_y);
     }
 }

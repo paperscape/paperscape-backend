@@ -29,7 +29,9 @@ typedef struct _layout_t {
     layout_link_t *links;
 } layout_t;
 
-layout_t *build_layout_from_papers(int num_papers, paper_t **papers);
+struct _paper_t;
+
+layout_t *build_layout_from_papers(int num_papers, struct _paper_t **papers);
 layout_t *build_reduced_layout_from_layout(layout_t *layout);
 void layout_print(layout_t *layout);
 

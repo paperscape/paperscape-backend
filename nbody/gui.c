@@ -213,6 +213,11 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_4) {
         map_env_adjust_link_strength(map_env, 1.1);
 
+    } else if (event->keyval == GDK_KEY_9) {
+        map_env_coarsen_layout(map_env);
+    } else if (event->keyval == GDK_KEY_0) {
+        map_env_refine_layout(map_env);
+
     } else if (event->keyval == GDK_KEY_plus || event->keyval == GDK_KEY_equal) {
         map_env_zoom(map_env, 0, 0, 1.2);
     } else if (event->keyval == GDK_KEY_minus) {

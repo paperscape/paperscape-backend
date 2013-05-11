@@ -60,8 +60,6 @@ fake links from this paper to the main graph.  The fake links can be:
 --  Speeding up and improving nbody code
 --------------------------------------------------------------------------------
 
---> Do graph refinement to layout the big structure better.  Using eg SAG.
-
 --> Add an option that does further quad descent on the last 100 or so
     iterations to remove any artificial "lines" due to quad tree division.
 

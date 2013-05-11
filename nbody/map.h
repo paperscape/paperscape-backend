@@ -27,6 +27,8 @@ void map_env_toggle_do_close_repulsion(map_env_t *map_env);
 void map_env_toggle_use_ref_freq(map_env_t *map_env);
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt);
 void map_env_adjust_link_strength(map_env_t *map_env, double amt);
+void map_env_coarsen_layout(map_env_t *map_env);
+void map_env_refine_layout(map_env_t *map_env);
 
 void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max);
 void map_env_grow(map_env_t *map_env, double amt);

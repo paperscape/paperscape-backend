@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     paper_t *papers;
 
     //const char *where_clause = NULL;
-    const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph') AND id >= 2030000000";
+    const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph') AND id >= 2110000000";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR arxiv IS NULL)";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc') AND id >= 2115000000";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='gr-qc') AND id >= 2110000000";

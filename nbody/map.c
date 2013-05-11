@@ -45,6 +45,8 @@ struct _map_env_t {
 
     // standard deviation of the positions of the papers
     double x_sd, y_sd, z_sd;
+
+    layout_t *layout;
 };
 
 map_env_t *map_env_new() {
@@ -269,6 +271,28 @@ void map_env_adjust_link_strength(map_env_t *map_env, double amt) {
     map_env->force_params.link_strength *= amt;
 }
 
+void map_env_coarsen_layout(map_env_t *map_env) {
+    if (map_env->layout->parent_layout != NULL) {
+        map_env->layout = map_env->layout->parent_layout;
+        layout_t *l = map_env->layout;
+        for (int i = 0; i < l->num_nodes; i++) {
+            l->nodes[i].x = l->nodes[i].child1->x;
+            l->nodes[i].y = l->nodes[i].child1->y;
+        }
+    }
+}
+
+void map_env_refine_layout(map_env_t *map_env) {
+    if (map_env->layout->child_layout != NULL) {
+        map_env->layout = map_env->layout->child_layout;
+        layout_t *l = map_env->layout;
+        for (int i = 0; i < l->num_nodes; i++) {
+            l->nodes[i].x = l->nodes[i].parent->x + l->nodes[i].parent->radius * random() / RAND_MAX;
+            l->nodes[i].y = l->nodes[i].parent->y + l->nodes[i].parent->radius * random() / RAND_MAX;
+        }
+    }
+}
+
 static double angle = 0;
 
 void paper_colour(paper_t *p, double *r, double *g, double *b) {
@@ -459,7 +483,7 @@ static int paper_cmp_depth(const void *in1, const void *in2) {
     return z1 - z2;
 }
 
-void map_env_draw_2d(map_env_t *map_env, cairo_t *cr, int width, int height) {
+static void map_env_draw_2d(map_env_t *map_env, cairo_t *cr, int width, int height) {
     // clear bg
     cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
     cairo_rectangle(cr, 0, 0, width, height);
@@ -595,7 +619,132 @@ void map_env_draw_2d(map_env_t *map_env, cairo_t *cr, int width, int height) {
     draw_big_labels(cr, map_env);
 }
 
-void map_env_draw_3d(map_env_t *map_env, cairo_t *cr, int width, int height) {
+static void map_env_draw_2d_layout_version(map_env_t *map_env, cairo_t *cr, int width, int height) {
+    // clear bg
+    cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
+    cairo_rectangle(cr, 0, 0, width, height);
+    cairo_fill(cr);
+
+    double line_width_1px = 1.0 / map_env->tr_matrix.xx;
+    cairo_set_matrix(cr, &map_env->tr_matrix);
+    cairo_translate(cr, 0.5 * width / map_env->tr_matrix.xx, 0.5 * height / map_env->tr_matrix.yy);
+
+    if (map_env->draw_grid) {
+        // the origin/axis
+        cairo_set_line_width(cr, line_width_1px);
+        cairo_set_source_rgba(cr, 0, 0, 0, 1);
+        cairo_move_to(cr, 0, -100);
+        cairo_line_to(cr, 0, 100);
+        cairo_stroke(cr);
+        cairo_move_to(cr, -100, 0);
+        cairo_line_to(cr, 100, 0);
+        cairo_stroke(cr);
+
+        // the quad/oct tree grid
+        cairo_set_line_width(cr, line_width_1px);
+        cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
+        if (!map_env->do_3d) {
+            quad_tree_draw_grid(cr, map_env->quad_tree->root, map_env->quad_tree->min_x, map_env->quad_tree->min_y, map_env->quad_tree->max_x, map_env->quad_tree->max_y);
+        } else {
+            oct_tree_draw_grid(cr, map_env->oct_tree->root, map_env->oct_tree->min_x, map_env->oct_tree->min_y, map_env->oct_tree->min_z, map_env->oct_tree->max_x, map_env->oct_tree->max_y, map_env->oct_tree->max_z);
+        }
+
+        /*
+        // grid density
+        for (int j = 0; j < map_env->grid_h; j++) {
+            for (int i = 0; i < map_env->grid_w; i++) {
+                paper_t **g = &map_env->grid[(j * map_env->grid_w + i) * map_env->grid_d];
+                int d = 0;
+                for (; *g != NULL; g++, d++) { }
+                cairo_set_source_rgba(cr, 0, 0, 0, 1.0 * d / map_env->grid_d);
+                cairo_rectangle(cr, i, j, 1, 1);
+                cairo_fill(cr);
+            }
+        }
+        */
+
+        // grid lines
+        /*
+        cairo_set_line_width(cr, line_width_1px);
+        cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
+        for (int i = 0; i <= map_env->grid_w; i++) {
+            cairo_move_to(cr, i, 0);
+            cairo_line_to(cr, i, map_env->grid_h);
+        }
+        for (int i = 0; i <= map_env->grid_h; i++) {
+            cairo_move_to(cr, 0, i);
+            cairo_line_to(cr, map_env->grid_w, i);
+        }
+        cairo_stroke(cr);
+        */
+    } else {
+        // just draw the border of the grid
+        /*
+        cairo_set_line_width(cr, line_width_1px);
+        cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
+        cairo_rectangle(cr, 0, 0, map_env->grid_w, map_env->grid_h);
+        cairo_stroke(cr);
+        */
+    }
+
+    // links
+    if (map_env->draw_paper_links) {
+        cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
+        layout_t *l = map_env->layout;
+        for (int i = 0; i < l->num_nodes; i++) {
+            layout_node_t *n = &l->nodes[i];
+            for (int j = 0; j < n->num_links; j++) {
+                layout_link_t *n2 = &n->links[j];
+                cairo_move_to(cr, n->x, n->y);
+                cairo_line_to(cr, n2->node->x, n2->node->y);
+                cairo_set_line_width(cr, 0.1 * n2->weight);
+                cairo_stroke(cr);
+            }
+        }
+    }
+
+    // nodes
+    cairo_set_line_width(cr, line_width_1px);
+    if (map_env->layout->child_layout == NULL) {
+        // at the finest layout, so draw individual papers
+        for (int i = 0; i < map_env->num_papers; i++) {
+            paper_t *p = map_env->papers[i];
+            p->x = p->layout_node->x;
+            p->y = p->layout_node->y;
+            draw_paper(cr, map_env, p);
+        }
+    } else {
+        for (int i = 0; i < map_env->layout->num_nodes; i++) {
+            layout_node_t *n = &map_env->layout->nodes[i];
+            cairo_set_source_rgb(cr, 0.7, 0.7, 0.5);
+            cairo_arc(cr, n->x, n->y, n->radius, 0, 2 * M_PI);
+            cairo_fill_preserve(cr);
+            cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+            cairo_stroke(cr);
+        }
+    }
+
+    return;
+
+    // set transform for drawing text
+    cairo_identity_matrix(cr);
+    cairo_translate(cr, 0.5 * width, 0.5 * height);
+
+    // paper text
+    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_set_font_size(cr, 10);
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        draw_paper_text(cr, map_env, p);
+    }
+
+    // big labels
+    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_set_font_size(cr, 16);
+    draw_big_labels(cr, map_env);
+}
+
+static void map_env_draw_3d(map_env_t *map_env, cairo_t *cr, int width, int height) {
     // clear bg
     cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
     cairo_rectangle(cr, 0, 0, width, height);
@@ -622,7 +771,8 @@ void map_env_draw_3d(map_env_t *map_env, cairo_t *cr, int width, int height) {
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
     if (!map_env->do_3d) {
-        map_env_draw_2d(map_env, cr, width, height);
+        //map_env_draw_2d(map_env, cr, width, height);
+        map_env_draw_2d_layout_version(map_env, cr, width, height);
     } else {
         map_env_draw_3d(map_env, cr, width, height);
     }
@@ -839,18 +989,19 @@ void compute_keyword_force_2d(force_params_t *param, int num_papers, paper_t **p
 
 static void map_env_compute_forces(map_env_t *map_env) {
     // reset the forces
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
-        p->fx = 0;
-        p->fy = 0;
-        p->fz = 0;
+    for (int i = 0; i < map_env->layout->num_nodes; i++) {
+        layout_node_t *n = &map_env->layout->nodes[i];
+        n->fx = 0;
+        n->fy = 0;
+        //p->fz = 0;
     }
 
     // compute paper-paper forces
     if (!map_env->do_3d) {
-        quad_tree_build(map_env->num_papers, map_env->papers, map_env->quad_tree);
+        quad_tree_build(map_env->layout, map_env->quad_tree);
         quad_tree_forces(&map_env->force_params, map_env->quad_tree);
-        compute_attractive_link_force_2d(&map_env->force_params, map_env->do_tred, map_env->num_papers, map_env->papers);
+        //compute_attractive_link_force_2d(&map_env->force_params, map_env->do_tred, map_env->num_papers, map_env->papers);
+        compute_attractive_link_force_2d_layout_version(&map_env->force_params, map_env->do_tred, map_env->layout);
         //compute_keyword_force_2d(&map_env->force_params, map_env->num_papers, map_env->papers);
     } else {
         oct_tree_build(map_env->num_papers, map_env->papers, map_env->oct_tree);
@@ -979,19 +1130,21 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
     double ysq_sum = 0;
     double zsq_sum = 0;
     double total_mass = 0;
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
+    for (int i = 0; i < map_env->layout->num_nodes; i++) {
+        layout_node_t *n = &map_env->layout->nodes[i];
+        /*
         if (p == hold_still) {
             continue;
         }
+        */
 
-        p->fx /= p->mass;
-        p->fy /= p->mass;
-        p->fz /= p->mass;
+        n->fx /= n->mass;
+        n->fy /= n->mass;
+        //p->fz /= p->mass;
 
-        double fmag = p->fx * p->fx + p->fy * p->fy;
+        double fmag = n->fx * n->fx + n->fy * n->fy;
         if (map_env->do_3d) {
-            fmag += p->fz * p->fz;
+            //fmag += n->fz * n->fz;
         }
         fmag = sqrt(fmag);
 
@@ -999,36 +1152,38 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
 
         double dt = map_env->step_size / fmag;
 
-        p->x += dt * p->fx;
-        p->y += dt * p->fy;
+        n->x += dt * n->fx;
+        n->y += dt * n->fy;
         if (map_env->do_3d) {
-            p->z += dt * p->fz;
+            //n->z += dt * n->fz;
         }
 
-        x_sum += p->x * p->mass;
-        y_sum += p->y * p->mass;
-        z_sum += p->z * p->mass;
-        xsq_sum += p->x * p->x * p->mass;
-        ysq_sum += p->y * p->y * p->mass;
-        zsq_sum += p->z * p->z * p->mass;
-        total_mass += p->mass;
+        x_sum += n->x * n->mass;
+        y_sum += n->y * n->mass;
+        //z_sum += n->z * n->mass;
+        xsq_sum += n->x * n->x * n->mass;
+        ysq_sum += n->y * n->y * n->mass;
+        //zsq_sum += n->z * n->z * n->mass;
+        total_mass += n->mass;
     }
 
     // centre papers on the centre of mass
     x_sum /= total_mass;
     y_sum /= total_mass;
     z_sum /= total_mass;
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
-        if (p == hold_still) {
+    for (int i = 0; i < map_env->layout->num_nodes; i++) {
+        layout_node_t *n = &map_env->layout->nodes[i];
+        /*
+        if (n == hold_still) {
             continue;
         }
-        p->x -= x_sum;
-        p->y -= y_sum;
+        */
+        n->x -= x_sum;
+        n->y -= y_sum;
         if (!map_env->do_3d) {
-            p->z = 0;
+            //n->z = 0;
         } else {
-            p->z -= z_sum;
+            //n->z -= z_sum;
         }
     }
 
@@ -1289,10 +1444,14 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     for (int i = 0; i < 10 && l->num_links > 1; i++) {
         l = build_reduced_layout_from_layout(l);
     }
+    map_env->layout = l;
+    for (int i = 0; i < l->num_nodes; i++) {
+        l->nodes[i].x = 10.0 * random() / RAND_MAX;
+        l->nodes[i].y = 10.0 * random() / RAND_MAX;
+    }
     for (; l != NULL; l = l->child_layout) {
         layout_print(l);
     }
-    //exit(2);
 }
 
 void map_env_jolt(map_env_t *map_env, double amt) {

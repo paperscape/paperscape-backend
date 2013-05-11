@@ -3,7 +3,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "common.h"
+#include "layout.h"
 #include "quadtree.h"
 #include "force.h"
 
@@ -27,9 +27,9 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
             // q2 is leaf node
             double fac;
             if (param->do_close_repulsion) {
-                double rad_sum_sq = 1.2 * pow(q1->r + q2->r, 2);
+                double rad_sum_sq = 1.2 * pow(q1->radius + q2->radius, 2);
                 if (rsq < rad_sum_sq) {
-                    // papers overlap, use stronger repulsive force
+                    // layout-nodes overlap, use stronger repulsive force
                     fac = fmin(200000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * param->anti_gravity_strength / rsq
                         + q1->mass * q2->mass * param->anti_gravity_strength / rad_sum_sq;
                 } else {
@@ -104,8 +104,8 @@ static void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, doub
         fy += q->fy;
 
         if (q->num_items == 1) {
-            ((paper_t*)q->item)->fx += fx;
-            ((paper_t*)q->item)->fy += fy;
+            ((layout_node_t*)q->item)->fx += fx;
+            ((layout_node_t*)q->item)->fy += fy;
         } else {
             fx /= q->mass;
             fy /= q->mass;
