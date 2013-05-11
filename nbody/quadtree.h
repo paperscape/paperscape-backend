@@ -4,18 +4,18 @@
 typedef struct _quad_tree_node_t {
     struct _quad_tree_node_t *parent;
     float side_length;  // cells are square
-    int num_papers;     // if 1, this node is a leaf, else an internal node
-    float mass;
-    float x;
-    float y;
-    float fx;
-    float fy;
+    int num_items;      // if 1, this node is a leaf, else an internal node
+    float mass;         // total mass of this cell (sum of all children)
+    float x;            // centre of mass
+    float y;            // centre of mass
+    float fx;           // net force on this cell
+    float fy;           // net force on this cell
     union {
-        struct {
-            int depth;
-            paper_t *paper;
+        struct {        // for a leaf
+            float r;    // radius of item
+            void *item; // pointer to actual item
         };
-        struct {
+        struct {        // for an internal node
             struct _quad_tree_node_t *q0;
             struct _quad_tree_node_t *q1;
             struct _quad_tree_node_t *q2;

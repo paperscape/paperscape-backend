@@ -7,6 +7,7 @@
 
 #include "xiwilib.h"
 #include "common.h"
+#include "layout.h"
 #include "force.h"
 #include "quadtree.h"
 #include "octtree.h"
@@ -390,10 +391,10 @@ void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
 
 void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double min_y, double max_x, double max_y) {
     if (q != NULL) {
-        if (q->num_papers == 1) {
+        if (q->num_items == 1) {
             cairo_rectangle(cr, min_x, min_y, max_x - min_x, max_y - min_y);
             cairo_fill(cr);
-        } else if (q->num_papers > 1) {
+        } else if (q->num_items > 1) {
             double mid_x = 0.5 * (min_x + max_x);
             double mid_y = 0.5 * (min_y + max_y);
             cairo_move_to(cr, min_x, mid_y);
@@ -1282,6 +1283,18 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     }
 
     map_env->step_size = 1;
+
+    /* testing!
+    int nl, nl2;
+    layout_t *l, *l2;
+    build_layout_from_papers(map_env->num_papers, map_env->papers, &nl, &l);
+    for (int i = 0; i < 10; i++) {
+        build_reduced_layout_from_layout(nl, l, &nl2, &l2);
+        printf("%d --> %d\n", nl, nl2);
+        nl = nl2;
+        l = l2;
+    }
+    */
 }
 
 void map_env_jolt(map_env_t *map_env, double amt) {

@@ -23,11 +23,11 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
             rsq = 1e-6;
         }
 
-        if (q2->num_papers == 1) {
+        if (q2->num_items == 1) {
             // q2 is leaf node
             double fac;
             if (param->do_close_repulsion) {
-                double rad_sum_sq = 1.2 * pow(q1->paper->r + q2->paper->r, 2);
+                double rad_sum_sq = 1.2 * pow(q1->r + q2->r, 2);
                 if (rsq < rad_sum_sq) {
                     // papers overlap, use stronger repulsive force
                     fac = fmin(200000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * param->anti_gravity_strength / rsq
@@ -73,10 +73,10 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
 }
 
 static void quad_tree_forces_ascend(force_params_t *param, quad_tree_node_t *q) {
-    assert(q->num_papers == 1); // must be a leaf node
+    assert(q->num_items == 1); // must be a leaf node
     for (quad_tree_node_t *q2 = q; q2->parent != NULL; q2 = q2->parent) {
         quad_tree_node_t *parent = q2->parent;
-        assert(parent->num_papers > 1); // all parents should be internal nodes
+        assert(parent->num_items > 1); // all parents should be internal nodes
         if (parent->q0 != q2) { quad_tree_forces_leaf_vs_node(param, q, parent->q0); }
         if (parent->q1 != q2) { quad_tree_forces_leaf_vs_node(param, q, parent->q1); }
         if (parent->q2 != q2) { quad_tree_forces_leaf_vs_node(param, q, parent->q2); }
@@ -85,7 +85,7 @@ static void quad_tree_forces_ascend(force_params_t *param, quad_tree_node_t *q) 
 }
 
 static void quad_tree_forces_descend(force_params_t *param, quad_tree_node_t *q) {
-    if (q->num_papers == 1) {
+    if (q->num_items == 1) {
         quad_tree_forces_ascend(param, q);
     } else {
         if (q->q0 != NULL) { quad_tree_forces_descend(param, q->q0); }
@@ -103,9 +103,9 @@ static void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, doub
         fx += q->fx;
         fy += q->fy;
 
-        if (q->num_papers == 1) {
-            q->paper->fx += fx;
-            q->paper->fy += fy;
+        if (q->num_items == 1) {
+            ((paper_t*)q->item)->fx += fx;
+            ((paper_t*)q->item)->fy += fy;
         } else {
             fx /= q->mass;
             fy /= q->mass;
@@ -117,9 +117,8 @@ static void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, doub
     }
 }
 
-// due to cache effects, descending then ascending, and computing in
-// succession the forces for adjacent leaves, is almost twice as fast
-// (for large graphs) as just naively iterating through all the leaves
+// descending then ascending is almost twice as fast (for large graphs) as
+// just naively iterating through all the leaves, possibly due to cache effects
 void quad_tree_forces(force_params_t *param, quad_tree_t *qt) {
     if (qt->root != NULL) {
         quad_tree_forces_descend(param, qt->root);

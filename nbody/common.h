@@ -42,6 +42,8 @@ typedef struct _paper_t {
     float fx;
     float fy;
     float fz;
+
+    struct _layout_t *layout;
 } paper_t;
 
 typedef struct _keyword_t {

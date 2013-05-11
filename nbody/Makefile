@@ -5,6 +5,7 @@ LDFLAGS = $(shell pkg-config --libs gtk+-3.0)
 SRC = \
 	common.c \
 	tred.c \
+	layout.c \
 	quadtree.c \
 	octtree.c \
 	quadtreeforce.c \
