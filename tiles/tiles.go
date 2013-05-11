@@ -37,6 +37,8 @@ import (
     "github.com/ungerik/go-cairo"
 )
 
+var GRAPH_PADDING = 100 // what to pad graph by on each side
+
 var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
 //var flagLogFile = flag.String("log-file", "", "file to output log information to")
 //var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
@@ -275,11 +277,18 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
         var age float64 = float64(index) / float64(len(papers))
         paperObj := MakePaper(db, uint(paper[0]), paper[1], paper[2], paper[3], age)
         graph.papers[index] = paperObj
-        if paperObj.x < graph.MinX { graph.MinX = paperObj.x }
-        if paperObj.y < graph.MinY { graph.MinY = paperObj.y }
-        if paperObj.x > graph.MaxX { graph.MaxX = paperObj.x }
-        if paperObj.y > graph.MaxY { graph.MaxY = paperObj.y }
+        if paperObj.x - paperObj.radius < graph.MinX { graph.MinX = paperObj.x - paperObj.radius }
+        if paperObj.y - paperObj.radius < graph.MinY { graph.MinY = paperObj.y - paperObj.radius }
+        if paperObj.x + paperObj.radius > graph.MaxX { graph.MaxX = paperObj.x + paperObj.radius }
+        if paperObj.y + paperObj.radius > graph.MaxY { graph.MaxY = paperObj.y + paperObj.radius }
     }
+
+    // TRY Add safety buffers, if we use these must
+    // account for them later in client code!
+    graph.MinX -= GRAPH_PADDING
+    graph.MaxX += GRAPH_PADDING
+    graph.MinY -= GRAPH_PADDING
+    graph.MaxY += GRAPH_PADDING
 
     graph.BoundsX = graph.MaxX - graph.MinX
     graph.BoundsY = graph.MaxY - graph.MinY
@@ -426,7 +435,7 @@ func (qt *QuadTree) ApplyIfWithin(x, y, r int, f func(paper *Paper)) {
 
 func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
     
-    surf := cairo.NewSurface(cairo.FORMAT_RGB24, 512, 512)
+    surf := cairo.NewSurface(cairo.FORMAT_RGB24, 256, 256)
     surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
     //surf.SetSourceRGB(0, 0, 0)
     surf.Paint()
@@ -441,10 +450,11 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
         matrix.Xx = matrix.Yy
     }
     
-    matrix.X0 = float64((xtot+2*(1-xi))*surf.GetWidth())/2.
-    matrix.Y0 = float64((ytot+2*(1-yi))*surf.GetHeight())/2.
+    // Move to lowest x,y point
+    matrix.X0 = -float64(graph.MinX)*matrix.Xx + float64((1-xi)*surf.GetWidth())
+    matrix.Y0 = -float64(graph.MinY)*matrix.Yy + float64((1-yi)*surf.GetHeight())
 
-    fmt.Println("rendering background")
+    //fmt.Println("rendering background")
 
     // simple halo background circle for each paper
     surf.SetMatrix(*matrix)
@@ -531,7 +541,7 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
     //}
 
     // foreground
-    fmt.Println("rendering foreground")
+    //fmt.Println("rendering foreground")
     surf.SetMatrix(*matrix)
     surf.SetLineWidth(3)
     for _, paper := range graph.papers {
@@ -542,7 +552,7 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
         surf.Stroke()
     }
 
-    fmt.Println("writing file")
+    //fmt.Println("writing file")
     filename := fmt.Sprintf("%stile_%d-%d_%d-%d.png",outPrefix,xtot,ytot,xi,yi)
     surf.WriteToPNG(filename)
     //canv.EncodeJPEG("out-.jpg")
@@ -552,10 +562,18 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
 
 func DoWork(db *mysql.Client, posFilename string, outPrefix string) {
     graph := ReadGraph(db, posFilename)
-    
-    DrawTile(graph,1,1,1,1,outPrefix)
-    DrawTile(graph,2,2,1,2,outPrefix)
-    DrawTile(graph,2,2,1,1,outPrefix)
-    DrawTile(graph,4,4,3,2,outPrefix)
-    DrawTile(graph,4,4,4,4,outPrefix)
+
+    depths := 6
+
+    for depth := 0; depth < depths; depth++ {
+        divs := int(math.Pow(2.,float64(depth)))
+        fmt.Println("Generating tiles at depth %d",divs)
+        // TODO if graph far from from square, shorten tile 
+        // directions accordingly
+        for xi := 1; xi <= divs; xi++ {
+            for yi := 1; yi <= divs; yi++ {
+                DrawTile(graph,divs,divs,xi,yi,outPrefix)
+            }
+        }
+    }
 }
