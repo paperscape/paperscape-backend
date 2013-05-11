@@ -1284,17 +1284,15 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
 
     map_env->step_size = 1;
 
-    /* testing!
-    int nl, nl2;
-    layout_t *l, *l2;
-    build_layout_from_papers(map_env->num_papers, map_env->papers, &nl, &l);
-    for (int i = 0; i < 10; i++) {
-        build_reduced_layout_from_layout(nl, l, &nl2, &l2);
-        printf("%d --> %d\n", nl, nl2);
-        nl = nl2;
-        l = l2;
+    // testing!
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers);
+    for (int i = 0; i < 10 && l->num_links > 1; i++) {
+        l = build_reduced_layout_from_layout(l);
     }
-    */
+    for (; l != NULL; l = l->child_layout) {
+        layout_print(l);
+    }
+    //exit(2);
 }
 
 void map_env_jolt(map_env_t *map_env, double amt) {

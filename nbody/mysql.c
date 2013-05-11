@@ -333,6 +333,10 @@ static bool env_load_refs(env_t *env) {
                 for (int i = 0; i < len; i += 10) {
                     byte *buf = (byte*)row[1] + i;
                     unsigned int id = decode_le32(buf + 0);
+                    if (id == paper->id) {
+                        // make sure paper doesn't ref itself (yes, they exist, see eg 1202.2631)
+                        continue;
+                    }
                     paper->refs[paper->num_refs] = env_get_paper_by_id(env, id);
                     if (paper->refs[paper->num_refs] != NULL) {
                         paper->refs[paper->num_refs]->num_cites += 1;
