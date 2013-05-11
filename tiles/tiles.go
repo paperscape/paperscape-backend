@@ -39,7 +39,8 @@ import (
 
 var GRAPH_PADDING = 100 // what to pad graph by on each side
 
-var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
+var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
+var flagDoSingle = flag.Bool("single", false, "Do a large single tile")
 //var flagLogFile = flag.String("log-file", "", "file to output log information to")
 //var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
 //var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
@@ -68,7 +69,14 @@ func main() {
     }
     defer db.Close()
 
-    DoWork(db, flag.Arg(0), flag.Arg(1))
+    // read in the graph
+    graph := ReadGraph(db, flag.Arg(0))
+
+    if *flagDoSingle {
+        DrawTile(graph, 1, 1, 1, 1, 12000, 12000, flag.Arg(1))
+    } else {
+        GenerateAllTiles(graph, flag.Arg(1))
+    }
 }
 
 type CairoColor struct {
@@ -102,7 +110,7 @@ func QueryCategories(db *mysql.Client, id uint) string {
         return ""
     }
 
-    // get result set  
+    // get result set
     result, err := db.StoreResult()
     if err != nil {
         fmt.Println("MySQL store result error;", err)
@@ -168,7 +176,7 @@ func QueryCategories2(db *mysql.Client, papers []*Paper) {
         return
     }
 
-    // get result set  
+    // get result set
     result, err := db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
@@ -300,8 +308,8 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
     }
 
     fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
-    
-    // If we use quadtree may as well assign it here  
+
+    // If we use quadtree may as well assign it here
     graph.qt = BuildQuadTree(graph.papers)
     return graph
 }
@@ -433,9 +441,9 @@ func (qt *QuadTree) ApplyIfWithin(x, y, r int, f func(paper *Paper)) {
     qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, r, f)
 }
 
-func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
-    
-    surf := cairo.NewSurface(cairo.FORMAT_RGB24, 256, 256)
+func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPrefix string) {
+
+    surf := cairo.NewSurface(cairo.FORMAT_RGB24, surfWidth, surfHeight)
     surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
     //surf.SetSourceRGB(0, 0, 0)
     surf.Paint()
@@ -449,7 +457,7 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
     } else {
         matrix.Xx = matrix.Yy
     }
-    
+
     // Move to lowest x,y point
     matrix.X0 = -float64(graph.MinX)*matrix.Xx + float64((1-xi)*surf.GetWidth())
     matrix.Y0 = -float64(graph.MinY)*matrix.Yy + float64((1-yi)*surf.GetHeight())
@@ -560,19 +568,16 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
 
 }
 
-func DoWork(db *mysql.Client, posFilename string, outPrefix string) {
-    graph := ReadGraph(db, posFilename)
-
+func GenerateAllTiles(graph *Graph, outPrefix string) {
     depths := 6
-
     for depth := 0; depth < depths; depth++ {
         divs := int(math.Pow(2.,float64(depth)))
         fmt.Println("Generating tiles at depth %d",divs)
-        // TODO if graph far from from square, shorten tile 
+        // TODO if graph far from from square, shorten tile
         // directions accordingly
         for xi := 1; xi <= divs; xi++ {
             for yi := 1; yi <= divs; yi++ {
-                DrawTile(graph,divs,divs,xi,yi,outPrefix)
+                DrawTile(graph,divs,divs,xi,yi, 256, 256, outPrefix)
             }
         }
     }
