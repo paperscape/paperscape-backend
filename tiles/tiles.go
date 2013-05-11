@@ -51,7 +51,7 @@ func main() {
     flag.Parse()
 
     if flag.NArg() != 2 {
-        log.Fatal("need to specify map.json file, and output file (without extension)")
+        log.Fatal("need to specify map.json file, and output prefix (without extension)")
     }
 
     //if len(*flagMetaBaseDir) == 0 {
@@ -86,6 +86,7 @@ type Paper struct {
 
 type Graph struct {
     papers  []*Paper
+    qt      *QuadTree
     MinX, MinY, MaxX, MaxY int
     BoundsX, BoundsY int
 }
@@ -290,6 +291,9 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
     }
 
     fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
+    
+    // If we use quadtree may as well assign it here  
+    graph.qt = BuildQuadTree(graph.papers)
     return graph
 }
 
@@ -420,29 +424,25 @@ func (qt *QuadTree) ApplyIfWithin(x, y, r int, f func(paper *Paper)) {
     qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, r, f)
 }
 
-//func sq(x float64) float64 {
-//    return x * x
-//}
-
-func DoWork(db *mysql.Client, posFilename string, outFilename string) {
-    graph := ReadGraph(db, posFilename)
-    qt := BuildQuadTree(graph.papers)
-
-    surf := cairo.NewSurface(cairo.FORMAT_RGB24, graph.BoundsX / 12, graph.BoundsY / 12)
+func DrawTile(graph *Graph,xtot,ytot,xi,yi int, outPrefix string) {
+    
+    surf := cairo.NewSurface(cairo.FORMAT_RGB24, 512, 512)
     surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
     //surf.SetSourceRGB(0, 0, 0)
     surf.Paint()
 
     matrix := new(cairo.Matrix)
-    matrix.Xx = float64(surf.GetWidth()) / float64(graph.BoundsX)
-    matrix.Yy = float64(surf.GetHeight()) / float64(graph.BoundsY)
+    matrix.Xx = float64(surf.GetWidth()*xtot) / float64(graph.BoundsX)
+    matrix.Yy = float64(surf.GetHeight()*ytot) / float64(graph.BoundsY)
+    // Make it square
     if matrix.Xx < matrix.Yy {
         matrix.Yy = matrix.Xx
     } else {
         matrix.Xx = matrix.Yy
     }
-    matrix.X0 = 0.5 * float64(surf.GetWidth())
-    matrix.Y0 = 0.5 * float64(surf.GetHeight())
+    
+    matrix.X0 = float64((xtot+2*(1-xi))*surf.GetWidth())/2.
+    matrix.Y0 = float64((ytot+2*(1-yi))*surf.GetHeight())/2.
 
     fmt.Println("rendering background")
 
@@ -455,79 +455,80 @@ func DoWork(db *mysql.Client, posFilename string, outFilename string) {
     }
 
     // area-based background
-    surf.IdentityMatrix()
-    matrixInv := *matrix
-    matrixInv.Invert()
-    for v := 0; v + 1 < surf.GetHeight(); v += 2 {
-        for u := 0; u + 1 < surf.GetWidth(); u += 2 {
-            x, y := matrixInv.TransformPoint(float64(u), float64(v))
-            ptR := 0.0
-            ptG := 0.0
-            ptB := 0.0
-            n := 0
-            qt.ApplyIfWithin(int(x), int(y), 200, func(paper *Paper) {
-                ptR += paper.colBG.r
-                ptG += paper.colBG.g
-                ptB += paper.colBG.b
-                n += 1
-            })
-            if n > 10 {
-                if n < 20 {
-                    ptR += float64(20 - n) * 4.0/15
-                    ptG += float64(20 - n) * 5.0/15
-                    ptB += float64(20 - n) * 6.0/15
-                    n = 20
-                }
-                ptR /= float64(n)
-                ptG /= float64(n)
-                ptB /= float64(n)
-                surf.SetSourceRGB(ptR, ptG, ptB)
-                surf.Rectangle(float64(u), float64(v), 2, 2)
-                surf.Fill()
-            }
-        }
-    }
+    //qt := graph.qt
+    //surf.IdentityMatrix()
+    //matrixInv := *matrix
+    //matrixInv.Invert()
+    //for v := 0; v + 1 < surf.GetHeight(); v += 2 {
+    //    for u := 0; u + 1 < surf.GetWidth(); u += 2 {
+    //        x, y := matrixInv.TransformPoint(float64(u), float64(v))
+    //        ptR := 0.0
+    //        ptG := 0.0
+    //        ptB := 0.0
+    //        n := 0
+    //        qt.ApplyIfWithin(int(x), int(y), 200, func(paper *Paper) {
+    //            ptR += paper.colBG.r
+    //            ptG += paper.colBG.g
+    //            ptB += paper.colBG.b
+    //            n += 1
+    //        })
+    //        if n > 10 {
+    //            if n < 20 {
+    //                ptR += float64(20 - n) * 4.0/15
+    //                ptG += float64(20 - n) * 5.0/15
+    //                ptB += float64(20 - n) * 6.0/15
+    //                n = 20
+    //            }
+    //            ptR /= float64(n)
+    //            ptG /= float64(n)
+    //            ptB /= float64(n)
+    //            surf.SetSourceRGB(ptR, ptG, ptB)
+    //            surf.Rectangle(float64(u), float64(v), 2, 2)
+    //            surf.Fill()
+    //        }
+    //    }
+    //}
 
     // apply smoothing
-    {
-        data := surf.GetData()
-        w := surf.GetStride()
-        fmt.Println(surf.GetFormat())
-        data2 := make([]byte, len(data))
-        for v := 1; v + 1 < surf.GetHeight(); v += 1 {
-            for u := 1; u + 1 < surf.GetWidth(); u += 1 {
-                var r, g, b uint
-                /*
-                if data[v * w + u * 4 + 0] == 0 && data[v * w + u * 4 + 1] == 0 && data[v * w + u * 4 + 2] == 0 {
-                    r = 5*0x44
-                    g = 5*0x55
-                    b = 5*0x66
-                } else {
-                    */
-                    b = uint(data[(v - 1) * w + (u + 0) * 4 + 0]) +
-                        uint(data[(v + 0) * w + (u - 1) * 4 + 0]) +
-                        uint(data[(v + 0) * w + (u + 0) * 4 + 0]) +
-                        uint(data[(v + 0) * w + (u + 1) * 4 + 0]) +
-                        uint(data[(v + 1) * w + (u + 0) * 4 + 0])
-                    g = uint(data[(v - 1) * w + (u + 0) * 4 + 1]) +
-                        uint(data[(v + 0) * w + (u - 1) * 4 + 1]) +
-                        uint(data[(v + 0) * w + (u + 0) * 4 + 1]) +
-                        uint(data[(v + 0) * w + (u + 1) * 4 + 1]) +
-                        uint(data[(v + 1) * w + (u + 0) * 4 + 1])
-                    r = uint(data[(v - 1) * w + (u + 0) * 4 + 2]) +
-                        uint(data[(v + 0) * w + (u - 1) * 4 + 2]) +
-                        uint(data[(v + 0) * w + (u + 0) * 4 + 2]) +
-                        uint(data[(v + 0) * w + (u + 1) * 4 + 2]) +
-                        uint(data[(v + 1) * w + (u + 0) * 4 + 2])
-                //}
+    //{
+    //    data := surf.GetData()
+    //    w := surf.GetStride()
+    //    fmt.Println(surf.GetFormat())
+    //    data2 := make([]byte, len(data))
+    //    for v := 1; v + 1 < surf.GetHeight(); v += 1 {
+    //        for u := 1; u + 1 < surf.GetWidth(); u += 1 {
+    //            var r, g, b uint
+    //            /*
+    //            if data[v * w + u * 4 + 0] == 0 && data[v * w + u * 4 + 1] == 0 && data[v * w + u * 4 + 2] == 0 {
+    //                r = 5*0x44
+    //                g = 5*0x55
+    //                b = 5*0x66
+    //            } else {
+    //                */
+    //                b = uint(data[(v - 1) * w + (u + 0) * 4 + 0]) +
+    //                    uint(data[(v + 0) * w + (u - 1) * 4 + 0]) +
+    //                    uint(data[(v + 0) * w + (u + 0) * 4 + 0]) +
+    //                    uint(data[(v + 0) * w + (u + 1) * 4 + 0]) +
+    //                    uint(data[(v + 1) * w + (u + 0) * 4 + 0])
+    //                g = uint(data[(v - 1) * w + (u + 0) * 4 + 1]) +
+    //                    uint(data[(v + 0) * w + (u - 1) * 4 + 1]) +
+    //                    uint(data[(v + 0) * w + (u + 0) * 4 + 1]) +
+    //                    uint(data[(v + 0) * w + (u + 1) * 4 + 1]) +
+    //                    uint(data[(v + 1) * w + (u + 0) * 4 + 1])
+    //                r = uint(data[(v - 1) * w + (u + 0) * 4 + 2]) +
+    //                    uint(data[(v + 0) * w + (u - 1) * 4 + 2]) +
+    //                    uint(data[(v + 0) * w + (u + 0) * 4 + 2]) +
+    //                    uint(data[(v + 0) * w + (u + 1) * 4 + 2]) +
+    //                    uint(data[(v + 1) * w + (u + 0) * 4 + 2])
+    //            //}
 
-                data2[v * w + u * 4 + 0] = byte(b / 5)
-                data2[v * w + u * 4 + 1] = byte(g / 5)
-                data2[v * w + u * 4 + 2] = byte(r / 5)
-            }
-        }
-        surf.SetData(data2)
-    }
+    //            data2[v * w + u * 4 + 0] = byte(b / 5)
+    //            data2[v * w + u * 4 + 1] = byte(g / 5)
+    //            data2[v * w + u * 4 + 2] = byte(r / 5)
+    //        }
+    //    }
+    //    surf.SetData(data2)
+    //}
 
     // foreground
     fmt.Println("rendering foreground")
@@ -542,7 +543,19 @@ func DoWork(db *mysql.Client, posFilename string, outFilename string) {
     }
 
     fmt.Println("writing file")
-    surf.WriteToPNG(outFilename + ".png")
+    filename := fmt.Sprintf("%stile_%d-%d_%d-%d.png",outPrefix,xtot,ytot,xi,yi)
+    surf.WriteToPNG(filename)
     //canv.EncodeJPEG("out-.jpg")
     surf.Finish()
+
+}
+
+func DoWork(db *mysql.Client, posFilename string, outPrefix string) {
+    graph := ReadGraph(db, posFilename)
+    
+    DrawTile(graph,1,1,1,1,outPrefix)
+    DrawTile(graph,2,2,1,2,outPrefix)
+    DrawTile(graph,2,2,1,1,outPrefix)
+    DrawTile(graph,4,4,3,2,outPrefix)
+    DrawTile(graph,4,4,4,4,outPrefix)
 }
