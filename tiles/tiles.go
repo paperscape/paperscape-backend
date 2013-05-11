@@ -38,13 +38,13 @@ import (
 )
 
 var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
-var flagLogFile = flag.String("log-file", "", "file to output log information to")
-var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
-var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
-var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
-var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
-var flagTestQueryArxiv = flag.String("test-arxiv", "", "run a test query with arxiv")
-var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
+//var flagLogFile = flag.String("log-file", "", "file to output log information to")
+//var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
+//var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
+//var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
+//var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
+//var flagTestQueryArxiv = flag.String("test-arxiv", "", "run a test query with arxiv")
+//var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
 
 func main() {
     // parse command line options
@@ -54,9 +54,9 @@ func main() {
         log.Fatal("need to specify map.json file, and output file (without extension)")
     }
 
-    if len(*flagMetaBaseDir) == 0 {
-        *flagMetaBaseDir = "/home/xiwi/data/meta"
-    }
+    //if len(*flagMetaBaseDir) == 0 {
+    //    *flagMetaBaseDir = "/home/xiwi/data/meta"
+    //}
 
     // connect to MySQL database
     db, err := mysql.DialTCP(*flagDB, "hidden", "hidden", "xiwi")
@@ -420,9 +420,9 @@ func (qt *QuadTree) ApplyIfWithin(x, y, r int, f func(paper *Paper)) {
     qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, r, f)
 }
 
-func sq(x float64) float64 {
-    return x * x
-}
+//func sq(x float64) float64 {
+//    return x * x
+//}
 
 func DoWork(db *mysql.Client, posFilename string, outFilename string) {
     graph := ReadGraph(db, posFilename)

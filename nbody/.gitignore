@@ -1,2 +1,4 @@
 *.o
 nbody
+*.json
+*.png
