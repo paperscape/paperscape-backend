@@ -1,25 +1,36 @@
 #ifndef _INCLUDED_LAYOUT_H
 #define _INCLUDED_LAYOUT_H
 
-typedef struct _layout_link_t {
-    float weight;
-    struct _layout_t *layout;
-} layout_link_t;
-
-typedef struct _layout_t {
-    struct _layout_t *parent;
-    struct _layout_t *child1;
-    struct _layout_t *child2;
+typedef struct _layout_node_t {
+    struct _layout_node_t *parent;
+    struct _layout_node_t *child1;
+    struct _layout_node_t *child2;
     unsigned int num_links;
-    layout_link_t *links;
+    struct _layout_link_t *links;
     float mass;
+    float radius;
     float x;
     float y;
     float fx;
     float fy;
+} layout_node_t;
+
+typedef struct _layout_link_t {
+    float weight;
+    layout_node_t *node;
+} layout_link_t;
+
+typedef struct _layout_t {
+    struct _layout_t *parent_layout;
+    struct _layout_t *child_layout;
+    int num_nodes;
+    layout_node_t *nodes;
+    int num_links;
+    layout_link_t *links;
 } layout_t;
 
-void build_layout_from_papers(int num_papers, paper_t **papers, int *num_layouts, layout_t **layouts);
-void build_reduced_layout_from_layout(int num_layouts, layout_t *layouts, int *num_layouts2, layout_t **layouts2);
+layout_t *build_layout_from_papers(int num_papers, paper_t **papers);
+layout_t *build_reduced_layout_from_layout(layout_t *layout);
+void layout_print(layout_t *layout);
 
 #endif // _INCLUDED_LAYOUT_H
