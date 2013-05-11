@@ -65,7 +65,7 @@ map_env_t *map_env_new() {
     map_env->force_params.do_close_repulsion = false;
     map_env->force_params.use_ref_freq = true;
     map_env->force_params.anti_gravity_strength = 0.375;
-    map_env->force_params.link_strength = 6.2;
+    map_env->force_params.link_strength = 4.0;
     map_env->do_3d = false;
 
     map_env->do_tred = false;
@@ -287,8 +287,8 @@ void map_env_refine_layout(map_env_t *map_env) {
         map_env->layout = map_env->layout->child_layout;
         layout_t *l = map_env->layout;
         for (int i = 0; i < l->num_nodes; i++) {
-            l->nodes[i].x = l->nodes[i].parent->x + l->nodes[i].parent->radius * random() / RAND_MAX;
-            l->nodes[i].y = l->nodes[i].parent->y + l->nodes[i].parent->radius * random() / RAND_MAX;
+            l->nodes[i].x = l->nodes[i].parent->x + l->nodes[i].parent->radius * ((double)random() / RAND_MAX - 0.5);
+            l->nodes[i].y = l->nodes[i].parent->y + l->nodes[i].parent->radius * ((double)random() / RAND_MAX - 0.5);
         }
     }
 }
@@ -714,13 +714,18 @@ static void map_env_draw_2d_layout_version(map_env_t *map_env, cairo_t *cr, int 
             draw_paper(cr, map_env, p);
         }
     } else {
+        // draw the layout-nodes
         for (int i = 0; i < map_env->layout->num_nodes; i++) {
             layout_node_t *n = &map_env->layout->nodes[i];
             cairo_set_source_rgb(cr, 0.7, 0.7, 0.5);
             cairo_arc(cr, n->x, n->y, n->radius, 0, 2 * M_PI);
-            cairo_fill_preserve(cr);
-            cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-            cairo_stroke(cr);
+            if (n->radius * map_env->tr_matrix.xx < 10) {
+                cairo_fill(cr);
+            } else {
+                cairo_fill_preserve(cr);
+                cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+                cairo_stroke(cr);
+            }
         }
     }
 
@@ -779,6 +784,15 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
 
     // create info string to return
     if (vstr_info != NULL) {
+        int num_finer = 0;
+        for (layout_t *l = map_env->layout->child_layout; l != NULL; l = l->child_layout) {
+            num_finer += 1;
+        }
+        int num_coarser = 0;
+        for (layout_t *l = map_env->layout->parent_layout; l != NULL; l = l->parent_layout) {
+            num_coarser += 1;
+        }
+        vstr_printf(vstr_info, "have %d layout nodes in graph; %d finer levels, %d coarser levels\n", map_env->layout->num_nodes, num_finer, num_coarser);
         vstr_printf(vstr_info, "have %d papers connected and included in graph\n", map_env->num_papers);
         if (map_env->num_papers > 0) {
             int id0 = map_env->papers[0]->id;
@@ -1142,9 +1156,12 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
         n->fy /= n->mass;
         //p->fz /= p->mass;
 
-        double fmag = n->fx * n->fx + n->fy * n->fy;
+        double fmag = (double)n->fx * (double)n->fx + (double)n->fy * (double)n->fy;
         if (map_env->do_3d) {
             //fmag += n->fz * n->fz;
+        }
+        if (!isfinite(fmag)) {
+            fmag = 1e100;
         }
         fmag = sqrt(fmag);
 
@@ -1196,7 +1213,9 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
     map_env->z_sd = sqrt(zsq_sum - z_sum * z_sum);
 
     // adjust the step size
-    if (energy < map_env->energy) {
+    if (!isfinite(energy)) {
+        map_env->step_size = 2;
+    } else if (energy < map_env->energy) {
         // energy went down
         if (map_env->progress < 3) {
             map_env->progress += 1;
@@ -1446,8 +1465,8 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     }
     map_env->layout = l;
     for (int i = 0; i < l->num_nodes; i++) {
-        l->nodes[i].x = 10.0 * random() / RAND_MAX;
-        l->nodes[i].y = 10.0 * random() / RAND_MAX;
+        l->nodes[i].x = 100.0 * random() / RAND_MAX;
+        l->nodes[i].y = 100.0 * random() / RAND_MAX;
     }
     for (; l != NULL; l = l->child_layout) {
         layout_print(l);

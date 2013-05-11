@@ -50,8 +50,7 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers) {
         paper_t *paper = papers[i];
         layout_node_t *node = &nodes[i];
         node->parent = NULL;
-        node->child1 = NULL;
-        node->child2 = NULL;
+        node->paper = paper;
         node->mass = paper->mass;
         node->radius = paper->r;
         node->x = 0;
@@ -305,8 +304,9 @@ void layout_print(layout_t *l) {
         mass += l->nodes[i].mass;
         radius += l->nodes[i].radius*l->nodes[i].radius;
     }
+    bool finest = l->child_layout == NULL;
     printf("layout has %d nodes, %d links, %lg total mass, %lg total radius", l->num_nodes, l->num_links, mass, sqrt(radius));
-    if (l->child_layout == NULL) {
+    if (finest) {
         printf("\n");
     } else {
         printf("; ratio to child: %f nodes, %f links\n", 1.0 * l->num_nodes / l->child_layout->num_nodes, 1.0 * l->num_links / l->child_layout->num_links);
@@ -319,7 +319,9 @@ void layout_print(layout_t *l) {
             printf("%ld", n->parent - l->parent_layout->nodes);
         }
         printf(") children (");
-        if (n->child1 != NULL) {
+        if (finest) {
+            printf("%u", n->paper->id);
+        } else {
             printf("%ld", n->child1 - l->child_layout->nodes);
             if (n->child2 != NULL) {
                 printf(",%ld", n->child2 - l->child_layout->nodes);

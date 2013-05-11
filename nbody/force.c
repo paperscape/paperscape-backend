@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <math.h>
 
 #include "xiwilib.h"
@@ -23,22 +24,25 @@ void compute_attractive_link_force_2d_layout_version(force_params_t *param, bool
                 fac *= 0.65 * weight;
             }
 
-            if (do_tred) {
-                //fac *= p1->refs_tred_computed[j];
-            }
-
-            // loosen the force between papers in different categories
             /*
-            if (p1->kind != p2->kind) {
-                fac *= 0.5;
+            // these things we can only do if the nodes are papers
+            if (layout->child_layout == NULL) {
+                if (do_tred) {
+                    //fac *= n1->paper->refs_tred_computed[j];
+                }
+
+                // loosen the force between papers in different categories
+                if (n1->paper->kind != n2->paper->kind) {
+                    fac *= 0.5;
+                }
+
+                // loosen the force between papers of different age
+                fac *= 1.01 - 0.5 * fabs(n1->paper->age - n2->paper->age); // trying out the 0.5* factor; not tested yet
             }
             */
 
-            // loosen the force between papers of different age
-            //fac *= 1.01 - 0.5 * fabs(p1->age - p2->age); // trying out the 0.5* factor; not tested yet
-
             // normalise refs so each paper has 1 unit for all references (doesn't really produce a good graph)
-            //fac /= p1->num_refs;
+            //fac /= n1->num_links;
 
             if (r > 1e-2) {
                 fac *= (r - rest_len) / r;
