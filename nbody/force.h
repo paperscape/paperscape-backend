@@ -14,8 +14,7 @@ typedef struct _quad_tree_t quad_tree_t;
 typedef struct _oct_tree_t oct_tree_t;
 
 void quad_tree_forces(force_params_t *param, quad_tree_t *qt);
-void compute_attractive_link_force_2d(force_params_t *param, bool do_tred, int num_papers, paper_t **papers);
-void compute_attractive_link_force_2d_layout_version(force_params_t *param, bool do_tred, layout_t *layout);
+void compute_attractive_link_force_2d(force_params_t *param, bool do_tred, layout_t *layout);
 
 void oct_tree_forces(force_params_t *param, oct_tree_t *ot);
 void compute_attractive_link_force_3d(force_params_t *param, bool do_tred, int num_papers, paper_t **papers);

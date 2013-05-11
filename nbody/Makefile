@@ -7,8 +7,8 @@ SRC = \
 	tred.c \
 	layout.c \
 	quadtree.c \
-	octtree.c \
 	quadtreeforce.c \
+	octtree.c \
 	octtreeforce.c \
 	force.c \
 	map.c \

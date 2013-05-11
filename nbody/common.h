@@ -39,9 +39,6 @@ typedef struct _paper_t {
     float age; // between 0.0 and 1.0
     float r;
     float mass;
-    float fx;
-    float fy;
-    float fz;
 
     struct _layout_node_t *layout_node;
 } paper_t;

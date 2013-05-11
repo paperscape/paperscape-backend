@@ -111,9 +111,11 @@ static void oct_tree_node_forces_propagate(force_params_t *param, oct_tree_node_
         fz += o->fz;
 
         if (o->num_papers == 1) {
+            /* not working with new layout code
             o->paper->fx += fx;
             o->paper->fy += fy;
             o->paper->fz += fz;
+            */
         } else {
             fx /= o->mass;
             fy /= o->mass;
