@@ -3,8 +3,15 @@
 
 typedef struct _layout_node_t {
     struct _layout_node_t *parent;
-    struct _layout_node_t *child1;
-    struct _layout_node_t *child2;
+    union {
+        struct {    // for when this layout is the finest layout
+            struct _paper_t *paper;
+        };
+        struct {    // for when this layout is coarse
+            struct _layout_node_t *child1;
+            struct _layout_node_t *child2;
+        };
+    };
     unsigned int num_links;
     struct _layout_link_t *links;
     float mass;
