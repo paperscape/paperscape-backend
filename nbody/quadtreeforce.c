@@ -27,10 +27,10 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
             // q2 is leaf node
             double fac;
             if (param->do_close_repulsion) {
-                double rad_sum_sq = 1.1 * pow(q1->radius + q2->radius, 2);
+                double rad_sum_sq = 2.0 + 1.2 * pow(q1->radius + q2->radius, 2);
                 if (rsq < rad_sum_sq) {
                     // layout-nodes overlap, use stronger repulsive force
-                    fac = fmin(50000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(1, pow(q1->mass * q2->mass, 3.0)) * param->anti_gravity_strength / rsq
+                    fac = fmin(1000000, (exp(rad_sum_sq - rsq) - 1)) * 500 * fmax(5000000, pow(q1->mass * q2->mass, 3.0)) * param->anti_gravity_strength / rsq
                         + q1->mass * q2->mass * param->anti_gravity_strength / rad_sum_sq;
                 } else {
                     // normal anti-gravity repulsive force
