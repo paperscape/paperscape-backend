@@ -419,26 +419,27 @@ func BuildQuadTree(papers []*Paper) *QuadTree {
     return qt
 }
 
-func (q *QuadTreeNode) ApplyIfWithin(MinX, MinY, MaxX, MaxY int, x, y, r int, f func(paper *Paper)) {
+func (q *QuadTreeNode) ApplyIfWithin(MinX, MinY, MaxX, MaxY int, x, y, rx, ry int, f func(paper *Paper)) {
     if q == nil {
     } else if q.Leaf != nil {
-        r += q.Leaf.radius
-        if x - r <= q.Leaf.x && q.Leaf.x <= x + r && y - r <= q.Leaf.y && q.Leaf.y <= y + r {
+        rx += q.Leaf.radius
+        ry += q.Leaf.radius
+        if x - rx <= q.Leaf.x && q.Leaf.x <= x + rx && y - ry <= q.Leaf.y && q.Leaf.y <= y + ry {
             f(q.Leaf)
         }
-    } else if ((MinX <= x - r && x - r < MaxX) || (MinX <= x + r && x + r < MaxX) || (x - r < MinX && x + r >= MaxX)) &&
-              ((MinY <= y - r && y - r < MaxY) || (MinY <= y + r && y + r < MaxY) || (y - r < MinY && y + r >= MaxY)) {
+    } else if ((MinX <= x - rx && x - rx < MaxX) || (MinX <= x + rx && x + rx < MaxX) || (x - rx < MinX && x + rx >= MaxX)) &&
+              ((MinY <= y - ry && y - ry < MaxY) || (MinY <= y + ry && y + ry < MaxY) || (y - ry < MinY && y + ry >= MaxY)) {
         MidX := (MinX + MaxX) / 2
         MidY := (MinY + MaxY) / 2
-        q.Q0.ApplyIfWithin(MinX, MinY, MidX, MidY, x, y, r, f)
-        q.Q1.ApplyIfWithin(MidX, MinY, MaxX, MidY, x, y, r, f)
-        q.Q2.ApplyIfWithin(MinX, MidY, MidX, MaxY, x, y, r, f)
-        q.Q3.ApplyIfWithin(MidX, MidY, MaxX, MaxY, x, y, r, f)
+        q.Q0.ApplyIfWithin(MinX, MinY, MidX, MidY, x, y, rx, ry, f)
+        q.Q1.ApplyIfWithin(MidX, MinY, MaxX, MidY, x, y, rx, ry, f)
+        q.Q2.ApplyIfWithin(MinX, MidY, MidX, MaxY, x, y, rx, ry, f)
+        q.Q3.ApplyIfWithin(MidX, MidY, MaxX, MaxY, x, y, rx, ry, f)
     }
 }
 
-func (qt *QuadTree) ApplyIfWithin(x, y, r int, f func(paper *Paper)) {
-    qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, r, f)
+func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
+    qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, rx, ry, f)
 }
 
 func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPrefix string) {
@@ -463,14 +464,13 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
     matrix.Y0 = -float64(graph.MinY)*matrix.Yy + float64((1-yi)*surf.GetHeight())
 
     //fmt.Println("rendering background")
-
     // simple halo background circle for each paper
-    surf.SetMatrix(*matrix)
-    for _, paper := range graph.papers {
-        surf.SetSourceRGB(paper.colBG.r, paper.colBG.g, paper.colBG.b)
-        surf.Arc(float64(paper.x), float64(paper.y), 2 * float64(paper.radius), 0, 2 * math.Pi)
-        surf.Fill()
-    }
+    //surf.SetMatrix(*matrix)
+    //for _, paper := range graph.papers {
+    //    surf.SetSourceRGB(paper.colBG.r, paper.colBG.g, paper.colBG.b)
+    //    surf.Arc(float64(paper.x), float64(paper.y), 2 * float64(paper.radius), 0, 2 * math.Pi)
+    //    surf.Fill()
+    //}
 
     // area-based background
     //qt := graph.qt
@@ -484,7 +484,7 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
     //        ptG := 0.0
     //        ptB := 0.0
     //        n := 0
-    //        qt.ApplyIfWithin(int(x), int(y), 200, func(paper *Paper) {
+    //        qt.ApplyIfWithin(int(x), int(y), 200, 200, func(paper *Paper) {
     //            ptR += paper.colBG.r
     //            ptG += paper.colBG.g
     //            ptB += paper.colBG.b
@@ -548,17 +548,23 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
     //    surf.SetData(data2)
     //}
 
+    // Use quadtree to only draw papers within given tile region
+    surf.IdentityMatrix()
+    matrixInv := *matrix
+    matrixInv.Invert()
+    x, y := matrixInv.TransformPoint(float64(surfWidth)/2., float64(surfHeight)/2.)
+    rx, ry := matrixInv.TransformDistance(float64(surfWidth)/2., float64(surfHeight)/2.)
+    
     // foreground
-    //fmt.Println("rendering foreground")
     surf.SetMatrix(*matrix)
     surf.SetLineWidth(3)
-    for _, paper := range graph.papers {
+    graph.qt.ApplyIfWithin(int(x), int(y), int(rx), int(ry), func(paper *Paper) {
         surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
         surf.FillPreserve()
         surf.SetSourceRGB(0, 0, 0)
         surf.Stroke()
-    }
+    })
 
     //fmt.Println("writing file")
     filename := fmt.Sprintf("%stile_%d-%d_%d-%d.png",outPrefix,xtot,ytot,xi,yi)
