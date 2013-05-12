@@ -3,6 +3,10 @@
 
 typedef struct _force_params_t {
     bool do_close_repulsion;
+    double close_repulsion_a;
+    double close_repulsion_b;
+    double close_repulsion_c;
+    double close_repulsion_d;
     bool use_ref_freq;
     double anti_gravity_strength;
     double link_strength;

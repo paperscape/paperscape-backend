@@ -205,13 +205,31 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
 
     } else if (event->keyval == GDK_KEY_1) {
         map_env_adjust_anti_gravity(map_env, 0.9);
-    } else if (event->keyval == GDK_KEY_2) {
+    } else if (event->keyval == GDK_KEY_exclam) {
         map_env_adjust_anti_gravity(map_env, 1.1);
 
-    } else if (event->keyval == GDK_KEY_3) {
+    } else if (event->keyval == GDK_KEY_2) {
         map_env_adjust_link_strength(map_env, 0.9);
-    } else if (event->keyval == GDK_KEY_4) {
+    } else if (event->keyval == GDK_KEY_at) {
         map_env_adjust_link_strength(map_env, 1.1);
+
+    } else if (event->keyval == GDK_KEY_3) {
+        map_env_adjust_close_repulsion(map_env, 0.7, 1.0);
+    } else if (event->keyval == GDK_KEY_numbersign) {
+        map_env_adjust_close_repulsion(map_env, 1.5, 1.0);
+    } else if (event->keyval == GDK_KEY_4) {
+        map_env_adjust_close_repulsion(map_env, 1.0, 0.7);
+    } else if (event->keyval == GDK_KEY_dollar) {
+        map_env_adjust_close_repulsion(map_env, 1.0, 1.5);
+
+    } else if (event->keyval == GDK_KEY_5) {
+        map_env_adjust_close_repulsion2(map_env, 0.95, 0.0);
+    } else if (event->keyval == GDK_KEY_percent) {
+        map_env_adjust_close_repulsion2(map_env, 1.05, 0.0);
+    } else if (event->keyval == GDK_KEY_6) {
+        map_env_adjust_close_repulsion2(map_env, 1.0, -0.05);
+    } else if (event->keyval == GDK_KEY_asciicircum) {
+        map_env_adjust_close_repulsion2(map_env, 1.0, 0.05);
 
     } else if (event->keyval == GDK_KEY_9) {
         map_env_coarsen_layout(map_env);
@@ -227,6 +245,8 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_rotate_all(map_env, 0.1);
     } else if (event->keyval == GDK_KEY_Right) {
         map_env_rotate_all(map_env, -0.1);
+    } else if (event->keyval == GDK_KEY_Up) {
+        map_env_flip_x(map_env);
     }
 
     if (!update_running) {

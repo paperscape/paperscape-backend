@@ -297,6 +297,25 @@ layout_t *build_reduced_layout_from_layout(layout_t *layout) {
     return layout2;
 }
 
+void layout_node_propagate_position_to_children(layout_t *layout, layout_node_t *node) {
+    if (layout->child_layout != NULL) {
+        node->child1->x = node->x;
+        node->child1->y = node->y;
+        layout_node_propagate_position_to_children(layout->child_layout, node->child1);
+        if (node->child2 != NULL) {
+            node->child2->x = node->x;
+            node->child2->y = node->y;
+            layout_node_propagate_position_to_children(layout->child_layout, node->child2);
+        }
+    }
+}
+
+void layout_propagate_positions_to_children(layout_t *layout) {
+    for (int i = 0; i < layout->num_nodes; i++) {
+        layout_node_propagate_position_to_children(layout, &layout->nodes[i]);
+    }
+}
+
 void layout_print(layout_t *l) {
     double mass = 0;
     double radius = 0;

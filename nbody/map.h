@@ -27,6 +27,8 @@ void map_env_toggle_do_close_repulsion(map_env_t *map_env);
 void map_env_toggle_use_ref_freq(map_env_t *map_env);
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt);
 void map_env_adjust_link_strength(map_env_t *map_env, double amt);
+void map_env_adjust_close_repulsion(map_env_t *map_env, double amt_a, double amt_b);
+void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_a, double amt_b);
 void map_env_coarsen_layout(map_env_t *map_env);
 void map_env_refine_layout(map_env_t *map_env);
 
@@ -35,6 +37,7 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt);
 void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
+void map_env_flip_x(map_env_t *map_env);
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t *info_out);
 void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr);

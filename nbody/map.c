@@ -37,6 +37,8 @@ struct _map_env_t {
     double energy;
     int progress;
     double step_size;
+    double max_link_force_mag;
+    double max_total_force_mag;
 
     // standard deviation of the positions of the papers
     double x_sd, y_sd, z_sd;
@@ -54,9 +56,13 @@ map_env_t *map_env_new() {
     map_env->oct_tree = m_new(oct_tree_t, 1);
 
     map_env->force_params.do_close_repulsion = false;
+    map_env->force_params.close_repulsion_a = 1e8;
+    map_env->force_params.close_repulsion_b = 1e16;
+    map_env->force_params.close_repulsion_c = 1.1;
+    map_env->force_params.close_repulsion_d = 0.6;
     map_env->force_params.use_ref_freq = true;
     map_env->force_params.anti_gravity_strength = 0.375;
-    map_env->force_params.link_strength = 4.0;
+    map_env->force_params.link_strength = 2.5;
     map_env->do_3d = false;
 
     map_env->do_tred = false;
@@ -72,6 +78,8 @@ map_env_t *map_env_new() {
     map_env->energy = 0;
     map_env->progress = 0;
     map_env->step_size = 0.1;
+    map_env->max_link_force_mag = 0;
+    map_env->max_total_force_mag = 0;
 
     map_env->x_sd = 1;
     map_env->y_sd = 1;
@@ -260,6 +268,16 @@ void map_env_adjust_anti_gravity(map_env_t *map_env, double amt) {
 
 void map_env_adjust_link_strength(map_env_t *map_env, double amt) {
     map_env->force_params.link_strength *= amt;
+}
+
+void map_env_adjust_close_repulsion(map_env_t *map_env, double amt_a, double amt_b) {
+    map_env->force_params.close_repulsion_a *= amt_a;
+    map_env->force_params.close_repulsion_b *= amt_b;
+}
+
+void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_a, double amt_b) {
+    map_env->force_params.close_repulsion_c *= amt_a;
+    map_env->force_params.close_repulsion_d += amt_b;
 }
 
 void map_env_coarsen_layout(map_env_t *map_env) {
@@ -476,7 +494,7 @@ static int paper_cmp_depth(const void *in1, const void *in2) {
     return z1 - z2;
 }
 
-static void map_env_draw_2d_layout_version(map_env_t *map_env, cairo_t *cr, int width, int height) {
+static void map_env_draw_2d(map_env_t *map_env, cairo_t *cr, int width, int height) {
     // clear bg
     cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
     cairo_rectangle(cr, 0, 0, width, height);
@@ -622,9 +640,10 @@ static void map_env_draw_3d(map_env_t *map_env, cairo_t *cr, int width, int heig
 }
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
+    layout_propagate_positions_to_children(map_env->layout);
+
     if (!map_env->do_3d) {
-        //map_env_draw_2d(map_env, cr, width, height);
-        map_env_draw_2d_layout_version(map_env, cr, width, height);
+        map_env_draw_2d(map_env, cr, width, height);
     } else {
         map_env_draw_3d(map_env, cr, width, height);
     }
@@ -650,13 +669,23 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
             unique_id_to_date(id1, &y1, &m1, &d1);
             vstr_printf(vstr_info, "date range is %d/%d/%d -- %d/%d/%d\n", d0, m0, y0, d1, m1, y1);
         }
+        vstr_printf(vstr_info, "\n");
+        vstr_printf(vstr_info, "graph size: %u x %u\n", (int)(map_env->quad_tree->max_x - map_env->quad_tree->min_x), (int)(map_env->quad_tree->max_y - map_env->quad_tree->min_y));
         vstr_printf(vstr_info, "energy: %.3g\n", map_env->energy);
         vstr_printf(vstr_info, "step size: %.3g\n", map_env->step_size);
-        vstr_printf(vstr_info, "do close repulsion: %d\n", map_env->force_params.do_close_repulsion);
+        vstr_printf(vstr_info, "max link force: %.2g\n", map_env->max_link_force_mag);
+        vstr_printf(vstr_info, "max total force: %.2g\n", map_env->max_total_force_mag);
+        vstr_printf(vstr_info, "\n");
         vstr_printf(vstr_info, "use ref freq: %d\n", map_env->force_params.use_ref_freq);
-        vstr_printf(vstr_info, "anti-gravity strength: %.3f\n", map_env->force_params.anti_gravity_strength);
-        vstr_printf(vstr_info, "link strength: %.3f\n", map_env->force_params.link_strength);
         vstr_printf(vstr_info, "transitive reduction: %d\n", map_env->do_tred);
+        vstr_printf(vstr_info, "\n");
+        vstr_printf(vstr_info, "(r) do close repulsion: %d\n", map_env->force_params.do_close_repulsion);
+        vstr_printf(vstr_info, "(1/!) anti-gravity strength: %.3f\n", map_env->force_params.anti_gravity_strength);
+        vstr_printf(vstr_info, "(2/@) link strength: %.3f\n", map_env->force_params.link_strength);
+        vstr_printf(vstr_info, "(3/#) close repulsion A: %.3g\n", map_env->force_params.close_repulsion_a);
+        vstr_printf(vstr_info, "(4/$) close repulsion B: %.3g\n", map_env->force_params.close_repulsion_b);
+        vstr_printf(vstr_info, "(5/%) close repulsion C: %.3g\n", map_env->force_params.close_repulsion_c);
+        vstr_printf(vstr_info, "(6/^) close repulsion D: %.3g\n", map_env->force_params.close_repulsion_d);
     }
 }
 
@@ -817,11 +846,19 @@ static void map_env_compute_forces(map_env_t *map_env) {
         //p->fz = 0;
     }
 
-    // compute paper-paper forces
+    // compute node-node forces
     if (!map_env->do_3d) {
+        compute_attractive_link_force_2d(&map_env->force_params, map_env->do_tred, map_env->layout);
+
+        double max_fmag = 0;
+        for (int i = 0; i < map_env->layout->num_nodes; i++) {
+            layout_node_t *n = &map_env->layout->nodes[i];
+            max_fmag = fmax(max_fmag, (double)n->fx * (double)n->fx + (double)n->fy * (double)n->fy);
+        }
+        map_env->max_link_force_mag = sqrt(max_fmag);
+
         quad_tree_build(map_env->layout, map_env->quad_tree);
         quad_tree_forces(&map_env->force_params, map_env->quad_tree);
-        compute_attractive_link_force_2d(&map_env->force_params, map_env->do_tred, map_env->layout);
         //compute_keyword_force_2d(&map_env->force_params, map_env->num_papers, map_env->papers);
     } else {
         oct_tree_build(map_env->num_papers, map_env->papers, map_env->oct_tree);
@@ -894,12 +931,18 @@ static void map_env_compute_forces(map_env_t *map_env) {
 bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size) {
     map_env_compute_forces(map_env);
 
+    // boost the step size if asked
     if (boost_step_size) {
         if (map_env->step_size < 1) {
             map_env->step_size = 2;
         } else {
             map_env->step_size *= 2;
         }
+    }
+
+    // when doing close repulsion, make sure step size is not too big
+    if (map_env->force_params.do_close_repulsion) {
+        map_env->step_size = fmin(1.0, map_env->step_size);
     }
 
     // use the computed forces to update the (x,y) positions of the papers
@@ -911,6 +954,7 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
     double ysq_sum = 0;
     double zsq_sum = 0;
     double total_mass = 0;
+    double max_fmag = 0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
         layout_node_t *n = &map_env->layout->nodes[i];
         /*
@@ -931,6 +975,7 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
             fmag = 1e100;
         }
         fmag = sqrt(fmag);
+        max_fmag = fmax(max_fmag, fmag);
 
         energy += fmag;
 
@@ -950,6 +995,8 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
         //zsq_sum += n->z * n->z * n->mass;
         total_mass += n->mass;
     }
+
+    map_env->max_total_force_mag = max_fmag;
 
     // centre papers on the centre of mass
     x_sum /= total_mass;
@@ -999,6 +1046,13 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
         }
     }
     map_env->energy = energy;
+
+    if (map_env->force_params.do_close_repulsion && map_env->max_total_force_mag > pow(map_env->max_link_force_mag, 2)) {
+        if (map_env->step_size < 0.15) {
+            map_env->step_size = 0.15;
+        }
+        return false;
+    }
 
     return map_env->step_size <= 1e-1;
 
@@ -1250,5 +1304,12 @@ void map_env_rotate_all(map_env_t *map_env, double angle) {
         double y = n->y;
         n->x = c_angle * x - s_angle * y;
         n->y = s_angle * x + c_angle * y;
+    }
+}
+
+void map_env_flip_x(map_env_t *map_env) {
+    for (int i = 0; i < map_env->layout->num_nodes; i++) {
+        layout_node_t *n = &map_env->layout->nodes[i];
+        n->x = -n->x;
     }
 }
