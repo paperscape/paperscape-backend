@@ -40,7 +40,8 @@ import (
 var GRAPH_PADDING = 100 // what to pad graph by on each side
 
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
-var flagDoSingle = flag.Bool("single", false, "Do a large single tile")
+var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
+var flagTileDepth = flag.Uint("depth", 1, "Depth to tile to")
 //var flagLogFile = flag.String("log-file", "", "file to output log information to")
 //var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
 //var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
@@ -575,8 +576,9 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
 }
 
 func GenerateAllTiles(graph *Graph, outPrefix string) {
-    depths := 6
-    for depth := 0; depth < depths; depth++ {
+    depths := *flagTileDepth
+    var depth uint
+    for depth = 0; depth < depths; depth++ {
         divs := int(math.Pow(2.,float64(depth)))
         fmt.Println("Generating tiles at depth %d",divs)
         // TODO if graph far from from square, shorten tile
