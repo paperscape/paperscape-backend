@@ -23,7 +23,7 @@ LIB = -lm -lmysqlclient ../../clib/xiwilib.a
 PROG = nbody
 
 $(PROG): $(OBJ)
-	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LIB)
+	$(CC)  -o $@ $(OBJ) $(LIB) $(LDFLAGS)
 
 clean:
 	/bin/rm $(OBJ)
