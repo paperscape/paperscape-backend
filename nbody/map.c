@@ -727,7 +727,7 @@ void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr) {
         if (i > 0) {
             vstr_printf(vstr, ",");
         }
-        vstr_printf(vstr, "[%d,%d,%d", p->id, double_for_json(p->x), double_for_json(p->y));
+        vstr_printf(vstr, "[%d,%d,%d", p->id, double_for_json(p->layout_node->x), double_for_json(p->layout_node->y));
         if (map_env->do_3d) {
             vstr_printf(vstr, ",%d", double_for_json(p->z));
         }
