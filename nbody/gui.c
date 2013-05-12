@@ -22,6 +22,7 @@ bool update_running = true;
 int boost_step_size = 0;
 bool mouse_held = false;
 bool mouse_dragged;
+bool auto_refine = true;
 bool lock_view_all = true;
 double mouse_last_x = 0, mouse_last_y = 0;
 paper_t *mouse_paper = NULL;
@@ -54,8 +55,15 @@ static gboolean map_env_update(map_env_t *map_env) {
     int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     printf("%f seconds per iteration\n", (end_time - start_time) / 10.0 / 1000.0);
 
-    //map_env_centre_view(map_env);
-    //map_env_set_zoom_to_fit_n_standard_deviations(map_env, 2.6, 1000, 1000);
+    if (auto_refine && converged) {
+        if (map_env_number_of_finer_layouts(map_env) > 1) {
+            map_env_refine_layout(map_env);
+            boost_step_size = 1;
+        } else if (map_env_number_of_finer_layouts(map_env) == 1) {
+            map_env_set_do_close_repulsion(map_env, true);
+            boost_step_size = 1;
+        }
+    }
 
     if (false && (iterate_counter > 100 || converged)) {
         iterate_counter = 0;
@@ -103,6 +111,10 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
         }
         map_env_draw(map_env, cr, width, height, vstr);
     }
+    vstr_printf(vstr, "\n");
+    vstr_printf(vstr, "(A) auto refine: %d\n", auto_refine);
+    vstr_printf(vstr, "(V) lock view: %d\n", lock_view_all);
+    vstr_printf(vstr, "\n");
     vstr_printf(vstr, "number of iterations: %d\n", iterate_counter);
 
     // draw info to canvas
@@ -200,7 +212,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_centre_view(map_env);
         map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, 1000, 1000);
 
-    } else if (event->keyval == GDK_KEY_Z) {
+    } else if (event->keyval == GDK_KEY_A) {
+        auto_refine = !auto_refine;
+    } else if (event->keyval == GDK_KEY_V) {
         lock_view_all = !lock_view_all;
 
     } else if (event->keyval == GDK_KEY_1) {

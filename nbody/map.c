@@ -242,6 +242,10 @@ void map_env_zoom(map_env_t *map_env, double screen_x, double screen_y, double a
     map_env->tr_matrix.y0 = map_env->tr_matrix.y0 * amt + screen_y * (1.0 - amt);
 }
 
+void map_env_set_do_close_repulsion(map_env_t *map_env, bool value) {
+    map_env->force_params.do_close_repulsion = value;
+}
+
 void map_env_toggle_do_tred(map_env_t *map_env) {
     map_env->do_tred = !map_env->do_tred;
 }
@@ -278,6 +282,22 @@ void map_env_adjust_close_repulsion(map_env_t *map_env, double amt_a, double amt
 void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_a, double amt_b) {
     map_env->force_params.close_repulsion_c *= amt_a;
     map_env->force_params.close_repulsion_d += amt_b;
+}
+
+int map_env_number_of_coarser_layouts(map_env_t *map_env) {
+    int num_coarser = 0;
+    for (layout_t *l = map_env->layout->parent_layout; l != NULL; l = l->parent_layout) {
+        num_coarser += 1;
+    }
+    return num_coarser;
+}
+
+int map_env_number_of_finer_layouts(map_env_t *map_env) {
+    int num_finer = 0;
+    for (layout_t *l = map_env->layout->child_layout; l != NULL; l = l->child_layout) {
+        num_finer += 1;
+    }
+    return num_finer;
 }
 
 void map_env_coarsen_layout(map_env_t *map_env) {
@@ -650,15 +670,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
 
     // create info string to return
     if (vstr_info != NULL) {
-        int num_finer = 0;
-        for (layout_t *l = map_env->layout->child_layout; l != NULL; l = l->child_layout) {
-            num_finer += 1;
-        }
-        int num_coarser = 0;
-        for (layout_t *l = map_env->layout->parent_layout; l != NULL; l = l->parent_layout) {
-            num_coarser += 1;
-        }
-        vstr_printf(vstr_info, "have %d layout nodes in graph; %d finer levels, %d coarser levels\n", map_env->layout->num_nodes, num_finer, num_coarser);
+        vstr_printf(vstr_info, "have %d layout nodes in graph; %d finer levels, %d coarser levels\n", map_env->layout->num_nodes, map_env_number_of_finer_layouts(map_env), map_env_number_of_coarser_layouts(map_env));
         vstr_printf(vstr_info, "have %d papers connected and included in graph\n", map_env->num_papers);
         if (map_env->num_papers > 0) {
             int id0 = map_env->papers[0]->id;
