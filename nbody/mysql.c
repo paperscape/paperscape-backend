@@ -459,15 +459,20 @@ static bool env_load_keywords(env_t *env) {
                 const char *kws_end = row[1] + len;
 
                 // count number of keywords
-                paper->num_keywords = 1;
+                int num_keywords = 1;
                 for (const char *kw = kws_start; kw < kws_end; kw++) {
                     if (*kw == ',') {
-                        paper->num_keywords += 1;
+                        num_keywords += 1;
                     }
                 }
 
+                // limit number of keywords per paper
+                if (num_keywords > 5) {
+                    num_keywords = 5;
+                }
+
                 // allocate memory
-                paper->keywords = m_new(keyword_t*, paper->num_keywords);
+                paper->keywords = m_new(keyword_t*, num_keywords);
                 if (paper->keywords == NULL) {
                     mysql_free_result(result);
                     return false;
@@ -475,7 +480,7 @@ static bool env_load_keywords(env_t *env) {
 
                 // populate keyword list for this paper
                 paper->num_keywords = 0;
-                for (const char *kw = kws_start; kw < kws_end;) {
+                for (const char *kw = kws_start; kw < kws_end && num_keywords > 0; num_keywords--) {
                     const char *kw_end = kw;
                     while (kw_end < kws_end && *kw_end != ',') {
                         kw_end++;
@@ -487,9 +492,6 @@ static bool env_load_keywords(env_t *env) {
                     kw = kw_end;
                     if (kw < kws_end) {
                         kw += 1; // skip comma
-                    }
-                    if (paper->num_keywords > 2) {
-                        break;
                     }
                 }
                 total_keywords += paper->num_keywords;
@@ -523,7 +525,9 @@ bool mysql_load_papers(const char *where_clause, int *num_papers_out, paper_t **
     if (!env_load_refs(&env)) {
         return false;
     }
-    //env_load_keywords(&env);
+    if (!env_load_keywords(&env)) {
+        return false;
+    }
     if (!env_build_cites(&env)) {
         return false;
     }

@@ -39,6 +39,10 @@ typedef struct _paper_t {
     int colour;
     int num_with_my_colour;
 
+    // stuff for connecting disconnected papers
+    int num_fake_links;
+    struct _paper_t **fake_links;
+
     // stuff for tred
     int tred_visit_index;
     int *refs_tred_computed;
@@ -48,7 +52,7 @@ typedef struct _paper_t {
     // stuff for the placement of papers
     bool included;
     int num_included_cites;
-    int kind;
+    bool connected;
     float age; // between 0.0 and 1.0
     float r;
     float mass;

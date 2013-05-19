@@ -55,6 +55,9 @@ fake links from this paper to the main graph.  The fake links can be:
         also have those keywords.  Note: doesn't work connecting keyword of 1
         paper to average position of other papers with that keyword, because then
         everything just gravitates to the centre of the graph.
+    --> Links made from authors.
+
+We have now pretty much finished this, using keywords to make fake links.
 
 --------------------------------------------------------------------------------
 --  Speeding up and improving nbody code
