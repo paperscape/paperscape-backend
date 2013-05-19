@@ -20,7 +20,6 @@ typedef struct _paper_t {
     bool pos_valid;
     float x;
     float y;
-    float z;
 
     // stuff for colouring
     int colour;

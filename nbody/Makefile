@@ -8,8 +8,6 @@ SRC = \
 	layout.c \
 	quadtree.c \
 	quadtreeforce.c \
-	octtree.c \
-	octtreeforce.c \
 	force.c \
 	map.c \
 	mysql.c \
