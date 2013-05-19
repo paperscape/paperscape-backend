@@ -10,7 +10,6 @@
 #include "layout.h"
 #include "force.h"
 #include "quadtree.h"
-#include "octtree.h"
 #include "map.h"
 
 struct _map_env_t {
@@ -23,7 +22,6 @@ struct _map_env_t {
     paper_t **papers;
 
     quad_tree_t *quad_tree;
-    oct_tree_t *oct_tree;
 
     force_params_t force_params;
 
@@ -40,7 +38,7 @@ struct _map_env_t {
     double max_total_force_mag;
 
     // standard deviation of the positions of the papers
-    double x_sd, y_sd, z_sd;
+    double x_sd, y_sd;
 
     layout_t *layout;
 };
@@ -52,7 +50,6 @@ map_env_t *map_env_new() {
     map_env->num_papers = 0;
     map_env->papers = NULL;
     map_env->quad_tree = quad_tree_new();
-    map_env->oct_tree = m_new(oct_tree_t, 1);
 
     map_env->force_params.do_close_repulsion = false;
     map_env->force_params.close_repulsion_a = 1e8;
@@ -120,8 +117,6 @@ void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers) {
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
         p->refs_tred_computed = m_new(int, p->num_refs);
-        //p->kind = 2.5 * random() / RAND_MAX;
-        p->kind = p->maincat;
         p->num_included_cites = p->num_cites;
         p->mass = 0.05 + 0.2 * p->num_included_cites;
         p->r = sqrt(p->mass / M_PI);
@@ -138,7 +133,7 @@ void map_env_random_papers(map_env_t *map_env, int n) {
     map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     for (int i = 0; i < n; i++) {
         paper_t *p = &map_env->all_papers[i];
-        p->kind = 2.5 * random() / RAND_MAX;
+        p->allcats[0] = random() % CAT_NUMBER_OF;
         p->r = 0.1 + 0.05 / (0.01 + 1.0 * random() / RAND_MAX);
         if (p->r > 4) { p->r = 4; }
         p->mass = M_PI * p->r * p->r;
@@ -156,7 +151,7 @@ void map_env_papers_test1(map_env_t *map_env, int n) {
     map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     for (int i = 0; i < n; i++) {
         paper_t *p = &map_env->all_papers[i];
-        p->kind = 1;
+        p->allcats[0] = 1;
         if (i == 0) {
             p->mass = 0.05 + 0.1 * (n - 1);
         } else {
@@ -183,7 +178,7 @@ void map_env_papers_test2(map_env_t *map_env, int n) {
     map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     for (int i = 0; i < n; i++) {
         paper_t *p = &map_env->all_papers[i];
-        p->kind = 1;
+        p->allcats[0] = 1;
         if (i < 2) {
             p->mass = 0.05 + 0.1 * (n - 2);
         } else {
@@ -310,28 +305,39 @@ void map_env_refine_layout(map_env_t *map_env) {
         map_env->layout = map_env->layout->child_layout;
         layout_t *l = map_env->layout;
         for (int i = 0; i < l->num_nodes; i++) {
-            l->nodes[i].x = l->nodes[i].parent->x + l->nodes[i].parent->radius * ((double)random() / RAND_MAX - 0.5);
-            l->nodes[i].y = l->nodes[i].parent->y + l->nodes[i].parent->radius * ((double)random() / RAND_MAX - 0.5);
+            layout_node_t *node = &l->nodes[i];
+            layout_node_t *parent = node->parent;
+            if (parent->child2 == NULL) {
+                // only 1 child, being this node
+                node->x = parent->x;
+                node->y = parent->y;
+            } else if (parent->child1 == node) {
+                // 2 children; put this node on the left
+                node->x = parent->x - (1.0 - node->mass / parent->mass) * parent->radius;
+                node->y = parent->y;
+            } else {
+                // 2 children; put this node on the right
+                node->x = parent->x + (1.0 - node->mass / parent->mass) * parent->radius;
+                node->y = parent->y;
+            }
         }
     }
 }
 
 void paper_colour(paper_t *p, double *r, double *g, double *b) {
-    switch (p->kind) {
-        case 1:  *r = 0.0; *g = 0.0; *b = 1.0; break; // hep-th: blue
-        case 2:  *r = 0.0; *g = 1.0; *b = 0.0; break; // hep-ph: green
-        case 3:  *r = 1.0; *g = 1.0; *b = 0.0; break; // hep-ex: yellow
-        case 4:  *r = 0.0; *g = 1.0; *b = 1.0; break; // gr-qc,inspire: cyan
-        case 5:  *r = 1.0; *g = 0.0; *b = 1.0; break; // astro-ph.GA: purple
-        case 6:  *r = 0.70; *g = 0.36; *b = 0.20; break; // hep-lat: tan brown
-        case 7:  *r = 0.62; *g = 0.86; *b = 0.24; break; // astro-ph.HE: lime green
-        case 8:  *r = 0.89; *g = 0.53; *b = 0.60; break; // astro-ph.*: skin pink
-        case 9:  *r = 0.6; *g = 0.4; *b = 0.4; break; // cond-mat
-        case 10:  *r = 0.4; *g = 0.7; *b = 0.7; break; // quant-ph
-        case 11:  *r = 0.0; *g = 0.5; *b = 0.0; break; // physics: dark green
-        case 12:  *r = 0.7; *g = 1.0; *b = 0.3; break; // other:
-        default: *r = 0.8; *g = 0.8; *b = 0.8; break;
-    }
+    category_t c = p->allcats[0];
+    if (c == CAT_hep_th) { *r = 0.0; *g = 0.0; *b = 1.0; } // blue
+    else if (c == CAT_hep_ph) { *r = 0.0; *g = 1.0; *b = 0.0; } // green
+    else if (c == CAT_hep_ex) { *r = 1.0; *g = 1.0; *b = 0.0; } // yellow
+    else if (c == CAT_gr_qc || c == CAT_INSPIRE) { *r = 0.0; *g = 1.0; *b = 1.0; } // cyan
+    else if (c == CAT_astro_ph_GA) { *r = 1.0; *g = 0.0; *b = 1.0; } // purple
+    else if (c == CAT_hep_lat) { *r = 0.70; *g = 0.36; *b = 0.20; } // tan brown
+    else if (c == CAT_astro_ph_HE) { *r = 0.62; *g = 0.86; *b = 0.24; } // lime green
+    else if (CAT_astro_ph <= c && c <= CAT_astro_ph_SR) { *r = 0.89; *g = 0.53; *b = 0.60; } // skin pink
+    else if (c == CAT_cond_mat) { *r = 0.6; *g = 0.4; *b = 0.4; }
+    else if (c == CAT_quant_ph) { *r = 0.4; *g = 0.7; *b = 0.7; }
+    else if (CAT_physics_acc_ph <= c && c <= CAT_physics_space_ph) { *r = 0.0; *g = 0.5; *b = 0.0; } // dark green
+    else { *r = 0.7; *g = 1.0; *b = 0.3; }
 }
 
 void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
@@ -365,9 +371,9 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     /*
     if (p->id == 1992546899 || p->id == 1993234723) {
         cairo_set_source_rgba(cr, 0.8, 0.8, 0, 0.7);
-    } else if (p->kind == 1) {
+    } else if (p->allcats[0] == 1) {
         cairo_set_source_rgba(cr, 0, 0, 0.8, 0.7);
-    } else if (p->kind == 2) {
+    } else if (p->allcats[0] == 2) {
         cairo_set_source_rgba(cr, 0.8, 0, 0, 0.7);
     } else {
         cairo_set_source_rgba(cr, 0, 0.8, 0, 0.7);
@@ -696,6 +702,7 @@ void compute_naive_node_node_force(force_params_t *force_params, layout_t *layou
  * useful for when including papers that are not connected to the main graph
  */
 void attract_to_centre_of_category(map_env_t *map_env) {
+    #if 0
     double centre_x[10], centre_y[10], num[10]; // HACK! only allows 10 categories
     for (int i = 0; i < 10; i++) {
         centre_x[i] = 0;
@@ -734,6 +741,7 @@ void attract_to_centre_of_category(map_env_t *map_env) {
             p->layout_node->fy -= fy;
         }
     }
+    #endif
 }
 
 void compute_keyword_force(force_params_t *param, int num_papers, paper_t **papers) {
@@ -782,7 +790,7 @@ void compute_keyword_force(force_params_t *param, int num_papers, paper_t **pape
             double dx = p->x - kw->x;
             double dy = p->y - kw->y;
             double r = sqrt(dx*dx + dy*dy);
-            double rest_len = 10;//0.1 * sqrt(num[p->maincat]);
+            double rest_len = 10;//0.1 * sqrt(num[p->allcats[0]]);
 
             double fac = 0.1 * param->link_strength;
 
@@ -797,6 +805,70 @@ void compute_keyword_force(force_params_t *param, int num_papers, paper_t **pape
         }
     }
 }
+
+/*
+static void compute_category_locations(force_params_t *param, int num_papers, paper_t **papers) {
+    // reset keyword locations
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p = papers[i];
+        for (int j = 0; j < p->num_keywords; j++) {
+            keyword_t *kw = p->keywords[j];
+            kw->num_papers = 0;
+            kw->x = 0;
+            kw->y = 0;
+        }
+    }
+
+    // compute keyword locations, by averaging papers that have that keyword
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p = papers[i];
+        for (int j = 0; j < p->num_keywords; j++) {
+            keyword_t *kw = p->keywords[j];
+            kw->num_papers += 1;
+            kw->x += p->layout_node->x;
+            kw->y += p->layout_node->y;
+        }
+    }
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p = papers[i];
+        for (int j = 0; j < p->num_keywords; j++) {
+            keyword_t *kw = p->keywords[j];
+            if (kw->num_papers > 0) {
+                kw->x /= kw->num_papers;
+                kw->y /= kw->num_papers;
+                kw->num_papers = 0;
+            }
+        }
+    }
+
+    // compute forces due to keywords
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *p = papers[i];
+        //if (p->num_refs > 0) {
+            //continue;
+        //}
+        for (int j = 0; j < p->num_keywords; j++) {
+            keyword_t *kw = p->keywords[j];
+
+            double dx = p->x - kw->x;
+            double dy = p->y - kw->y;
+            double r = sqrt(dx*dx + dy*dy);
+            double rest_len = 10;//0.1 * sqrt(num[p->allcats[0]]);
+
+            double fac = 0.1 * param->link_strength;
+
+            if (r > rest_len) {
+                fac *= (r - rest_len);
+                double fx = dx * fac;
+                double fy = dy * fac;
+
+                p->layout_node->fx -= fx;
+                p->layout_node->fy -= fy;
+            }
+        }
+    }
+}
+*/
 
 static void map_env_compute_forces(map_env_t *map_env) {
     // reset the forces
@@ -1144,7 +1216,17 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
         }
     }
 
-    map_env->step_size = 1;
+    // connect the disconnected pieces
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        if (p->colour != biggest_col) {
+            if (p->num_with_my_colour == 1) {
+                //printf("%d %d %p %p\n", p->num_refs, p->num_cites
+            } else {
+                // TODO
+            }
+        }
+    }
 
     // testing!
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers);
@@ -1159,6 +1241,8 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     for (; l != NULL; l = l->child_layout) {
         layout_print(l);
     }
+
+    map_env->step_size = 1;
 }
 
 void map_env_jolt(map_env_t *map_env, double amt) {
