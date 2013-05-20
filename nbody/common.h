@@ -29,7 +29,7 @@ typedef struct _paper_t {
     const char *title;
 
     int num_keywords;
-    struct _keyword_t **keywords;
+    const char **keywords;
 
     bool pos_valid;
     float x;
@@ -60,12 +60,14 @@ typedef struct _paper_t {
     struct _layout_node_t *layout_node;
 } paper_t;
 
+/* obsolete
 typedef struct _keyword_t {
     char *keyword;
     int num_papers; // number of papers with this keyword
     float x;
     float y;
 } keyword_t;
+*/
 
 int date_to_unique_id(int y, int m, int d);
 void unique_id_to_date(int id, int *y, int *m, int *d);

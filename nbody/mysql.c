@@ -15,10 +15,13 @@
 //#define DB_HOST "localhost"
 #define DB_HOST "susi"
 
+// approximatelly doubling primes; made with Mathematica command: Table[Prime[Floor[(1.7)^n]], {n, 9, 24}]
+int doubling_primes[] = {647, 1229, 2297, 4243, 7829, 14347, 26017, 47149, 84947, 152443, 273253, 488399, 869927, 1547173, 2745121, 4861607};
+
+// the keyword pool is a linked list of hash tables, each one bigger than the previous
 typedef struct _keyword_pool_t {
-    int alloc;
-    int used;
-    keyword_t *keywords;
+    int table_size;
+    char **table;
     struct _keyword_pool_t *next;
 } keyword_pool_t;
 
@@ -71,6 +74,7 @@ static void env_finish(env_t* env) {
     // free the keyword pool container, but not the actual keywords
     for (keyword_pool_t *kwp = env->keyword_pool; kwp != NULL;) {
         keyword_pool_t *next = kwp->next;
+        m_free(kwp->table);
         m_free(kwp);
         kwp = next;
     }
@@ -382,27 +386,72 @@ static bool env_build_cites(env_t *env) {
     return true;
 }
 
-static keyword_t *env_get_or_create_keyword(env_t *env, const char *kw, const char *kw_end) {
-    if (kw_end <= kw) {
+static const char *env_get_or_create_unique_keyword(env_t *env, const char *kw, size_t kw_len) {
+    if (kw_len <= 0) {
         return NULL;
     }
 
+    unsigned int hash = strnhash(kw, kw_len);
     keyword_pool_t *kwp;
 
     // first search for keyword to see if we already have it
     for (kwp = env->keyword_pool; kwp != NULL; kwp = kwp->next) {
+        const char *found_kw = kwp->table[hash % kwp->table_size];
+        if (found_kw == NULL) {
+            // kw not in table; insert into this position
+            char *new_kw = strndup(kw, kw_len);
+            kwp->table[hash % kwp->table_size] = new_kw;
+            return new_kw;
+        } else if (strneq(found_kw, kw, kw_len)) {
+            // found it
+            return found_kw;
+        }
+        /* old code that did a linear search
         for (int i = 0; i < kwp->used; i++) {
-            if (strncmp(kwp->keywords[i].keyword, kw, kw_end - kw) == 0 && kwp->keywords[i].keyword[kw_end - kw] == '\0') {
+            if (strncasecmp(kwp->keywords[i].keyword, kw, kw_len) == 0 && kwp->keywords[i].keyword[kw_len] == '\0') {
                 //printf("found keyword %s\n", kwp->keywords[i].keyword);
                 return &kwp->keywords[i];
             }
         }
+        */
     }
 
-    // not found, so make a new keyword object
+    // not found in any table, so make a new table
+    kwp = m_new(keyword_pool_t, 1);
+    if (kwp == NULL) {
+        return NULL;
+    }
+    if (env->keyword_pool == NULL) {
+        // first table
+        kwp->table_size = doubling_primes[0];
+    } else {
+        // successive tables
+        for (int i = 0; i < sizeof(doubling_primes) / sizeof(int); i++) {
+            kwp->table_size = doubling_primes[i];
+            if (doubling_primes[i] > env->keyword_pool->table_size) {
+                break;
+            }
+        }
+    }
+    kwp->table = m_new0(char*, kwp->table_size);
+    if (kwp->table == NULL) {
+        m_free(kwp);
+        return NULL;
+    }
+    kwp->next = env->keyword_pool;
+    env->keyword_pool = kwp;
+
+    // make and insert new keyword
+    char *new_kw = strndup(kw, kw_len);
+    kwp->table[hash % kwp->table_size] = new_kw;
+
+    // return new keyword
+    return new_kw;
+
+    /* old code for linear search
     kwp = env->keyword_pool;
     if (kwp == NULL || kwp->used >= kwp->alloc) {
-        // need to allocate memory for the keyword object
+        // need to allocate memory for a new pool
         kwp = m_new(keyword_pool_t, 1);
         if (kwp == NULL) {
             return NULL;
@@ -425,6 +474,7 @@ static keyword_t *env_get_or_create_keyword(env_t *env, const char *kw, const ch
     kwp->keywords[kwp->used].keyword = strndup(kw, kw_end - kw);
     //printf("created keyword %s\n", kwp->keywords[kwp->used].keyword);
     return &kwp->keywords[kwp->used++];
+    */
 }
 
 static bool env_load_keywords(env_t *env) {
@@ -472,7 +522,7 @@ static bool env_load_keywords(env_t *env) {
                 }
 
                 // allocate memory
-                paper->keywords = m_new(keyword_t*, num_keywords);
+                paper->keywords = m_new(const char*, num_keywords);
                 if (paper->keywords == NULL) {
                     mysql_free_result(result);
                     return false;
@@ -485,9 +535,9 @@ static bool env_load_keywords(env_t *env) {
                     while (kw_end < kws_end && *kw_end != ',') {
                         kw_end++;
                     }
-                    keyword_t *keyword = env_get_or_create_keyword(env, kw, kw_end);
-                    if (keyword != NULL) {
-                        paper->keywords[paper->num_keywords++] = keyword;
+                    const char *unique_keyword = env_get_or_create_unique_keyword(env, kw, kw_end - kw);
+                    if (unique_keyword != NULL) {
+                        paper->keywords[paper->num_keywords++] = unique_keyword;
                     }
                     kw = kw_end;
                     if (kw < kws_end) {
@@ -502,7 +552,11 @@ static bool env_load_keywords(env_t *env) {
 
     int unique_keywords = 0;
     for (keyword_pool_t *kwp = env->keyword_pool; kwp != NULL; kwp = kwp->next) {
-        unique_keywords += kwp->used;
+        for (int i = 0; i < kwp->table_size; i++) {
+            if (kwp->table[i] != NULL) {
+                unique_keywords += 1;
+            }
+        }
     }
     printf("read %d unique, %d total keywords\n", unique_keywords, total_keywords);
 
