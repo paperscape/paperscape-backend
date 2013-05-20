@@ -752,6 +752,7 @@ void attract_disconnected_to_centre_of_category(map_env_t *map_env) {
     }
 }
 
+/* obsolete
 void compute_keyword_force(force_params_t *param, int num_papers, paper_t **papers) {
     // reset keyword locations
     for (int i = 0; i < num_papers; i++) {
@@ -815,6 +816,7 @@ void compute_keyword_force(force_params_t *param, int num_papers, paper_t **pape
         }
     }
 }
+*/
 
 static void compute_category_locations(map_env_t *map_env) {
     for (int i = 0; i < CAT_NUMBER_OF; i++) {
@@ -1124,6 +1126,10 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
 
 // makes fake links for a paper to the connected part of the graph
 static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
+    if (paper->num_keywords == 0) {
+        printf("paper %d has no keywords\n", paper->id);
+    }
+
     // allocate memory for the fake links
     paper->num_fake_links = 0;
     paper->fake_links = m_new(paper_t*, paper->num_keywords == 0 ? 1 : paper->num_keywords);
@@ -1133,7 +1139,7 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
 
     // go through all the keywords for this paper
     for (int i = 0; i < paper->num_keywords; i++) {
-        keyword_t *want_kw = paper->keywords[i];
+        const char *want_kw = paper->keywords[i];
 
         // find a connected paper with want_cat, want_kw, and largest mass
         paper_t *p_found = NULL;

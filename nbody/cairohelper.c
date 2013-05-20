@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <cairo.h>
 
 #include "xiwilib.h"
