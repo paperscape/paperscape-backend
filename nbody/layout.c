@@ -57,7 +57,7 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers) {
         node->y = 0;
         node->fx = 0;
         node->fy = 0;
-        num_links += paper->num_refs;
+        num_links += paper->num_refs + paper->num_fake_links;
     }
 
     // build the links
@@ -66,11 +66,15 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers) {
     for (int i = 0; i < num_papers; i++) {
         paper_t *paper = papers[i];
         layout_node_t *node = &nodes[i];
-        node->num_links = paper->num_refs;
+        node->num_links = paper->num_refs + paper->num_fake_links;
         node->links = links;
         for (int j = 0; j < paper->num_refs; j++) {
             node->links[j].weight = paper->refs_ref_freq[j];
             node->links[j].node = paper->refs[j]->layout_node;
+        }
+        for (int j = 0; j < paper->num_fake_links; j++) {
+            node->links[paper->num_refs + j].weight = 0.1;
+            node->links[paper->num_refs + j].node = paper->fake_links[j]->layout_node;
         }
         links += node->num_links;
     }

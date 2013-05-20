@@ -55,6 +55,9 @@ fake links from this paper to the main graph.  The fake links can be:
         also have those keywords.  Note: doesn't work connecting keyword of 1
         paper to average position of other papers with that keyword, because then
         everything just gravitates to the centre of the graph.
+    --> Links made from authors.
+
+We have now pretty much finished this, using keywords to make fake links.
 
 --------------------------------------------------------------------------------
 --  Speeding up and improving nbody code
@@ -64,13 +67,7 @@ fake links from this paper to the main graph.  The fake links can be:
     iterations to remove any artificial "lines" due to quad tree division.
 
 --> Improve the contact force between papers so they don't overlap at all.
-
---> Fine tune the parameters for anti-gravity and spring so that we have
-    isolated structures, but not too spread out.  This has now been greatly
-    improved by switching from F=kx^2 to F=kx for the spring force law.
-    Still need to tune parameters (basically ratio of gravity constant to
-    spring constant), and for that we need to improve the speed of nbody
-    by doing graph refinement.
+    --> this is almost finished
 
 --> When you zoom right in, there is a lot of blank area in between papers.
     This is a general "feature" of the graph layout algorithm and the fact
@@ -113,8 +110,13 @@ Pipeline for map generation should be split up as:
     looking for the majority of papers within a certain radius of that point.
     Use this majority-category to colour the point accordingly.
 
+    Maybe just keep it clean and draw the paper with no BG.  Then have
+    "country borders" between categories, and between sub-categories, and
+    between keyword areas.
+
 --> When zoomed right in, instead of sending tiles, could send just location,
     radius and category, and the front end can render it on the fly.
+    --> maybe not, depends on how complicated the rendering procedure is.
 
 --> Need to use different colours for the different sub-categories of astro-ph,
     and cond-mat, physics, etc.  Need to come up with lots of different colours!

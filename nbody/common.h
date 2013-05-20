@@ -1,10 +1,24 @@
 #ifndef _INCLUDED_COMMON_H
 #define _INCLUDED_COMMON_H
 
+typedef enum {
+    CAT_UNKNOWN = 0,
+    CAT_INSPIRE = 1,
+#define CAT(id, str) CAT_##id,
+#include "cats.h"
+#undef CAT
+    CAT_NUMBER_OF
+} category_t;
+
+const char *category_enum_to_str(category_t cat);
+category_t category_str_to_enum(const char *str);
+category_t category_strn_to_enum(const char *str, size_t n);
+
+#define PAPER_MAX_CATS (4)
 typedef struct _paper_t {
     // stuff loaded from the DB
     unsigned int id;
-    unsigned int maincat;
+    byte allcats[PAPER_MAX_CATS]; // store fixed number of categories; more efficient than having a tiny, dynamic array; unused entries are CAT_UNKNOWN
     short num_refs;
     short num_cites;
     struct _paper_t **refs;
@@ -20,11 +34,14 @@ typedef struct _paper_t {
     bool pos_valid;
     float x;
     float y;
-    float z;
 
     // stuff for colouring
     int colour;
     int num_with_my_colour;
+
+    // stuff for connecting disconnected papers
+    int num_fake_links;
+    struct _paper_t **fake_links;
 
     // stuff for tred
     int tred_visit_index;
@@ -35,7 +52,7 @@ typedef struct _paper_t {
     // stuff for the placement of papers
     bool included;
     int num_included_cites;
-    int kind;
+    bool connected;
     float age; // between 0.0 and 1.0
     float r;
     float mass;

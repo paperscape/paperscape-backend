@@ -160,7 +160,7 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
     // get the ids
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,maincat,allcats,authors,title FROM meta_data");
+    vstr_printf(vstr, "SELECT id,allcats,authors,title FROM meta_data");
     if (where_clause != NULL && where_clause[0] != 0) {
         vstr_printf(vstr, " WHERE (%s)", where_clause);
     }
@@ -168,7 +168,7 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         return false;
     }
 
-    if (!env_query_many_rows(env, vstr_str(vstr), 5, &result)) {
+    if (!env_query_many_rows(env, vstr_str(vstr), 4, &result)) {
         return false;
     }
     int i = 0;
@@ -181,48 +181,41 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         int id = atoi(row[0]);
         paper_t *paper = &env->papers[i];
         paper->id = id;
+
+        // parse categories
+        int cat_num = 0;
+        for (char *start = row[1], *cur = row[1]; cat_num < PAPER_MAX_CATS; cur++) {
+            if (*cur == ',' || *cur == '\0') {
+                category_t cat = category_strn_to_enum(start, cur - start);
+                if (cat == CAT_UNKNOWN) {
+                    // print unknown categories; for adding to cats.h
+                    printf("%.*s\n", (int)(cur - start), start);
+                } else {
+                    paper->allcats[cat_num++] = cat;
+                }
+                if (*cur == '\0') {
+                    break;
+                }
+                start = cur + 1;
+            }
+        }
+        // fill in unused entries in allcats with UNKNOWN category
+        for (; cat_num < PAPER_MAX_CATS; cat_num++) {
+            paper->allcats[cat_num] = CAT_UNKNOWN;
+        }
+
         paper->num_refs = 0;
         paper->num_cites = 0;
         paper->refs = NULL;
         paper->refs_ref_freq = NULL;
         paper->cites = NULL;
-        if (row[1] == NULL) {
-            paper->maincat = 4;
-        } else if (strcmp(row[1], "hep-th") == 0) {
-            paper->maincat = 1;
-        } else if (strcmp(row[1], "hep-ph") == 0) {
-            paper->maincat = 2;
-        } else if (strcmp(row[1], "hep-ex") == 0) {
-            paper->maincat = 3;
-        } else if (strcmp(row[1], "hep-lat") == 0) {
-            paper->maincat = 6;
-        } else if (strcmp(row[1], "gr-qc") == 0) {
-            paper->maincat = 4;
-        } else if (strcmp(row[1], "astro-ph") == 0) {
-            if (strncmp(row[2], "astro-ph.GA", 11) == 0) {
-                paper->maincat = 5;
-            } else if (strncmp(row[2], "astro-ph.HE", 11) == 0) {
-                paper->maincat = 7;
-            } else {
-                paper->maincat = 8;
-            }
-        } else if (strcmp(row[1], "cond-mat") == 0) {
-            paper->maincat = 9;
-        } else if (strcmp(row[1], "quant-ph") == 0) {
-            paper->maincat = 10;
-        } else if (strcmp(row[1], "physics") == 0) {
-            paper->maincat = 11;
-        } else {
-            paper->maincat = 12;
-        }
-        paper->authors = strdup(row[3]);
-        paper->title = strdup(row[4]);
+        paper->authors = strdup(row[2]);
+        paper->title = strdup(row[3]);
         paper->pos_valid = false;
         paper->num_keywords = 0;
         paper->keywords = NULL;
         paper->x = 0;
         paper->y = 0;
-        paper->z = 0;
         i += 1;
     }
     env->num_papers = i;
@@ -281,7 +274,6 @@ static bool env_load_pos(env_t *env) {
             paper->pos_valid = true;
             paper->x = atof(row[1]);
             paper->y = atof(row[2]);
-            paper->z = 0;
             total_pos += 1;
         }
     }
@@ -467,15 +459,20 @@ static bool env_load_keywords(env_t *env) {
                 const char *kws_end = row[1] + len;
 
                 // count number of keywords
-                paper->num_keywords = 1;
+                int num_keywords = 1;
                 for (const char *kw = kws_start; kw < kws_end; kw++) {
                     if (*kw == ',') {
-                        paper->num_keywords += 1;
+                        num_keywords += 1;
                     }
                 }
 
+                // limit number of keywords per paper
+                if (num_keywords > 5) {
+                    num_keywords = 5;
+                }
+
                 // allocate memory
-                paper->keywords = m_new(keyword_t*, paper->num_keywords);
+                paper->keywords = m_new(keyword_t*, num_keywords);
                 if (paper->keywords == NULL) {
                     mysql_free_result(result);
                     return false;
@@ -483,7 +480,7 @@ static bool env_load_keywords(env_t *env) {
 
                 // populate keyword list for this paper
                 paper->num_keywords = 0;
-                for (const char *kw = kws_start; kw < kws_end;) {
+                for (const char *kw = kws_start; kw < kws_end && num_keywords > 0; num_keywords--) {
                     const char *kw_end = kw;
                     while (kw_end < kws_end && *kw_end != ',') {
                         kw_end++;
@@ -495,9 +492,6 @@ static bool env_load_keywords(env_t *env) {
                     kw = kw_end;
                     if (kw < kws_end) {
                         kw += 1; // skip comma
-                    }
-                    if (paper->num_keywords > 2) {
-                        break;
                     }
                 }
                 total_keywords += paper->num_keywords;
@@ -524,11 +518,19 @@ bool mysql_load_papers(const char *where_clause, int *num_papers_out, paper_t **
     }
 
     // load the DB
-    env_load_ids(&env, where_clause);
+    if (!env_load_ids(&env, where_clause)) {
+        return false;
+    }
     //env_load_pos(&env);
-    env_load_refs(&env);
-    //env_load_keywords(&env);
-    env_build_cites(&env);
+    if (!env_load_refs(&env)) {
+        return false;
+    }
+    if (!env_load_keywords(&env)) {
+        return false;
+    }
+    if (!env_build_cites(&env)) {
+        return false;
+    }
 
     // pull down the MySQL environment (doesn't free the papers or keywords)
     env_finish(&env);
