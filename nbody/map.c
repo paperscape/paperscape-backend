@@ -47,6 +47,9 @@ struct _map_env_t {
 
     layout_t *layout;
 
+    // info for keywords
+    keyword_set_t *keyword_set;
+
     // info for each category
     category_info_t category_info[CAT_NUMBER_OF];
 };
@@ -87,6 +90,8 @@ map_env_t *map_env_new() {
     map_env->x_sd = 1;
     map_env->y_sd = 1;
 
+    map_env->keyword_set = NULL;
+
     return map_env;
 }
 
@@ -118,10 +123,11 @@ paper_t *map_env_get_paper_at(map_env_t *map_env, double x, double y) {
     return NULL;
 }
 
-void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers) {
+void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *kws) {
     map_env->max_num_papers = num_papers;
     map_env->all_papers = papers;
     map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
+    map_env->keyword_set = kws;
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
         p->num_fake_links = 0;
@@ -406,7 +412,7 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
 
     if (!p->connected) {
         cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
-        w *= 1.5;
+        //w *= 1.5;
     }
 
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
@@ -1126,10 +1132,6 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
 
 // makes fake links for a paper to the connected part of the graph
 static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
-    if (paper->num_keywords == 0) {
-        printf("paper %d has no keywords\n", paper->id);
-    }
-
     // allocate memory for the fake links
     paper->num_fake_links = 0;
     paper->fake_links = m_new(paper_t*, paper->num_keywords == 0 ? 1 : paper->num_keywords);
@@ -1139,36 +1141,22 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
 
     // go through all the keywords for this paper
     for (int i = 0; i < paper->num_keywords; i++) {
-        const char *want_kw = paper->keywords[i];
-
-        // find a connected paper with want_cat, want_kw, and largest mass
-        paper_t *p_found = NULL;
-        for (int j = 0; j < map_env->num_papers; j++) {
-            paper_t *p2 = map_env->papers[j];
-            if (p2->connected && p2->allcats[0] == want_cat) {
-                for (int k = 0; k < p2->num_keywords; k++) {
-                    if (p2->keywords[k] == want_kw) {
-                        if (p_found == NULL || p2->mass > p_found->mass) {
-                            p_found = p2;
-                        }
-                    }
-                }
-            }
-        }
+        keyword_t *want_kw = paper->keywords[i];
 
         // found an appropriate paper, so make a fake link
-        if (p_found != NULL) {
-            paper->fake_links[paper->num_fake_links++] = p_found;
+        if (want_kw->paper != NULL) {
+            paper->fake_links[paper->num_fake_links++] = want_kw->paper;
             //printf("connected %s to %s\n", paper->title, p_found->title);
         }
     }
 
     // if we couldn't find anything, try just looking for something in the same category
     if (paper->num_fake_links == 0) {
+        //printf("for paper %d, resorting to category link (it has %d keywords)\n", paper->id, paper->num_keywords);
         paper_t *p_found = NULL;
         for (int i = 0; i < map_env->num_papers; i++) {
             paper_t *p2 = map_env->papers[i];
-            if (p2->connected && p2->allcats[0] == want_cat) {
+            if (p2->included && p2->connected && p2->allcats[0] == want_cat) {
                 if (p_found == NULL || p2->mass > p_found->mass) {
                     p_found = p2;
                 }
@@ -1241,35 +1229,62 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
         }
     }
 
-    // make array of papers that we want to include
-    // connect the disconnected pieces to the big graph if we can
+    // make array of papers that we want to include, first the big connected graph
     map_env->num_papers = 0;
+    for (int i = 0; i < map_env->max_num_papers; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        if (p->included) {
+            p->connected = (p->colour == biggest_col);
+            if (p->connected) {
+                map_env->papers[map_env->num_papers++] = p;
+            }
+        }
+    }
+
+    // now add all the disconnected pieces to the big graph (when possible)
+    // for efficiency, do it on a per-category basis
     int total_fake_papers = 0;
     int total_fake_links = 0;
+    for (int cat = 0; cat < CAT_NUMBER_OF; cat++) {
+        // for each keyword, find the paper in this category that has the largest mass
+        keyword_set_clear_data(map_env->keyword_set);
+        for (int i = 0; i < map_env->num_papers; i++) {
+            paper_t *p = map_env->papers[i];
+            if (p->included && p->connected && p->allcats[0] == cat) {
+                for (int j = 0; j < p->num_keywords; j++) {
+                    if (p->keywords[j]->paper == NULL || p->mass > p->keywords[j]->paper->mass) {
+                        p->keywords[j]->paper = p;
+                    }
+                }
+            }
+        }
+
+        // for each disconnected paper, try to connect it!
+        for (int i = 0; i < map_env->max_num_papers; i++) {
+            paper_t *p = &map_env->all_papers[i];
+            if (p->included && !p->connected && p->allcats[0] == cat) {
+                // try to connect this paper to the big graph
+                make_fake_links_for_paper(map_env, p);
+                if (p->num_fake_links > 0) {
+                    total_fake_papers += 1;
+                    total_fake_links += p->num_fake_links;
+                    map_env->papers[map_env->num_papers++] = p;
+                }
+            }
+        }
+    }
+
+    // check what couldn't be connected
     int total_not_connected = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        //if (p->included && p->colour == biggest_col) { // include only those in the biggest connected graph
-        if (p->included) { // include all papers
-            p->connected = (p->colour == biggest_col);
-            bool add_paper = false;
-            if (!p->connected) {
-                // try to connect this paper to the big graph
-                make_fake_links_for_paper(map_env, p);
-                if (p->num_fake_links == 0) {
-                    printf("WARNING: could not connect paper %d with fake links; num_keywords=%d\n", p->id, p->num_keywords);
-                    total_not_connected += 1;
-                } else {
-                    total_fake_papers += 1;
-                    total_fake_links += p->num_fake_links;
-                    add_paper = true;
-                }
-            } else {
-                add_paper = true;
+        if (p->included && !p->connected && p->num_fake_links == 0) {
+            printf("WARNING: could not connect paper %d with fake links; allcats[0]=%s, keywords=", p->id, category_enum_to_str(p->allcats[0]));
+            for (int j = 0; j < p->num_keywords; j++) {
+                printf("%s,", p->keywords[j]->keyword);
             }
-            if (add_paper) {
-                map_env->papers[map_env->num_papers++] = p;
-            }
+            printf("\n");
+            total_not_connected += 1;
         }
     }
 

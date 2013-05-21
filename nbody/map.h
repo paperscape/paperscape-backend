@@ -6,7 +6,7 @@ typedef struct _cairo cairo_t;
 
 map_env_t *map_env_new();
 
-void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers);
+void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *keyword_set);
 void map_env_random_papers(map_env_t *map_env, int n);
 void map_env_papers_test1(map_env_t *map_env, int n);
 void map_env_papers_test2(map_env_t *map_env, int n);

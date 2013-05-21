@@ -23,6 +23,7 @@ int boost_step_size = 0;
 bool mouse_held = false;
 bool mouse_dragged;
 bool auto_refine = true;
+static int iterate_counter_full_refine = 0;
 bool lock_view_all = true;
 double mouse_last_x = 0, mouse_last_y = 0;
 paper_t *mouse_paper = NULL;
@@ -55,13 +56,20 @@ static gboolean map_env_update(map_env_t *map_env) {
     int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     printf("%f seconds per iteration\n", (end_time - start_time) / 10.0 / 1000.0);
 
-    if (auto_refine && converged) {
-        if (map_env_number_of_finer_layouts(map_env) > 1) {
+    if (auto_refine) {
+        if (iterate_counter_full_refine > 0 && iterate_counter > iterate_counter_full_refine) {
             map_env_refine_layout(map_env);
             boost_step_size = 1;
-        } else if (map_env_number_of_finer_layouts(map_env) == 1) {
-            map_env_set_do_close_repulsion(map_env, true);
-            boost_step_size = 1;
+            auto_refine = false;
+        } else if (converged) {
+            if (map_env_number_of_finer_layouts(map_env) > 1) {
+                map_env_refine_layout(map_env);
+                boost_step_size = 1;
+            } else if (map_env_number_of_finer_layouts(map_env) == 1) {
+                map_env_set_do_close_repulsion(map_env, true);
+                boost_step_size = 1;
+                iterate_counter_full_refine = iterate_counter + 2000;
+            }
         }
     }
 
