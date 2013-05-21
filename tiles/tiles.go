@@ -578,7 +578,7 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
 func GenerateAllTiles(graph *Graph, outPrefix string) {
     depths := *flagTileDepth
     var depth uint
-    for depth = 0; depth < depths; depth++ {
+    for depth = 0; depth <= depths; depth++ {
         divs := int(math.Pow(2.,float64(depth)))
         fmt.Println("Generating tiles at depth %d",divs)
         // TODO if graph far from from square, shorten tile
