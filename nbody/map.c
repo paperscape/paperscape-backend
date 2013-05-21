@@ -47,6 +47,9 @@ struct _map_env_t {
 
     layout_t *layout;
 
+    // info for keywords
+    keyword_set_t *keyword_set;
+
     // info for each category
     category_info_t category_info[CAT_NUMBER_OF];
 };
@@ -87,6 +90,8 @@ map_env_t *map_env_new() {
     map_env->x_sd = 1;
     map_env->y_sd = 1;
 
+    map_env->keyword_set = NULL;
+
     return map_env;
 }
 
@@ -118,15 +123,18 @@ paper_t *map_env_get_paper_at(map_env_t *map_env, double x, double y) {
     return NULL;
 }
 
-void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers) {
+void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *kws) {
     map_env->max_num_papers = num_papers;
     map_env->all_papers = papers;
     map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
+    map_env->keyword_set = kws;
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
         p->num_fake_links = 0;
         p->fake_links = NULL;
+#ifdef ENABLE_TRED
         p->refs_tred_computed = m_new(int, p->num_refs);
+#endif
         p->num_included_cites = p->num_cites;
         p->mass = 0.05 + 0.2 * p->num_included_cites;
         p->r = sqrt(p->mass / M_PI);
@@ -398,16 +406,11 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     double saturation = 0.6 * (1 - age);
 
     // compute and set final colour; newer papers tend towards red
-    age = age * age;
+    age = age * age * age * age;
     r = saturation + (r * (1 - age) + age) * (1 - saturation);
     g = saturation + (g * (1 - age)      ) * (1 - saturation);
     b = saturation + (b * (1 - age)      ) * (1 - saturation);
     cairo_set_source_rgb(cr, r, g, b);
-
-    if (!p->connected) {
-        cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
-        w *= 1.5;
-    }
 
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
@@ -542,6 +545,7 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
         cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
         layout_t *l = map_env->layout;
         if (map_env->do_tred) {
+#ifdef ENABLE_TRED
             for (int i = 0; i < map_env->num_papers; i++) {
                 paper_t *p = map_env->papers[i];
                 for (int j = 0; j < p->num_refs; j++) {
@@ -554,6 +558,7 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
                     }
                 }
             }
+#endif
         } else {
             for (int i = 0; i < l->num_nodes; i++) {
                 layout_node_t *n = &l->nodes[i];
@@ -657,7 +662,9 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
         vstr_printf(vstr_info, "max total force: %.2g\n", map_env->max_total_force_mag);
         vstr_printf(vstr_info, "\n");
         vstr_printf(vstr_info, "use ref freq: %d\n", map_env->force_params.use_ref_freq);
+#ifdef ENABLE_TRED
         vstr_printf(vstr_info, "transitive reduction: %d\n", map_env->do_tred);
+#endif
         vstr_printf(vstr_info, "\n");
         vstr_printf(vstr_info, "(r) do close repulsion: %d\n", map_env->force_params.do_close_repulsion);
         vstr_printf(vstr_info, "(1/!) anti-gravity strength: %.3f\n", map_env->force_params.anti_gravity_strength);
@@ -1126,10 +1133,6 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
 
 // makes fake links for a paper to the connected part of the graph
 static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
-    if (paper->num_keywords == 0) {
-        printf("paper %d has no keywords\n", paper->id);
-    }
-
     // allocate memory for the fake links
     paper->num_fake_links = 0;
     paper->fake_links = m_new(paper_t*, paper->num_keywords == 0 ? 1 : paper->num_keywords);
@@ -1139,36 +1142,22 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
 
     // go through all the keywords for this paper
     for (int i = 0; i < paper->num_keywords; i++) {
-        const char *want_kw = paper->keywords[i];
-
-        // find a connected paper with want_cat, want_kw, and largest mass
-        paper_t *p_found = NULL;
-        for (int j = 0; j < map_env->num_papers; j++) {
-            paper_t *p2 = map_env->papers[j];
-            if (p2->connected && p2->allcats[0] == want_cat) {
-                for (int k = 0; k < p2->num_keywords; k++) {
-                    if (p2->keywords[k] == want_kw) {
-                        if (p_found == NULL || p2->mass > p_found->mass) {
-                            p_found = p2;
-                        }
-                    }
-                }
-            }
-        }
+        keyword_t *want_kw = paper->keywords[i];
 
         // found an appropriate paper, so make a fake link
-        if (p_found != NULL) {
-            paper->fake_links[paper->num_fake_links++] = p_found;
+        if (want_kw->paper != NULL) {
+            paper->fake_links[paper->num_fake_links++] = want_kw->paper;
             //printf("connected %s to %s\n", paper->title, p_found->title);
         }
     }
 
     // if we couldn't find anything, try just looking for something in the same category
     if (paper->num_fake_links == 0) {
+        //printf("for paper %d, resorting to category link (it has %d keywords)\n", paper->id, paper->num_keywords);
         paper_t *p_found = NULL;
         for (int i = 0; i < map_env->num_papers; i++) {
             paper_t *p2 = map_env->papers[i];
-            if (p2->connected && p2->allcats[0] == want_cat) {
+            if (p2->included && p2->connected && p2->allcats[0] == want_cat) {
                 if (p_found == NULL || p2->mass > p_found->mass) {
                     p_found = p2;
                 }
@@ -1180,7 +1169,19 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
     }
 }
 
-void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
+void paper_propagate_connectivity(paper_t *paper) {
+    if (!paper->connected) {
+        paper->connected = true;
+        for (int i = 0; i < paper->num_refs; i++) {
+            paper_propagate_connectivity(paper->refs[i]);
+        }
+        for (int i = 0; i < paper->num_cites; i++) {
+            paper_propagate_connectivity(paper->cites[i]);
+        }
+    }
+}
+
+void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end, bool age_weaken) {
     int i_start = map_env->max_num_papers - 1;
     int i_end = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
@@ -1212,7 +1213,10 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
 
     recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
     recompute_colours(map_env->max_num_papers, map_env->all_papers, false);
-    //compute_tred(map_env->max_num_papers, map_env->all_papers);
+
+#ifdef ENABLE_TRED
+    compute_tred(map_env->max_num_papers, map_env->all_papers);
+#endif
 
     // recompute mass and radius based on num_included_cites
     for (int i = 0; i < map_env->max_num_papers; i++) {
@@ -1241,44 +1245,83 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
         }
     }
 
-    // make array of papers that we want to include
-    // connect the disconnected pieces to the big graph if we can
+    // make array of papers that we want to include, first the big connected graph
     map_env->num_papers = 0;
-    int total_fake_papers = 0;
-    int total_fake_links = 0;
-    int total_not_connected = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        //if (p->included && p->colour == biggest_col) { // include only those in the biggest connected graph
-        if (p->included) { // include all papers
+        if (p->included) {
             p->connected = (p->colour == biggest_col);
-            bool add_paper = false;
-            if (!p->connected) {
+            map_env->papers[map_env->num_papers++] = p;
+        }
+    }
+
+    // print some info
+    printf("have %d papers in total\n", map_env->num_papers);
+    printf("have %d papers in big connected graph\n", num_with_biggest_col);
+
+    // now link all the disconnected pieces to the big graph, where possible
+    // for efficiency, do it on a per-category basis
+    int total_fake_papers = 0;
+    int total_fake_links = 0;
+    for (int cat = 0; cat < CAT_NUMBER_OF; cat++) {
+        // for each keyword, find the paper in this category that has the largest mass
+        keyword_set_clear_data(map_env->keyword_set);
+        for (int i = 0; i < map_env->num_papers; i++) {
+            paper_t *p = map_env->papers[i];
+            if (p->included && p->connected && p->allcats[0] == cat) {
+                for (int j = 0; j < p->num_keywords; j++) {
+                    if (p->keywords[j]->paper == NULL || p->mass > p->keywords[j]->paper->mass) {
+                        p->keywords[j]->paper = p;
+                    }
+                }
+            }
+        }
+
+        // for each disconnected paper, try to connect it
+        for (int i = 0; i < map_env->num_papers; i++) {
+            paper_t *p = map_env->papers[i];
+            if (!p->connected && p->allcats[0] == cat) {
                 // try to connect this paper to the big graph
                 make_fake_links_for_paper(map_env, p);
-                if (p->num_fake_links == 0) {
-                    printf("WARNING: could not connect paper %d with fake links; num_keywords=%d\n", p->id, p->num_keywords);
-                    total_not_connected += 1;
-                } else {
+                if (p->num_fake_links > 0) {
                     total_fake_papers += 1;
                     total_fake_links += p->num_fake_links;
-                    add_paper = true;
+                    paper_propagate_connectivity(p);
                 }
-            } else {
-                add_paper = true;
-            }
-            if (add_paper) {
-                map_env->papers[map_env->num_papers++] = p;
             }
         }
     }
 
     // print some info
     printf("connected %d papers with %d fake links\n", total_fake_papers, total_fake_links);
+
+    // check what couldn't be connected
+    int total_not_connected = 0;
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        if (p->included && !p->connected) {
+            printf("WARNING: could not connect paper %d with fake links; allcats[0]=%s, keywords=", p->id, category_enum_to_str(p->allcats[0]));
+            for (int j = 0; j < p->num_keywords; j++) {
+                printf("%s,", p->keywords[j]->keyword);
+            }
+            printf("\n");
+            total_not_connected += 1;
+
+            // remove this paper from the list
+            memmove(&map_env->papers[i], &map_env->papers[i + 1], (map_env->num_papers - i - 1) * sizeof(paper_t*));
+            map_env->num_papers -= 1;
+        }
+    }
+
+    // print some info
     printf("after making fake links, have %d papers not connected\n", total_not_connected);
 
+    if (age_weaken) {
+        printf("weakening links that have a large difference in age\n");
+    }
+
     // make the layouts
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers);
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, age_weaken);
     for (int i = 0; i < 10 && l->num_links > 1; i++) {
         l = build_reduced_layout_from_layout(l);
     }
@@ -1293,6 +1336,7 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
 
     // increase the step size for the next force iteration
     map_env->step_size = 1;
+    //exit(1);
 }
 
 void map_env_jolt(map_env_t *map_env, double amt) {

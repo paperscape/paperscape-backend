@@ -6,7 +6,7 @@ typedef struct _cairo cairo_t;
 
 map_env_t *map_env_new();
 
-void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers);
+void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *keyword_set);
 void map_env_random_papers(map_env_t *map_env, int n);
 void map_env_papers_test1(map_env_t *map_env, int n);
 void map_env_papers_test2(map_env_t *map_env, int n);
@@ -37,7 +37,7 @@ void map_env_refine_layout(map_env_t *map_env);
 
 void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max);
 void map_env_inc_num_papers(map_env_t *map_env, int amt);
-void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
+void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end, bool age_weaken);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
 void map_env_flip_x(map_env_t *map_env);

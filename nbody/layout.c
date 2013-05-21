@@ -12,8 +12,10 @@ void layout_combine_duplicate_links(layout_t *layout) {
     // combine duplicate links
     for (int i = 0; i < layout->num_nodes; i++) {
         layout_node_t *node = &layout->nodes[i];
+        assert(node != NULL);
         for (int j = 0; j < node->num_links; j++) {
             layout_node_t *node2 = node->links[j].node;
+            assert(node2 != NULL);
             assert(node2 != node); // shouldn't be any nodes linking to themselves
             for (int k = 0; k < node2->num_links; k++) {
                 if (node2->links[k].node == node) {
@@ -34,7 +36,7 @@ void layout_combine_duplicate_links(layout_t *layout) {
     }
 }
 
-layout_t *build_layout_from_papers(int num_papers, paper_t **papers) {
+layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_weaken) {
     // allocate memory for the nodes
     int num_nodes = num_papers;
     layout_node_t *nodes = m_new(layout_node_t, num_nodes);
@@ -70,11 +72,16 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers) {
         node->links = links;
         for (int j = 0; j < paper->num_refs; j++) {
             node->links[j].weight = paper->refs_ref_freq[j];
+            if (age_weaken) {
+                node->links[j].weight *= 1.0 - 0.5 * fabs(paper->age - paper->refs[j]->age);
+            }
             node->links[j].node = paper->refs[j]->layout_node;
+            assert(node->links[j].node != NULL);
         }
         for (int j = 0; j < paper->num_fake_links; j++) {
-            node->links[paper->num_refs + j].weight = 0.1;
+            node->links[paper->num_refs + j].weight = 0.25; // what to use for fake link weight??
             node->links[paper->num_refs + j].node = paper->fake_links[j]->layout_node;
+            assert(node->links[paper->num_refs + j].node != NULL);
         }
         links += node->num_links;
     }

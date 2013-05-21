@@ -4,6 +4,12 @@ and all being small dots means no structure in the map).
 
 Major areas of work follow.
 
+To do:
+    --> option to load JSON
+    --> Barnes-Hutt needs tuning at end stage to eliminate artifacts
+        --> how long would an N^2 iteration take?
+    --> can we somehow pull the really far away papers more towards the centre?
+
 --------------------------------------------------------------------------------
 --  Connecting the disconnected pieces
 --------------------------------------------------------------------------------

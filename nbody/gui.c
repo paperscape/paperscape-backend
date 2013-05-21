@@ -23,11 +23,15 @@ int boost_step_size = 0;
 bool mouse_held = false;
 bool mouse_dragged;
 bool auto_refine = true;
+static int iterate_counter_full_refine = 0;
 bool lock_view_all = true;
 double mouse_last_x = 0, mouse_last_y = 0;
 paper_t *mouse_paper = NULL;
+
+/* obsolete
 int id_range_start = 2050000000;
 int id_range_end = 2060000000;
+*/
 
 static int iterate_counter = 0;
 static gboolean map_env_update(map_env_t *map_env) {
@@ -55,16 +59,24 @@ static gboolean map_env_update(map_env_t *map_env) {
     int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     printf("%f seconds per iteration\n", (end_time - start_time) / 10.0 / 1000.0);
 
-    if (auto_refine && converged) {
-        if (map_env_number_of_finer_layouts(map_env) > 1) {
+    if (auto_refine) {
+        if (iterate_counter_full_refine > 0 && iterate_counter > iterate_counter_full_refine) {
             map_env_refine_layout(map_env);
             boost_step_size = 1;
-        } else if (map_env_number_of_finer_layouts(map_env) == 1) {
-            map_env_set_do_close_repulsion(map_env, true);
-            boost_step_size = 1;
+            auto_refine = false;
+        } else if (converged) {
+            if (map_env_number_of_finer_layouts(map_env) > 1) {
+                map_env_refine_layout(map_env);
+                boost_step_size = 1;
+            } else if (map_env_number_of_finer_layouts(map_env) == 1) {
+                map_env_set_do_close_repulsion(map_env, true);
+                boost_step_size = 1;
+                iterate_counter_full_refine = iterate_counter + 2000;
+            }
         }
     }
 
+    /* obsolete code to save tiles automatically
     if (false && (iterate_counter > 100 || converged)) {
         iterate_counter = 0;
 
@@ -89,9 +101,10 @@ static gboolean map_env_update(map_env_t *map_env) {
                 break;
             }
         }
-        map_env_select_date_range(map_env, id_range_start, id_range_end);
+        map_env_select_date_range(map_env, id_range_start, id_range_end, true);
         boost_step_size += 3;
     }
+    */
 
     // force a redraw
     gtk_widget_queue_draw(window);
@@ -143,6 +156,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_Tab) {
         boost_step_size += 1;
 
+        /* obsolete code to adjust date range
     } else if (event->keyval >= GDK_KEY_a && event->keyval <= GDK_KEY_f) {
 
                if (event->keyval == GDK_KEY_a) {
@@ -159,7 +173,8 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         } else if (event->keyval == GDK_KEY_f) {
         }
 
-        map_env_select_date_range(map_env, id_range_start, id_range_end);
+        map_env_select_date_range(map_env, id_range_start, id_range_end, true);
+        */
 
         /*
     } else if (event->keyval == GDK_KEY_a) {
@@ -179,10 +194,8 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
 
     } else if (event->keyval == GDK_KEY_J) {
         // write map to JSON
-        int y, m, d;
         vstr_reset(vstr);
-        unique_id_to_date(id_range_end, &y, &m, &d);
-        vstr_printf(vstr, "map-%04u-%02u-%02u.json", y, m, d);
+        vstr_printf(vstr, "map-%07u.json", map_env_get_num_papers(map_env));
         write_tiles_to_json(map_env, vstr_str(vstr));
 
     } else if (event->keyval == GDK_KEY_j) {
@@ -440,10 +453,12 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     printf(
         "key bindings\n"
         " space- play/pause the physics update\n"
+        /*
         "    a - decrease whole id range by 1/10 of a year\n"
         "    b - increase whole id range by 1/10 of a year\n"
         "    c - decrease end of id range by 1/10 of a year\n"
         "    d - increase end of id range by 1/10 of a year\n"
+        */
         "    t - turn tred on/off\n"
         "    l - turn links on/off\n"
         "    j - make a small jolt\n"
@@ -454,18 +469,4 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
         "    left drag - move a paper around / pan the view\n"
         "       scroll - zoom in/out\n"
     );
-
-    int id_min;
-    int id_max;
-    map_env_get_max_id_range(map_env, &id_min, &id_max);
-    id_range_start = id_min;
-    id_range_end = id_min + 20000000; // plus 2 years
-
-    // for starting part way through
-    id_range_start = date_to_unique_id(2012, 3, 0);
-    id_range_end = id_range_start + 20000000; // plus 2 years
-    id_range_end = id_range_start +  3000000; // plus 0.5 year
-    id_range_start = id_min; id_range_end = id_max; // full range
-
-    map_env_select_date_range(map_env, id_range_start, id_range_end);
 }

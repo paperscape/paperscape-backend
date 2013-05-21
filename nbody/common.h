@@ -1,6 +1,9 @@
 #ifndef _INCLUDED_COMMON_H
 #define _INCLUDED_COMMON_H
 
+// uncomment this to enable tredding option
+//#define ENABLE_TRED (1)
+
 typedef enum {
     CAT_UNKNOWN = 0,
     CAT_INSPIRE = 1,
@@ -15,6 +18,7 @@ category_t category_str_to_enum(const char *str);
 category_t category_strn_to_enum(const char *str, size_t n);
 
 #define PAPER_MAX_CATS (4)
+
 typedef struct _paper_t {
     // stuff loaded from the DB
     unsigned int id;
@@ -29,7 +33,7 @@ typedef struct _paper_t {
     const char *title;
 
     int num_keywords;
-    const char **keywords;
+    struct _keyword_t **keywords;
 
     bool pos_valid;
     float x;
@@ -44,10 +48,12 @@ typedef struct _paper_t {
     struct _paper_t **fake_links;
 
     // stuff for tred
+#ifdef ENABLE_TRED
     int tred_visit_index;
     int *refs_tred_computed;
     struct _paper_t *tred_follow_back_paper;
     int tred_follow_back_ref;
+#endif
 
     // stuff for the placement of papers
     bool included;
@@ -60,14 +66,18 @@ typedef struct _paper_t {
     struct _layout_node_t *layout_node;
 } paper_t;
 
-/* obsolete
 typedef struct _keyword_t {
-    char *keyword;
-    int num_papers; // number of papers with this keyword
-    float x;
-    float y;
+    char *keyword;      // the keyword
+    paper_t *paper;     // for general use
 } keyword_t;
-*/
+
+typedef struct _keyword_set_t keyword_set_t;
+
+keyword_set_t *keyword_set_new();
+void keyword_set_free(keyword_set_t * kws);
+int keyword_set_get_total(keyword_set_t * kws);
+void keyword_set_clear_data(keyword_set_t *kws);
+keyword_t *keyword_set_lookup_or_insert(keyword_set_t *kws, const char *kw, size_t kw_len);
 
 int date_to_unique_id(int y, int m, int d);
 void unique_id_to_date(int id, int *y, int *m, int *d);
