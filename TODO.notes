@@ -5,13 +5,9 @@ and all being small dots means no structure in the map).
 Major areas of work follow.
 
 To do:
-    --> add age option on cmd line to weaken layout_link_t.weight based on age
-        --> then rerun whole set with this on to see the difference (no other changes)
     --> option to load JSON
     --> Barnes-Hutt needs tuning at end stage to eliminate artifacts
         --> how long would an N^2 iteration take?
-    --> change colouring algo so new=1 or 2 months old
-    --> try laying out CS et al; even if it's just a blob, would still be worth it
     --> can we somehow pull the really far away papers more towards the centre?
 
 --------------------------------------------------------------------------------

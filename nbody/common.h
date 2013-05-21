@@ -1,6 +1,9 @@
 #ifndef _INCLUDED_COMMON_H
 #define _INCLUDED_COMMON_H
 
+// uncomment this to enable tredding option
+//#define ENABLE_TRED (1)
+
 typedef enum {
     CAT_UNKNOWN = 0,
     CAT_INSPIRE = 1,
@@ -15,6 +18,7 @@ category_t category_str_to_enum(const char *str);
 category_t category_strn_to_enum(const char *str, size_t n);
 
 #define PAPER_MAX_CATS (4)
+
 typedef struct _paper_t {
     // stuff loaded from the DB
     unsigned int id;
@@ -44,10 +48,12 @@ typedef struct _paper_t {
     struct _paper_t **fake_links;
 
     // stuff for tred
+#ifdef ENABLE_TRED
     int tred_visit_index;
     int *refs_tred_computed;
     struct _paper_t *tred_follow_back_paper;
     int tred_follow_back_ref;
+#endif
 
     // stuff for the placement of papers
     bool included;

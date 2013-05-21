@@ -4,6 +4,8 @@
 #include "xiwilib.h"
 #include "common.h"
 
+#ifdef ENABLE_TRED
+
 void compute_tred_refs_mark(int p_top_index, paper_t *p_cur, paper_t *follow_back_paper, int follow_back_ref) {
     if (p_cur->tred_visit_index != p_top_index) {
         // haven't visited this paper yet
@@ -74,3 +76,5 @@ void compute_tred(int num_papers, paper_t *papers) {
         }
     }
 }
+
+#endif // ENABLE_TRED
