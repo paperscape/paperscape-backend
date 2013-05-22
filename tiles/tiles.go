@@ -428,8 +428,8 @@ func (q *QuadTreeNode) ApplyIfWithin(MinX, MinY, MaxX, MaxY int, x, y, rx, ry in
         if x - rx <= q.Leaf.x && q.Leaf.x <= x + rx && y - ry <= q.Leaf.y && q.Leaf.y <= y + ry {
             f(q.Leaf)
         }
-    } else if ((MinX <= x - rx && x - rx < MaxX) || (MinX <= x + rx && x + rx < MaxX) || (x - rx < MinX && x + rx >= MaxX)) &&
-              ((MinY <= y - ry && y - ry < MaxY) || (MinY <= y + ry && y + ry < MaxY) || (y - ry < MinY && y + ry >= MaxY)) {
+    } else if ((MinX <= x - rx && x - rx <= MaxX) || (MinX <= x + rx && x + rx <= MaxX) || (x - rx <= MinX && x + rx >= MaxX)) &&
+              ((MinY <= y - ry && y - ry <= MaxY) || (MinY <= y + ry && y + ry <= MaxY) || (y - ry <= MinY && y + ry >= MaxY)) {
         MidX := (MinX + MaxX) / 2
         MidY := (MinY + MaxY) / 2
         q.Q0.ApplyIfWithin(MinX, MinY, MidX, MidY, x, y, rx, ry, f)
