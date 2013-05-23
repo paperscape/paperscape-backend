@@ -27,18 +27,20 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
             // q2 is leaf node
             double fac;
             if (param->do_close_repulsion) {
-                double rad_sum_sq = param->close_repulsion_c * pow(param->close_repulsion_d + q1->radius + q2->radius, 2); // 2.0 is a small minimum gap between nodes
+                double rad_sum_sq = param->close_repulsion_c * pow(param->close_repulsion_d + q1->radius + q2->radius, 2);
                 if (rsq < rad_sum_sq) {
                     // layout-nodes overlap, use stronger repulsive force
-                    fac = param->close_repulsion_a * fmin(param->close_repulsion_b, (exp(4.0 * (rad_sum_sq - rsq)) - 1.0)) * param->anti_gravity_strength / rsq
-                        + q1->mass * q2->mass * param->anti_gravity_strength / rad_sum_sq;
+                    fac = param->close_repulsion_a * fmin(param->close_repulsion_b, (exp(4.0 * (rad_sum_sq - rsq)) - 1.0)) / rsq
+                        + q1->mass * q2->mass / rad_sum_sq;
                 } else {
                     // normal anti-gravity repulsive force
-                    fac = q1->mass * q2->mass * param->anti_gravity_strength / rsq;
+                    if (rsq > 1e5) { rsq *= rsq * 1e-5; }
+                    fac = q1->mass * q2->mass / rsq;
                 }
             } else {
                 // normal anti-gravity repulsive force
-                fac = q1->mass * q2->mass * param->anti_gravity_strength / rsq;
+                if (rsq > 1e5) { rsq *= rsq * 1e-5; }
+                fac = q1->mass * q2->mass / rsq;
             }
             double fx = dx * fac;
             double fy = dy * fac;
@@ -52,7 +54,8 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
             if (q2->side_length * q2->side_length < 0.45 * rsq) {
                 // q1 and the cell q2 are "well separated"
                 // approximate force by centroid of q2
-                double fac = q1->mass * q2->mass * param->anti_gravity_strength / rsq;
+                if (rsq > 1e5) { rsq *= rsq * 1e-5; }
+                double fac = q1->mass * q2->mass / rsq;
                 double fx = dx * fac;
                 double fy = dy * fac;
                 q1->fx += fx;

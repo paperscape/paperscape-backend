@@ -68,7 +68,7 @@ map_env_t *map_env_new() {
     map_env->force_params.close_repulsion_c = 1.1;
     map_env->force_params.close_repulsion_d = 0.6;
     map_env->force_params.use_ref_freq = true;
-    map_env->force_params.anti_gravity_strength = 0.375;
+    map_env->force_params.anti_gravity_strength = 1.0;
     map_env->force_params.link_strength = 4.0;
 
     map_env->do_tred = false;

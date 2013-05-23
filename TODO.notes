@@ -5,12 +5,10 @@ and all being small dots means no structure in the map).
 Major areas of work follow.
 
 To do:
-    --> option to load JSON
     --> Barnes-Hutt needs tuning at end stage to eliminate artifacts
         --> how long would an N^2 iteration take?
     --> can we somehow pull the really far away papers more towards the centre?
-    --> try 0.5 + 0.5 * exp(-(id1-id2)**2/x) for age, with 630k
-    --> run the entire arxiv overnight with the tuned age option
+        --> try weaker spring and 1/r^2 for distant anti-gravity
     --> for the daily update:
         --> load DB
         --> make single layout (most refined)
@@ -191,3 +189,9 @@ average position of all papers with that keyword.
     --> Doesn't seem to work very well, since they all cluster around the
         same spot, since average of keyword position, for all keywords, is in the
         centre of the graph.
+
+Try 0.5 + 0.5 * exp(-(id1-id2)**2/x) for age weakening.
+    --> Works, but is a bit artificial, requires tuning, and doesn't really
+        improve much on the standard case.  Mostly, a paper will reference papers
+        that are close in time anyway, so the "time information" is actually
+        there.
