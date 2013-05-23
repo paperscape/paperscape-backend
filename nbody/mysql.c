@@ -375,10 +375,10 @@ static bool env_load_keywords(env_t *env) {
 
     printf("reading keywords\n");
 
-    // get the keywords from the mapskw table
+    // get the keywords from the keywords table
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,keywords FROM mapskw");
+    vstr_printf(vstr, "SELECT id,keywords FROM keywords");
     if (vstr_had_error(vstr)) {
         return false;
     }

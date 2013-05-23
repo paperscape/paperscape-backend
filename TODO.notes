@@ -132,7 +132,7 @@ Pipeline for map generation should be split up as:
 --------------------------------------------------------------------------------
 
 The program keywords/getkeywords.py extracts keywords for each paper, and puts
-them in a DB table, mapskw.  It is useful also for other things, so is not in
+them in a DB table.  It is useful also for other things, so is not in
 the mapgen/ directory.
 
 We need to label areas of the graph.  Labelling should have level-of-detail, so
