@@ -7,8 +7,11 @@ Major areas of work follow.
 To do:
     --> Barnes-Hutt needs tuning at end stage to eliminate artifacts
         --> how long would an N^2 iteration take?
+        --> continual rotation during iterations to reduce effects of quadtree borders
     --> can we somehow pull the really far away papers more towards the centre?
         --> try weaker spring and 1/r^2 for distant anti-gravity
+        --> works well!  just need to tune the 2 parameters, link strings and 1/r^2 transition
+    --> auto rotate of the graph to align certain categaries on the horizontal
     --> for the daily update:
         --> load DB
         --> make single layout (most refined)
