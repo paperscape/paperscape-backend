@@ -1,7 +1,7 @@
 """
 Determine the regions of the map and their names.
 
-Input: [{id,x,y,r}], DB.mapskw (id->keywords)
+Input: [{id,x,y,r}], DB.keywords (id->keywords)
 Output: [{x,y,name}]
 
 """
@@ -14,7 +14,7 @@ from xiwi.common import mysql
 class Paper(object):
     @classmethod
     def make_paper(cls, db_cursor, id, x, y):
-        hits = db_cursor.execute('SELECT keywords FROM mapskw WHERE id=%s', (id,))
+        hits = db_cursor.execute('SELECT keywords FROM keywords WHERE id=%s', (id,))
         if hits != 1:
             keywords = []
         else:
