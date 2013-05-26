@@ -34,12 +34,12 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
                         + q1->mass * q2->mass / rad_sum_sq;
                 } else {
                     // normal anti-gravity repulsive force
-                    if (rsq > 1e5) { rsq *= rsq * 1e-5; }
+                    if (rsq > param->anti_gravity_falloff_rsq) { rsq *= rsq * param->anti_gravity_falloff_rsq_inv; }
                     fac = q1->mass * q2->mass / rsq;
                 }
             } else {
                 // normal anti-gravity repulsive force
-                if (rsq > 1e5) { rsq *= rsq * 1e-5; }
+                if (rsq > param->anti_gravity_falloff_rsq) { rsq *= rsq * param->anti_gravity_falloff_rsq_inv; }
                 fac = q1->mass * q2->mass / rsq;
             }
             double fx = dx * fac;
@@ -54,7 +54,7 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
             if (q2->side_length * q2->side_length < 0.45 * rsq) {
                 // q1 and the cell q2 are "well separated"
                 // approximate force by centroid of q2
-                if (rsq > 1e5) { rsq *= rsq * 1e-5; }
+                if (rsq > param->anti_gravity_falloff_rsq) { rsq *= rsq * param->anti_gravity_falloff_rsq_inv; }
                 double fac = q1->mass * q2->mass / rsq;
                 double fx = dx * fac;
                 double fy = dy * fac;

@@ -8,7 +8,8 @@ typedef struct _force_params_t {
     double close_repulsion_c;
     double close_repulsion_d;
     bool use_ref_freq;
-    double anti_gravity_strength;
+    double anti_gravity_falloff_rsq;
+    double anti_gravity_falloff_rsq_inv;
     double link_strength;
 } force_params_t;
 
