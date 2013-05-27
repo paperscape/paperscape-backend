@@ -21,6 +21,8 @@ void map_env_set_zoom_to_fit_n_standard_deviations(map_env_t *map_env, double n,
 void map_env_scroll(map_env_t *map_env, double dx, double dy);
 void map_env_zoom(map_env_t *map_env, double screen_x, double screen_y, double amt);
 void map_env_set_do_close_repulsion(map_env_t *map_env, bool value);
+void map_env_set_anti_gravity(map_env_t *map_env, double val);
+void map_env_set_link_strength(map_env_t *map_env, double val);
 void map_env_toggle_do_tred(map_env_t *map_env);
 void map_env_toggle_draw_grid(map_env_t *map_env);
 void map_env_toggle_draw_paper_links(map_env_t *map_env);

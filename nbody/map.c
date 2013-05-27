@@ -68,7 +68,8 @@ map_env_t *map_env_new() {
     map_env->force_params.close_repulsion_c = 1.1;
     map_env->force_params.close_repulsion_d = 0.6;
     map_env->force_params.use_ref_freq = true;
-    map_env->force_params.anti_gravity_strength = 1.0;
+    map_env->force_params.anti_gravity_falloff_rsq = 1e5;
+    map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
     map_env->force_params.link_strength = 4.0;
 
     map_env->do_tred = false;
@@ -253,6 +254,15 @@ void map_env_set_do_close_repulsion(map_env_t *map_env, bool value) {
     map_env->force_params.do_close_repulsion = value;
 }
 
+void map_env_set_anti_gravity(map_env_t *map_env, double val) {
+    map_env->force_params.anti_gravity_falloff_rsq = val;
+    map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
+}
+
+void map_env_set_link_strength(map_env_t *map_env, double val) {
+    map_env->force_params.link_strength = val;
+}
+
 void map_env_toggle_do_tred(map_env_t *map_env) {
     map_env->do_tred = !map_env->do_tred;
 }
@@ -274,7 +284,8 @@ void map_env_toggle_use_ref_freq(map_env_t *map_env) {
 }
 
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt) {
-    map_env->force_params.anti_gravity_strength *= amt;
+    map_env->force_params.anti_gravity_falloff_rsq *= amt;
+    map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
 }
 
 void map_env_adjust_link_strength(map_env_t *map_env, double amt) {
@@ -667,7 +678,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
 #endif
         vstr_printf(vstr_info, "\n");
         vstr_printf(vstr_info, "(r) do close repulsion: %d\n", map_env->force_params.do_close_repulsion);
-        vstr_printf(vstr_info, "(1/!) anti-gravity strength: %.3f\n", map_env->force_params.anti_gravity_strength);
+        vstr_printf(vstr_info, "(1/!) anti-gravity r*^2: %.3g\n", map_env->force_params.anti_gravity_falloff_rsq);
         vstr_printf(vstr_info, "(2/@) link strength: %.3f\n", map_env->force_params.link_strength);
         vstr_printf(vstr_info, "(3/#) close repulsion A: %.3g\n", map_env->force_params.close_repulsion_a);
         vstr_printf(vstr_info, "(4/$) close repulsion B: %.3g\n", map_env->force_params.close_repulsion_b);
@@ -719,7 +730,8 @@ void compute_naive_node_node_force(force_params_t *force_params, layout_t *layou
             double dy = n1->y - n2->y;
             double rsq = dx*dx + dy*dy;
             if (rsq > 1e-4) {
-                double fac = force_params->anti_gravity_strength * n1->mass * n2->mass / rsq;
+                if (rsq > force_params->anti_gravity_falloff_rsq) { rsq *= rsq * force_params->anti_gravity_falloff_rsq_inv; }
+                double fac = n1->mass * n2->mass / rsq;
                 double fx = dx * fac;
                 double fy = dy * fac;
                 n1->fx += fx;
