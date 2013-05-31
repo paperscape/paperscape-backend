@@ -1143,7 +1143,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "%s({\"r\":", callback)
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["pchal"] != nil {
+        if req.Form["test"] != nil {
+            fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":true}")
+        } else if req.Form["pchal"] != nil {
             // profile-challenge: authenticate request (send user a new "challenge")
             giveSalt := false
             giveVersion := false
@@ -1293,7 +1295,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "{\"r\":")
         resultBytesStart := rw.bytesWritten
 
-        if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["nh"] != nil && req.Form["gh"] != nil && req.Form["th"] != nil && req.Form["sh"] != nil {
+        if req.Form["test"] != nil {
+            fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
+        } else if req.Form["psync"] != nil && req.Form["h"] != nil && req.Form["nh"] != nil && req.Form["gh"] != nil && req.Form["th"] != nil && req.Form["sh"] != nil {
             // profile-sync: sync request
             // h = passHash, n = notesdiff, g = graphsdiff, t = tagsdiff, s = settingsdiff (and the end result hashes)
             var n, g, t, s string
