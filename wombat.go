@@ -43,7 +43,8 @@ var ID_CONVERSION_LIMIT = 50
 
 var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
 var flagLogFile = flag.String("log-file", "", "file to output log information to")
-var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
+var flagPciteTable = flag.String("pcite-table", "pcite", "MySQL database table to get pcite data from")
+var flagMapTable = flag.String("map-table", "map_data", "MySQL database table to get map data from")
 var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
 var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
@@ -781,44 +782,6 @@ func ParseRefsCitesString(paper *Paper, blob []byte, isRefStr bool) bool {
 
     return true
 }
-/*
-func ParseRefsCitesString(paper *Paper, str string, isRefStr bool) bool {
-    if len(str) == 0 {
-        // nothing to do, that's okay
-        return true
-    }
-
-    for i := 0; i <= len(str); i++ {
-        var idx_comma1, idx_comma2, idx_comma3 int
-        idx_id := i
-        i, idx_comma1 = FindNextComma(str, i)
-        i, idx_comma2 = FindNextComma(str, i)
-        i, idx_comma3 = FindNextComma(str, i)
-        // scan to end of field
-        for ; i < len(str) && str[i] != ',' && str[i] != ';'; i++ {
-        }
-        if (i == len(str) || str[i] == ';') && idx_id < idx_comma1 && idx_comma1+1 < idx_comma2 && idx_comma2+1 < idx_comma3 && idx_comma3+1 < i {
-            refId, _ := strconv.ParseUint(str[idx_id : idx_comma1], 10, 0)
-            refOrder, _ := strconv.ParseUint(str[idx_comma1+1 : idx_comma2], 10, 0)
-            refFreq, _ := strconv.ParseUint(str[idx_comma2+1 : idx_comma3], 10, 0)
-            numCites, _ := strconv.ParseUint(str[idx_comma3+1 : i], 10, 0)
-            // make link and add to list in paper
-            if isRefStr {
-                link := &Link{uint(refId), paper.id, nil, paper, uint(refOrder), uint(refFreq), uint(numCites), paper.numCites}
-                paper.refs = append(paper.refs, link)
-            } else {
-                link := &Link{paper.id, uint(refId), paper, nil, uint(refOrder), uint(refFreq), paper.numCites, uint(numCites)}
-                paper.cites = append(paper.cites, link)
-            }
-        } else {
-            log.Printf("malformed reference string at i=%d:%s\n", i, str)
-            return false
-        }
-    }
-
-    return true
-}
-*/
 
 func (papers *PapersEnv) QueryRefs(paper *Paper, queryRefsMeta bool) {
     if paper == nil { return }
@@ -954,98 +917,6 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 
 /****************************************************************/
 
-// Returns a list of papers Objects built from ids extracted from DB JSON strings
-/* OBSOLETE
-func (h *MyHTTPHandler) PaperListFromDatabaseJSON (notesJSON []byte, graphsJSON []byte, tagsJSON []byte) []*Paper {
-    var paperList []*Paper
-    var err error
-
-    // get list of ids that we need Papers for
-    var savedNotes []SavedNote
-    err = json.Unmarshal(notesJSON,&savedNotes)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
-    var savedGraphs []SavedMultiGraph
-    err = json.Unmarshal(graphsJSON,&savedGraphs)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
-    var savedTags []SavedTag
-    err = json.Unmarshal(tagsJSON,&savedTags)
-    if err != nil { fmt.Printf("Unmarshal error: %s\n",err) }
-
-    // This list can have duplicates, as we check for them below
-    var ids []uint;
-    for _, note := range savedNotes {
-        ids = append(ids,note.Id)
-    }
-    for _, graph := range savedGraphs {
-        for _, drawnForm := range graph.Drawn {
-            ids = append(ids,drawnForm.Id)
-        }
-    }
-    for _, tag := range savedTags {
-        for _, id := range tag.Ids {
-            ids = append(ids,id)
-        }
-    }
-
-    for _, paperId := range ids {
-        // check paperId not already in list
-        exists := false
-        for _, p := range paperList {
-            if p.id == uint(paperId) {
-                exists = true
-                break
-            }
-        }
-        if exists { continue }
-        paper := h.papers.QueryPaper(uint(paperId), "")
-        //h.papers.QueryRefs(paper, false) // do this later (if at all)
-        paperList = append(paperList, paper)
-    }
-
-    return paperList
-}
-*/
-
-/* OBSOLETE
-func (h *MyHTTPHandler) PrintJSONPapersList(w io.Writer, papersList []*Paper) {
-
-    // Get 5 days ago date boundary so we can pass along new cites
-    // TODO maybe handier to simply have this in memory
-    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
-    h.papers.QueryEnd()
-    var db uint64
-    if row != nil {
-        var ok bool
-        if db, ok = row[0].(uint64); !ok {
-            fmt.Printf("ERROR: LinkLoad could not get 5 day boundary from Row\n")
-            db = 0
-        }
-    }
-
-    fmt.Fprintf(w, "[")
-    for i, paper := range papersList {
-        if i > 0 {
-            fmt.Fprintf(w, ",")
-        }
-        PrintJSONMetaInfo(w, paper)
-        // Don't include ref info, let this be loaded upon switching to graphs
-        //fmt.Fprintf(w, ",")
-        //h.papers.QueryRefs(paper, false)
-        //PrintJSONRelevantRefs(w, paper, papersList)
-        if db > 0 {
-            // This is expensive operation
-            h.papers.QueryCites(paper, false)
-            fmt.Fprintf(w, ",")
-            PrintJSONNewCites(w, paper, uint(db))
-        }
-        fmt.Fprintf(w, "}")
-    }
-    fmt.Fprintf(w, "]")
-}
-*/
-
-/****************************************************************/
-
 func serveFastCGI(listenAddr string, papers *PapersEnv) {
     laddr, er := net.ResolveTCPAddr("tcp", listenAddr)
     if er != nil {
@@ -1145,6 +1016,21 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 
         if req.Form["test"] != nil {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
+        } else if req.Form["mload"] != nil {
+            // map: load world dims and latest id
+            logDescription = fmt.Sprintf("Load world map")
+            h.MapLoadWorld(rw) 
+        } else if req.Form["mp2l"] != nil {
+            // map: paper id to location
+            logDescription = fmt.Sprintf("Paper id to map location")
+            id, _ := strconv.ParseUint(req.Form["mp2l"][0], 10, 0)
+            h.MapLocationFromPaperId(uint(id),rw)
+        } else if req.Form["ml2p[]"] != nil {
+            // map: location to paper id
+            logDescription = fmt.Sprintf("Paper id from map location")
+            x, _ := strconv.ParseInt(req.Form["ml2p[]"][0], 10, 0)
+            y, _ := strconv.ParseInt(req.Form["ml2p[]"][1], 10, 0)
+            h.MapPaperIdAtLocation(int(x),int(y),rw)
         } else if req.Form["pchal"] != nil {
             // profile-challenge: authenticate request (send user a new "challenge")
             giveSalt := false
@@ -2063,6 +1949,41 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
     fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"}",code,modcode)
 }
 
+func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
+
+    var xmin,ymin,xmax,ymax,idmax int
+
+    stmt := h.papers.StatementBegin("SELECT min(x),min(y),max(x),max(y),max(id) FROM " + *flagMapTable)
+    if !h.papers.StatementBindSingleRow(stmt,&xmin,&ymin,&xmax,&ymax,&idmax) {
+        return
+    }
+    
+    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d}",xmin, ymin,xmax,ymax,idmax)
+}
+
+func (h *MyHTTPHandler) MapLocationFromPaperId(id uint, rw http.ResponseWriter) {
+    
+    var x,y int 
+    var r uint
+
+    stmt := h.papers.StatementBegin("SELECT x,y,r FROM " + *flagMapTable + " WHERE id = ?",id)
+    if !h.papers.StatementBindSingleRow(stmt,&x,&y,&r) {
+        return
+    }
+    
+    fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id, x, y,r)
+}
+
+func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y int, rw http.ResponseWriter) {
+    
+    var id uint
+    
+    // TODO
+    // use quad tree
+    
+    fmt.Fprintf(rw, "{\"id\":%d}",id)
+}
+
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
     
     success = false
@@ -2696,19 +2617,6 @@ func (h *MyHTTPHandler) SearchNewPapers(idFrom string, idTo string, rw http.Resp
     }
     fmt.Fprintf(rw, "]")
 }
-
-// *OBSOLETE*
-//func ParseRefsCitesStringToJSONListOfIds(blob []byte, rw http.ResponseWriter) {
-//    fmt.Fprintf(rw, "[")
-//    for i := 0; i + 10 <= len(blob); i += 10 {
-//        refId := getLE32(blob, i)
-//        if i > 0 {
-//            fmt.Fprintf(rw, ",")
-//        }
-//        fmt.Fprintf(rw, "%d", refId)
-//    }
-//    fmt.Fprintf(rw, "]")
-//}
 
 // searches for trending papers
 // returns list of id and numCites
