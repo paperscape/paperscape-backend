@@ -1979,7 +1979,16 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y int, rw http.ResponseWriter) {
     var id uint
     
     // TODO
-    // use quad tree
+    // Current implentation is slow (order n)
+    // use quad tree: order log n
+    // OR try using MySQL spatial extensions
+
+    sql := "SELECT id FROM " + *flagMapTable + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r < 0 LIMIT 1"
+
+    stmt := h.papers.StatementBegin(sql,x,y)
+    if !h.papers.StatementBindSingleRow(stmt,&id) {
+        return
+    }
     
     fmt.Fprintf(rw, "{\"id\":%d}",id)
 }
