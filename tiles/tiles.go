@@ -5,8 +5,9 @@ import (
     //"io/ioutil"
     "flag"
     "os"
-    //"bufio"
+    "bufio"
     "fmt"
+    "path/filepath"
     //"net"
     //"net/http"
     //"net/http/fcgi"
@@ -38,10 +39,12 @@ import (
 )
 
 var GRAPH_PADDING = 100 // what to pad graph by on each side
+var TILE_PIXEL_LEN = 256
 
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
 var flagTileDepth = flag.Uint("depth", 1, "Depth to tile to")
+
 //var flagLogFile = flag.String("log-file", "", "file to output log information to")
 //var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
 //var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
@@ -57,10 +60,6 @@ func main() {
     if flag.NArg() != 2 {
         log.Fatal("need to specify map.json file, and output prefix (without extension)")
     }
-
-    //if len(*flagMetaBaseDir) == 0 {
-    //    *flagMetaBaseDir = "/home/xiwi/data/meta"
-    //}
 
     // connect to MySQL database
     db, err := mysql.DialTCP(*flagDB, "hidden", "hidden", "xiwi")
@@ -568,7 +567,13 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
     })
 
     //fmt.Println("writing file")
-    filename := fmt.Sprintf("%stile_%d-%d_%d-%d.png",outPrefix,xtot,ytot,xi,yi)
+    var filename string
+    if *flagDoSingle {
+        filename = fmt.Sprintf("%s.png",outPrefix)
+    } else {
+        filename = fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,xtot,ytot,xtot,ytot,xi,yi)
+        os.MkdirAll(filepath.Dir(filename),0755)
+    }
     surf.WriteToPNG(filename)
     //canv.EncodeJPEG("out-.jpg")
     surf.Finish()
@@ -576,17 +581,35 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
 }
 
 func GenerateAllTiles(graph *Graph, outPrefix string) {
+    indexFile := outPrefix + "tile_index.json"
+    os.MkdirAll(filepath.Dir(outPrefix),0755)
+    fo, _ := os.Create(indexFile)
+    defer fo.Close()
+    w := bufio.NewWriter(fo)
+    fmt.Fprintf(w,"{\"map_filename\":\"%s\",\"tilings\":[",flag.Arg(0))
+
     depths := *flagTileDepth
+    first := true
     var depth uint
     for depth = 0; depth <= depths; depth++ {
         divs := int(math.Pow(2.,float64(depth)))
-        fmt.Println("Generating tiles at depth %d",divs)
+        worldDim := int(math.Max(float64(graph.BoundsX)/float64(divs), float64(graph.BoundsY)/float64(divs)))
+
+        if !first {
+             fmt.Fprintf(w,",")
+        }
+        first = false
+        fmt.Fprintf(w,"{\"depth\":%d,\"worldw\":%d,\"worldh\":%d,\"pixelw\":%d,\"pixelh\":%d,\"numx\":%d,\"numy\":%d,\"padding\":%d}",depth, worldDim, worldDim, TILE_PIXEL_LEN,TILE_PIXEL_LEN,divs,divs,GRAPH_PADDING)
+
+        fmt.Printf("Generating tiles at depth %d\n",divs)
         // TODO if graph far from from square, shorten tile
         // directions accordingly
         for xi := 1; xi <= divs; xi++ {
             for yi := 1; yi <= divs; yi++ {
-                DrawTile(graph,divs,divs,xi,yi, 256, 256, outPrefix)
+                DrawTile(graph,divs,divs,xi,yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, outPrefix)
             }
         }
     }
+    fmt.Fprintf(w,"]}")
+    w.Flush()
 }

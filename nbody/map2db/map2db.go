@@ -10,13 +10,16 @@ import (
 )
 
 var flagDB       = flag.String("db", "localhost", "MySQL database to connect to")
-var flagMapFile  = flag.String("map-file", "", "JSON file to read map data from")
 var flagMapTable = flag.String("map-table","map_data", "Name of map table in db")
 
 func main() {
     // parse command line options
     flag.Parse()
-    
+   
+    if flag.NArg() != 1 {
+        log.Fatal("need to specify a maps.json file")
+    }
+
     // Connect to MySQL
     db, err := mysql.DialTCP(*flagDB, "hidden", "hidden", "xiwi")
     if err != nil {
@@ -27,7 +30,7 @@ func main() {
     defer db.Close()
 
     // Open JSON map file
-    file, err := os.Open(*flagMapFile)
+    file, err := os.Open(flag.Arg(0))
     if err != nil {
         log.Fatal(err)
     }
