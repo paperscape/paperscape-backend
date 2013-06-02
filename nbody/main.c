@@ -17,6 +17,7 @@ int usage(const char *progname) {
     printf("options:\n");
     printf("    -rsq <num>      r-star squared distance\n");
     printf("    -link <num>     link strength\n");
+    printf("    -layout <file>  JSON file with layout to load and use\n");
     printf("\n");
     return 1;
 }
@@ -25,6 +26,7 @@ int main(int argc, char *argv[]) {
     // parse command line arguments
     double arg_anti_grav_rsq = -1;
     double arg_link_strength = -1;
+    const char *arg_layout = NULL;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "-rsq")) {
             a += 1;
@@ -38,13 +40,19 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
+        } else if (streq(argv[a], "-layout")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_layout = argv[a];
         } else {
             return usage(argv[0]);
         }
     }
 
     //const char *where_clause = NULL;
-    const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000";
+    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR arxiv IS NULL)";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc') AND id >= 2115000000";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='gr-qc') AND id >= 2110000000";
@@ -55,7 +63,7 @@ int main(int argc, char *argv[]) {
     //const char *where_clause = "(maincat='astro-ph' OR maincat='cond-mat' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='hep-ph' OR maincat='hep-th' OR maincat='math-ph' OR maincat='nlin' OR maincat='nucl-ex' OR maincat='nucl-th' OR maincat='physics' OR maincat='quant-ph') AND id >= 1900000000";
     //const char *where_clause = "(maincat='cs') AND id >= 2090000000";
     //const char *where_clause = "(maincat='math') AND id >= 1900000000";
-    //const char *where_clause = "(arxiv IS NOT NULL)";
+    const char *where_clause = "(arxiv IS NOT NULL)";
 
     // load the papers from the DB
     int num_papers;
@@ -95,7 +103,13 @@ int main(int argc, char *argv[]) {
         id_range_end = id_range_start +  3000000; // plus 0.5 year
         id_range_start = id_min; id_range_end = id_max; // full range
 
-        map_env_select_date_range(map_env, id_range_start, id_range_end, false);
+        map_env_select_date_range(map_env, id_range_start, id_range_end);
+    }
+
+    if (arg_layout == NULL) {
+        map_env_select_new_layout(map_env);
+    } else {
+        map_env_select_old_layout(map_env, arg_layout);
     }
 
     // init gtk

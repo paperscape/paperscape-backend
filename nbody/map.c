@@ -526,7 +526,8 @@ static int paper_cmp_radius(const void *in1, const void *in2) {
 
 static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
     // clear bg
-    cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
+    //cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
+    cairo_set_source_rgb(cr, 0, 0, 0);
     cairo_rectangle(cr, 0, 0, width, height);
     cairo_fill(cr);
 
@@ -1193,7 +1194,7 @@ void paper_propagate_connectivity(paper_t *paper) {
     }
 }
 
-void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end, bool age_weaken) {
+void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     int i_start = map_env->max_num_papers - 1;
     int i_end = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
@@ -1327,28 +1328,107 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end, boo
 
     // print some info
     printf("after making fake links, have %d papers not connected\n", total_not_connected);
+}
 
-    if (age_weaken) {
-        printf("weakening links that have a large difference in age\n");
-    }
-
-    // make the layouts
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, age_weaken);
+void map_env_select_new_layout(map_env_t *map_env) {
+    // make the layouts, each one coarser than the previous
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
     for (int i = 0; i < 10 && l->num_links > 1; i++) {
         l = build_reduced_layout_from_layout(l);
     }
     map_env->layout = l;
+
+    // initialise the coarsest layout with random positions for the nodes
     for (int i = 0; i < l->num_nodes; i++) {
         l->nodes[i].x = 100.0 * random() / RAND_MAX;
         l->nodes[i].y = 100.0 * random() / RAND_MAX;
     }
+
+    // print info about the layouts
     for (; l != NULL; l = l->child_layout) {
         layout_print(l);
     }
 
     // increase the step size for the next force iteration
     map_env->step_size = 1;
-    //exit(1);
+}
+
+// this should go in layout.c
+static layout_node_t *map_env_get_layout_by_paper_id(layout_t *layout, int id) {
+    int lo = 0;
+    int hi = layout->num_nodes - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (id == layout->nodes[mid].paper->id) {
+            return &layout->nodes[mid];
+        } else if (id < layout->nodes[mid].paper->id) {
+            hi = mid - 1;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    return NULL;
+}
+
+void map_env_select_old_layout(map_env_t *map_env, const char *json_filename) {
+    // make a single layout
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
+    map_env->layout = l;
+
+    // initialise random positions, in case we can't/don't load a position for a given paper
+    for (int i = 0; i < l->num_nodes; i++) {
+        l->nodes[i].x = 100.0 * random() / RAND_MAX;
+        l->nodes[i].y = 100.0 * random() / RAND_MAX;
+    }
+
+    // print info about the layout
+    layout_print(l);
+
+    // read in the json file to set the node positions
+    FILE *fp = fopen(json_filename, "rb");
+    if (fp == NULL) {
+        printf("WARNING: could not open %s for reading; using random initial positions\n", json_filename);
+        return;
+    }
+
+    int c = fgetc(fp);
+    if (c != '[') {
+        printf("WARNING: malformed JSON file %s; reading first character, got %c\n", json_filename, c);
+        return;
+    }
+    int entry_num = 0;
+    for (;;) {
+        if ((c = fgetc(fp)) != '[') {
+            ungetc(c, fp);
+            break;
+        }
+        int id, x, y, r;
+        if (fscanf(fp, "%d,%d,%d,%d]", &id, &x, &y, &r) != 4) {
+            printf("WARNING: malformed JSON file %s; reading entry %d\n", json_filename, entry_num);
+            return;
+        }
+        layout_node_t *n = map_env_get_layout_by_paper_id(l, id);
+        if (n != NULL) {
+            n->x = (double)x / 20.0;
+            n->y = (double)y / 20.0;
+        }
+        entry_num += 1;
+        if ((c = fgetc(fp)) != ',') {
+            ungetc(c, fp);
+        }
+    }
+    if ((c = fgetc(fp)) != ']') {
+        printf("WARNING: malformed JSON file %s; reading last character, got %c\n", json_filename, c);
+        return;
+    }
+    printf("read %d entries from JSON file %s\n", entry_num, json_filename);
+    fclose(fp);
+
+    // set do_close_repulsion, since we are loading a layout that was saved this way
+    map_env->force_params.do_close_repulsion = true;
+
+    // small step size for the next force iteration
+    map_env->step_size = 0.1;
 }
 
 void map_env_jolt(map_env_t *map_env, double amt) {

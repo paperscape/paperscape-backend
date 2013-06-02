@@ -132,7 +132,7 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
 
     // draw info to canvas
     cairo_identity_matrix(cr);
-    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_set_source_rgb(cr, 1, 1, 1);
     cairo_set_font_size(cr, 10);
     cairo_helper_draw_text_lines(cr, 10, 20, vstr);
 
