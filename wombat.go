@@ -45,6 +45,7 @@ var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
 var flagLogFile = flag.String("log-file", "", "file to output log information to")
 var flagPciteTable = flag.String("pcite-table", "pcite", "MySQL database table to get pcite data from")
 var flagMapTable = flag.String("map-table", "map_data", "MySQL database table to get map data from")
+var flagTileTable = flag.String("tile-table", "tile_data", "MySQL database table to get tile data from")
 var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
 var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
@@ -1952,13 +1953,20 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
 func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
 
     var xmin,ymin,xmax,ymax,idmax int
+    var tpixw,tpixh,padding uint
+    var tilings string
 
     stmt := h.papers.StatementBegin("SELECT min(x),min(y),max(x),max(y),max(id) FROM " + *flagMapTable)
     if !h.papers.StatementBindSingleRow(stmt,&xmin,&ymin,&xmax,&ymax,&idmax) {
         return
     }
-    
-    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d}",xmin, ymin,xmax,ymax,idmax)
+
+    stmt = h.papers.StatementBegin("SELECT tile_pixel_w, tile_pixel_h, world_padding, tilings FROM " + *flagTileTable + " WHERE latest_id = ?",idmax)
+    if !h.papers.StatementBindSingleRow(stmt,&tpixw, &tpixh,&padding,&tilings) {
+        return
+    }
+
+    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"pixw\":%d,\"pixh\":%d,\"padd\":%d,\"tile\":%s}",xmin, ymin,xmax,ymax,idmax,tpixw,tpixh,padding,tilings)
 }
 
 func (h *MyHTTPHandler) MapLocationFromPaperId(id uint, rw http.ResponseWriter) {
