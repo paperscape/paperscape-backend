@@ -13,19 +13,20 @@ var flagDB        = flag.String("db", "localhost", "MySQL database to connect to
 var flagTileTable = flag.String("tile-table","tile_data", "Name of tile table in db")
 
 type TilesJSON struct {
-    Filename   string  `json:"map_filename"`
+    Filename   string  `json:"map_file"`
+    LatestId   uint    `json:"latestid"`
+    Padding    uint    `json:"padding"`
+    Pixelw     uint    `json:"pixelw"`
+    Pixelh     uint    `json:"pixelh"`
     Tilings    []TileDepths `json:"tilings"`
 }
 
 type TileDepths struct {
-    Depth      uint    `json:"depth"`
-    Worldw     uint    `json:"worldw"`
-    Worldh     uint    `json:"worldh"`
-    Pixelw     uint    `json:"pixelw"`
-    Pixelh     uint    `json:"pixelh"`
-    Numx       uint    `json:"numx"`
-    Numy       uint    `json:"numy"`
-    Padding    uint    `json:"padding"`
+    Depth      uint    `json:"z"`
+    Worldw     uint    `json:"tw"`
+    Worldh     uint    `json:"th"`
+    Numx       uint    `json:"nx"`
+    Numy       uint    `json:"ny"`
 }
 
 func main() {
@@ -59,18 +60,15 @@ func main() {
     }
     file.Close()
 
+    tilings, _ := json.Marshal(jsonObj.Tilings)
+
     db.Reconnect = true
     db.Lock()
-    sql := "REPLACE INTO " + *flagTileTable + " (depth,worldwidth,worldheight,pixelwidth,pixelheight,numtotalx,numtotaly,worldpadding) VALUES (?,?,?,?,?,?,?,?)"
+    sql := "REPLACE INTO " + *flagTileTable + " (latest_id,tile_pixel_w,tile_pixel_h,world_padding,tilings) VALUES (?,?,?,?,?)"
     stmt, _ := db.Prepare(sql)
+    stmt.BindParams(jsonObj.LatestId,jsonObj.Pixelw,jsonObj.Pixelh,jsonObj.Padding,tilings)
+    stmt.Execute()
     db.Unlock()
-
-    for _, tileDepth := range jsonObj.Tilings {
-        db.Lock()
-        stmt.BindParams(tileDepth.Depth,tileDepth.Worldw,tileDepth.Worldh,tileDepth.Pixelw,tileDepth.Pixelh,tileDepth.Numx,tileDepth.Numy,tileDepth.Padding)
-        stmt.Execute()
-        db.Unlock()
-    }
     stmt.Close()
 
 }

@@ -26,7 +26,7 @@ import (
     //"crypto/sha256"
     //"compress/gzip"
     //"crypto/aes"
-    //"sort"
+    "sort"
     //"net/smtp"
     "log"
     //"xiwi"
@@ -44,6 +44,7 @@ var TILE_PIXEL_LEN = 256
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
 var flagTileDepth = flag.Uint("depth", 1, "Depth to tile to")
+var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
 
 //var flagLogFile = flag.String("log-file", "", "file to output log information to")
 //var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
@@ -93,6 +94,12 @@ type Paper struct {
     colBG   CairoColor
     colFG   CairoColor
 }
+
+type PaperSortId []*Paper
+func (p PaperSortId) Len() int           { return len(p) }
+func (p PaperSortId) Less(i, j int) bool { return p[i].id > p[j].id }
+func (p PaperSortId) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
 
 type Graph struct {
     papers  []*Paper
@@ -322,7 +329,7 @@ type QuadTreeNode struct {
 }
 
 type QuadTree struct {
-    MinX, MinY, MaxX, MaxY  int
+    MinX, MinY, MaxX, MaxY, MaxR  int
     Root                    *QuadTreeNode
 }
 
@@ -388,11 +395,13 @@ func BuildQuadTree(papers []*Paper) *QuadTree {
     qt.MinY = papers[0].y
     qt.MaxX = papers[0].x
     qt.MaxY = papers[0].y
+    qt.MaxR = papers[0].radius
     for _, paper := range papers {
         if (paper.x < qt.MinX) { qt.MinX = paper.x; }
         if (paper.y < qt.MinY) { qt.MinY = paper.y; }
         if (paper.x > qt.MaxX) { qt.MaxX = paper.x; }
         if (paper.y > qt.MaxY) { qt.MaxY = paper.y; }
+        if (paper.radius > qt.MaxR) { qt.MaxR = paper.radius; }
     }
 
     // increase the bounding box so it's square
@@ -558,7 +567,8 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
     // foreground
     surf.SetMatrix(*matrix)
     surf.SetLineWidth(3)
-    graph.qt.ApplyIfWithin(int(x), int(y), int(rx), int(ry), func(paper *Paper) {
+    // Need to add largest radius to dimensions to insure we don't miss any papers
+    graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
         surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
         surf.FillPreserve()
@@ -586,7 +596,11 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
     fo, _ := os.Create(indexFile)
     defer fo.Close()
     w := bufio.NewWriter(fo)
-    fmt.Fprintf(w,"{\"map_filename\":\"%s\",\"tilings\":[",flag.Arg(0))
+
+    sort.Sort(PaperSortId(graph.papers))
+    latestId := graph.papers[0].id
+
+    fmt.Fprintf(w,"{\"map_file\":\"%s\",\"latestid\":%d,\"pixelw\":%d,\"pixelh\":%d,\"padding\":%d,\"tilings\":[",flag.Arg(0),latestId,TILE_PIXEL_LEN,TILE_PIXEL_LEN,GRAPH_PADDING)
 
     depths := *flagTileDepth
     first := true
@@ -599,14 +613,16 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
              fmt.Fprintf(w,",")
         }
         first = false
-        fmt.Fprintf(w,"{\"depth\":%d,\"worldw\":%d,\"worldh\":%d,\"pixelw\":%d,\"pixelh\":%d,\"numx\":%d,\"numy\":%d,\"padding\":%d}",depth, worldDim, worldDim, TILE_PIXEL_LEN,TILE_PIXEL_LEN,divs,divs,GRAPH_PADDING)
-
-        fmt.Printf("Generating tiles at depth %d\n",divs)
-        // TODO if graph far from from square, shorten tile
-        // directions accordingly
-        for xi := 1; xi <= divs; xi++ {
-            for yi := 1; yi <= divs; yi++ {
-                DrawTile(graph,divs,divs,xi,yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, outPrefix)
+        fmt.Fprintf(w,"{\"z\":%d,\"tw\":%d,\"th\":%d,\"nx\":%d,\"ny\":%d}",depth, worldDim, worldDim, divs,divs)
+        
+        if !*flagSkipTiles {
+            fmt.Printf("Generating tiles at depth %d\n",divs)
+            // TODO if graph far from from square, shorten tile
+            // directions accordingly
+            for xi := 1; xi <= divs; xi++ {
+                for yi := 1; yi <= divs; yi++ {
+                    DrawTile(graph,divs,divs,xi,yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, outPrefix)
+                }
             }
         }
     }
