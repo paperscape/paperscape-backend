@@ -353,7 +353,27 @@ void map_env_refine_layout(map_env_t *map_env) {
     }
 }
 
-void paper_colour(paper_t *p, double *r, double *g, double *b) {
+/* TODO
+static void rotate_for_user_view(map_env_t *map_env) {
+    layout_t *l = map_env->layout;
+    if (l->num_nodes == 0) {
+        return;
+    }
+    layout_node_t *biggest_node = &l->nodes[0];
+    for (int i = 0; i < l->num_nodes; i++) {
+        layout_node_t *node = &l->nodes[i];
+        if (node->mass > biggest_node->mass) {
+            biggest_node = node;
+        }
+    }
+    double angle = atan2(
+}
+
+static void rotate_for_computation(map_env_t *map_env) {
+}
+*/
+
+static void paper_colour(paper_t *p, double *r, double *g, double *b) {
     category_t c = p->allcats[0];
     if (c == CAT_hep_th) { *r = 0.0; *g = 0.0; *b = 1.0; } // blue
     else if (c == CAT_hep_ph) { *r = 0.0; *g = 1.0; *b = 0.0; } // green
@@ -867,6 +887,17 @@ static void map_env_compute_forces(map_env_t *map_env) {
         layout_node_t *n = &map_env->layout->nodes[i];
         n->fx = 0;
         n->fy = 0;
+    }
+
+    // rotate everything by a little each iteration to eliminate artifacts from quad tree force algo
+    double ctheta = cos(0.05);
+    double stheta = sin(0.05);
+    for (int i = 0; i < map_env->layout->num_nodes; i++) {
+        layout_node_t *n = &map_env->layout->nodes[i];
+        double x = n->x;
+        double y = n->y;
+        n->x = ctheta * x + stheta * y;
+        n->y = -stheta * x + ctheta * y;
     }
 
     // compute node-link-node spring forces
