@@ -454,8 +454,8 @@ func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
 func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPrefix string) {
 
     surf := cairo.NewSurface(cairo.FORMAT_RGB24, surfWidth, surfHeight)
-    surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
-    //surf.SetSourceRGB(0, 0, 0)
+    //surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
+    surf.SetSourceRGB(0, 0, 0)
     surf.Paint()
 
     matrix := new(cairo.Matrix)
@@ -563,17 +563,20 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
     matrixInv.Invert()
     x, y := matrixInv.TransformPoint(float64(surfWidth)/2., float64(surfHeight)/2.)
     rx, ry := matrixInv.TransformDistance(float64(surfWidth)/2., float64(surfHeight)/2.)
-    
+
     // foreground
     surf.SetMatrix(*matrix)
     surf.SetLineWidth(3)
-    // Need to add largest radius to dimensions to insure we don't miss any papers
+    // Need to add largest radius to dimensions to ensure we don't miss any papers
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
         surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
+        surf.Fill()
+        /* this bit draws a border around each paper; not needed when we have a black background
         surf.FillPreserve()
         surf.SetSourceRGB(0, 0, 0)
         surf.Stroke()
+        */
     })
 
     //fmt.Println("writing file")
