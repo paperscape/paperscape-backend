@@ -1966,7 +1966,7 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
         return
     }
 
-    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"pixw\":%d,\"pixh\":%d,\"padd\":%d,\"tile\":%s}",xmin, ymin,xmax,ymax,idmax,tpixw,tpixh,padding,tilings)
+    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"tpxw\":%d,\"tpxh\":%d,\"pad\":%d,\"tile\":%s}",xmin, ymin,xmax,ymax,idmax,tpixw,tpixh,padding,tilings)
 }
 
 func (h *MyHTTPHandler) MapLocationFromPaperId(id uint, rw http.ResponseWriter) {
