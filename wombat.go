@@ -1952,9 +1952,11 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
 
 func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
 
-    var xmin,ymin,xmax,ymax,idmax int
-    var tpixw,tpixh,padding uint
+    var xmin,ymin,xmax,ymax,idmax,padding int
+    var tpixw,tpixh uint
     var tilings string
+
+    // TODO Store min_x etc. directly in tile_data rather than computing from map data
 
     stmt := h.papers.StatementBegin("SELECT min(x),min(y),max(x),max(y),max(id) FROM " + *flagMapTable)
     if !h.papers.StatementBindSingleRow(stmt,&xmin,&ymin,&xmax,&ymax,&idmax) {
@@ -1966,7 +1968,7 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
         return
     }
 
-    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"tpxw\":%d,\"tpxh\":%d,\"pad\":%d,\"tile\":%s}",xmin, ymin,xmax,ymax,idmax,tpixw,tpixh,padding,tilings)
+    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s}",xmin-padding, ymin-padding,xmax+padding,ymax+padding,idmax,tpixw,tpixh,tilings)
 }
 
 func (h *MyHTTPHandler) MapLocationFromPaperId(id uint, rw http.ResponseWriter) {
