@@ -74,7 +74,7 @@ func main() {
     graph := ReadGraph(db, flag.Arg(0))
 
     if *flagDoSingle {
-        DrawTile(graph, 1, 1, 1, 1, 12000, 12000, flag.Arg(1))
+        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 12000, 12000, flag.Arg(1))
     } else {
         GenerateAllTiles(graph, flag.Arg(1))
     }
@@ -451,7 +451,7 @@ func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
     qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, rx, ry, f)
 }
 
-func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPrefix string) {
+func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeight int, filename string) {
 
     surf := cairo.NewSurface(cairo.FORMAT_RGB24, surfWidth, surfHeight)
     //surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
@@ -459,8 +459,10 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
     surf.Paint()
 
     matrix := new(cairo.Matrix)
-    matrix.Xx = float64(surf.GetWidth()*xtot) / float64(graph.BoundsX)
-    matrix.Yy = float64(surf.GetHeight()*ytot) / float64(graph.BoundsY)
+    //matrix.Xx = float64(surf.GetWidth()*xtot) / float64(graph.BoundsX)
+    //matrix.Yy = float64(surf.GetHeight()*ytot) / float64(graph.BoundsY)
+    matrix.Xx = float64(surf.GetWidth()) / float64(worldWidth)
+    matrix.Yy = float64(surf.GetHeight()) / float64(worldHeight)
     // Make it square
     if matrix.Xx < matrix.Yy {
         matrix.Yy = matrix.Xx
@@ -580,13 +582,7 @@ func DrawTile(graph *Graph,xtot,ytot,xi,yi int, surfWidth, surfHeight int, outPr
     })
 
     //fmt.Println("writing file")
-    var filename string
-    if *flagDoSingle {
-        filename = fmt.Sprintf("%s.png",outPrefix)
-    } else {
-        filename = fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,xtot,ytot,xtot,ytot,xi,yi)
-        os.MkdirAll(filepath.Dir(filename),0755)
-    }
+    os.MkdirAll(filepath.Dir(filename),0755)
     surf.WriteToPNG(filename)
     //canv.EncodeJPEG("out-.jpg")
     surf.Finish()
@@ -624,7 +620,8 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
             // directions accordingly
             for xi := 1; xi <= divs; xi++ {
                 for yi := 1; yi <= divs; yi++ {
-                    DrawTile(graph,divs,divs,xi,yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, outPrefix)
+                    filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
+                    DrawTile(graph,worldDim,worldDim,xi,yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename)
                 }
             }
         }
