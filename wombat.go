@@ -1993,6 +1993,8 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y int, rw http.ResponseWriter) {
     // use quad tree: order log n
     // OR try using MySQL spatial extensions
 
+    fmt.Printf("%d %d\n",x,y)
+
     sql := "SELECT id FROM " + *flagMapTable + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r < 0 LIMIT 1"
 
     stmt := h.papers.StatementBegin(sql,x,y)
