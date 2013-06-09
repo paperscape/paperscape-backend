@@ -464,11 +464,11 @@ func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeig
     matrix.Xx = float64(surf.GetWidth()) / float64(worldWidth)
     matrix.Yy = float64(surf.GetHeight()) / float64(worldHeight)
     // Make it square
-    if matrix.Xx < matrix.Yy {
-        matrix.Yy = matrix.Xx
-    } else {
-        matrix.Xx = matrix.Yy
-    }
+    //if matrix.Xx < matrix.Yy {
+    //    matrix.Yy = matrix.Xx
+    //} else {
+    //    matrix.Xx = matrix.Yy
+    //}
 
     // Move to lowest x,y point
     matrix.X0 = -float64(graph.MinX)*matrix.Xx + float64((1-xi)*surf.GetWidth())
