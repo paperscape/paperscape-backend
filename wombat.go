@@ -1029,9 +1029,9 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         } else if req.Form["ml2p[]"] != nil {
             // map: location to paper id
             logDescription = fmt.Sprintf("Paper id from map location")
-            x, _ := strconv.ParseInt(req.Form["ml2p[]"][0], 10, 0)
-            y, _ := strconv.ParseInt(req.Form["ml2p[]"][1], 10, 0)
-            h.MapPaperIdAtLocation(int(x),int(y),rw)
+            x, _ := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
+            y, _ := strconv.ParseFloat(req.Form["ml2p[]"][1], 0)
+            h.MapPaperIdAtLocation(x,y,rw)
         } else if req.Form["pchal"] != nil {
             // profile-challenge: authenticate request (send user a new "challenge")
             giveSalt := false
@@ -1984,25 +1984,26 @@ func (h *MyHTTPHandler) MapLocationFromPaperId(id uint, rw http.ResponseWriter) 
     fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id, x, y,r)
 }
 
-func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y int, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWriter) {
     
     var id uint
-    
+    var resx, resy int 
+
     // TODO
     // Current implentation is slow (order n)
     // use quad tree: order log n
     // OR try using MySQL spatial extensions
 
-    fmt.Printf("%d %d\n",x,y)
+    fmt.Printf("%f %f\n",x,y)
 
-    sql := "SELECT id FROM " + *flagMapTable + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r < 0 LIMIT 1"
+    sql := "SELECT id,x,y FROM " + *flagMapTable + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
 
     stmt := h.papers.StatementBegin(sql,x,y)
-    if !h.papers.StatementBindSingleRow(stmt,&id) {
+    if !h.papers.StatementBindSingleRow(stmt,&id,&resx,&resy) {
         return
     }
     
-    fmt.Fprintf(rw, "{\"id\":%d}",id)
+    fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d}",id,resx,resy)
 }
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
