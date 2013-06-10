@@ -1986,7 +1986,7 @@ func (h *MyHTTPHandler) MapLocationFromPaperId(id uint, rw http.ResponseWriter) 
 
 func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWriter) {
     
-    var id uint
+    var id, resr uint
     var resx, resy int 
 
     // TODO
@@ -1996,14 +1996,14 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
 
     fmt.Printf("%f %f\n",x,y)
 
-    sql := "SELECT id,x,y FROM " + *flagMapTable + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
+    sql := "SELECT id,x,y,r FROM " + *flagMapTable + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
 
     stmt := h.papers.StatementBegin(sql,x,y)
-    if !h.papers.StatementBindSingleRow(stmt,&id,&resx,&resy) {
+    if !h.papers.StatementBindSingleRow(stmt,&id,&resx,&resy,&resr) {
         return
     }
     
-    fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d}",id,resx,resy)
+    fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id,resx,resy,resr)
 }
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
