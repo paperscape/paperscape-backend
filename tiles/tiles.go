@@ -599,7 +599,7 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
     sort.Sort(PaperSortId(graph.papers))
     latestId := graph.papers[0].id
 
-    fmt.Fprintf(w,"{\"map_file\":\"%s\",\"latestid\":%d,\"pixelw\":%d,\"pixelh\":%d,\"padding\":%d,\"tilings\":[",flag.Arg(0),latestId,TILE_PIXEL_LEN,TILE_PIXEL_LEN,GRAPH_PADDING)
+    fmt.Fprintf(w,"{\"map_file\":\"%s\",\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",flag.Arg(0),latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
     depths := *flagTileDepth
     first := true

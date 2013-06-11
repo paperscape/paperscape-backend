@@ -15,7 +15,10 @@ var flagTileTable = flag.String("tile-table","tile_data", "Name of tile table in
 type TilesJSON struct {
     Filename   string  `json:"map_file"`
     LatestId   uint    `json:"latestid"`
-    Padding    uint    `json:"padding"`
+    Xmin       int     `json:"xmin"`
+    Ymin       int     `json:"ymin"`
+    Xmax       int     `json:"xmax"`
+    Ymax       int     `json:"ymax"`
     Pixelw     uint    `json:"pixelw"`
     Pixelh     uint    `json:"pixelh"`
     Tilings    []TileDepths `json:"tilings"`
@@ -64,9 +67,9 @@ func main() {
 
     db.Reconnect = true
     db.Lock()
-    sql := "REPLACE INTO " + *flagTileTable + " (latest_id,tile_pixel_w,tile_pixel_h,world_padding,tilings) VALUES (?,?,?,?,?)"
+    sql := "REPLACE INTO " + *flagTileTable + " (latest_id,xmin,ymin,xmax,ymax,tile_pixel_w,tile_pixel_h,tilings) VALUES (?,?,?,?,?,?,?,?)"
     stmt, _ := db.Prepare(sql)
-    stmt.BindParams(jsonObj.LatestId,jsonObj.Pixelw,jsonObj.Pixelh,jsonObj.Padding,tilings)
+    stmt.BindParams(jsonObj.LatestId,jsonObj.Xmin,jsonObj.Ymin,jsonObj.Xmax,jsonObj.Ymax,jsonObj.Pixelw,jsonObj.Pixelh,tilings)
     stmt.Execute()
     db.Unlock()
     stmt.Close()
