@@ -1984,25 +1984,55 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
 func (h *MyHTTPHandler) MapLocationFromPaperId(ids []uint, rw http.ResponseWriter) {
     
     var x,y int 
-    var r uint
+    var resId, r uint
 
     fmt.Fprintf(rw, "[")
-   
-    // TODO do more efficiently (one db call)
-    first := true
-    for _, id := range ids {
-
-        stmt := h.papers.StatementBegin("SELECT x,y,r FROM " + *flagMapTable + " WHERE id = ?",id)
-        if !h.papers.StatementBindSingleRow(stmt,&x,&y,&r) {
-            continue
-        }
-        if !first {
-            fmt.Fprintf(rw, ",")
-        } else {
-            first = false
-        }
-        fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id, x, y,r)
+    
+    if len(ids) == 0 { 
+        fmt.Fprintf(rw, "]")
+        return 
     }
+  
+    first := true
+    // create sql statement dynamically based on number of IDs
+    var args bytes.Buffer
+    args.WriteString("(")
+    for i, _ := range ids {
+        if i > 0 { 
+            args.WriteString(",")
+        }
+        args.WriteString("?")
+    }
+    args.WriteString(")")
+
+    sql := fmt.Sprintf("SELECT id,x,y,r FROM " + *flagMapTable + " WHERE id IN %s LIMIT %d",args.String(),len(ids))
+
+    // create interface of arguments for statement
+    hIdsInt := make([]interface{},len(ids))
+    for i, id := range ids {
+        hIdsInt[i] = interface{}(id)
+    }
+    
+    // Execute statement
+    stmt := h.papers.StatementBegin(sql,hIdsInt...)
+    if stmt != nil {
+        stmt.BindResult(&resId,&x,&y,&r)
+        for {
+            eof, err := stmt.Fetch()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+                break
+            } else if eof { break }
+            if first { first = false } else { fmt.Fprintf(rw, ",") }
+            // write directly to output!
+            fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",resId, x, y,r)
+        }
+        err := stmt.FreeResult()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
+        }
+    }
+    h.papers.StatementEnd(stmt) 
 
     fmt.Fprintf(rw, "]")
 }
