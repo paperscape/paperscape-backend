@@ -1021,11 +1021,18 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // map: load world dims and latest id
             logDescription = fmt.Sprintf("Load world map")
             h.MapLoadWorld(rw) 
-        } else if req.Form["mp2l"] != nil {
-            // map: paper id to location
-            logDescription = fmt.Sprintf("Paper id to map location")
-            id, _ := strconv.ParseUint(req.Form["mp2l"][0], 10, 0)
-            h.MapLocationFromPaperId(uint(id),rw)
+        } else if req.Form["mp2l[]"] != nil {
+            // map: paper ids to locations
+            var ids []uint
+            for _, strId := range req.Form["mp2l[]"] {
+                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                    ids = append(ids, uint(preId))
+                } else {
+                    log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                }
+            }
+            logDescription = fmt.Sprintf("Paper ids to map locations for")
+            h.MapLocationFromPaperId(ids,rw)
         } else if req.Form["ml2p[]"] != nil {
             // map: location to paper id
             logDescription = fmt.Sprintf("Paper id from map location")
@@ -1122,6 +1129,11 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // search-arxiv: search papers for arxiv number
             h.SearchArxiv(req.Form["sax"][0], rw)
             logDescription = fmt.Sprintf("sax \"%s\"",req.Form["sax"][0])
+        } else if req.Form["saxm"] != nil {
+            // search-arxiv-minimal: search papers for arxiv number
+            // returning minimal information
+            h.SearchArxivMinimal(req.Form["saxm"][0], rw)
+            logDescription = fmt.Sprintf("saxm \"%s\"",req.Form["saxm"][0])
         } else if req.Form["sau"] != nil {
             // search-author: search papers for authors
             h.SearchAuthor(req.Form["sau"][0], rw)
@@ -1969,17 +1981,30 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s}",xmin, ymin,xmax,ymax,idmax,tpixw,tpixh,tilings)
 }
 
-func (h *MyHTTPHandler) MapLocationFromPaperId(id uint, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapLocationFromPaperId(ids []uint, rw http.ResponseWriter) {
     
     var x,y int 
     var r uint
 
-    stmt := h.papers.StatementBegin("SELECT x,y,r FROM " + *flagMapTable + " WHERE id = ?",id)
-    if !h.papers.StatementBindSingleRow(stmt,&x,&y,&r) {
-        return
+    fmt.Fprintf(rw, "[")
+   
+    // TODO do more efficiently (one db call)
+    first := true
+    for _, id := range ids {
+
+        stmt := h.papers.StatementBegin("SELECT x,y,r FROM " + *flagMapTable + " WHERE id = ?",id)
+        if !h.papers.StatementBindSingleRow(stmt,&x,&y,&r) {
+            continue
+        }
+        if !first {
+            fmt.Fprintf(rw, ",")
+        } else {
+            first = false
+        }
+        fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id, x, y,r)
     }
-    
-    fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id, x, y,r)
+
+    fmt.Fprintf(rw, "]")
 }
 
 func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWriter) {
@@ -2341,6 +2366,28 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     fmt.Fprintf(rw, ",")
     PrintJSONAllCites(rw, paper, 0)
     fmt.Fprintf(rw, "}]}")
+}
+
+// Same as above, but returns less details
+func (h *MyHTTPHandler) SearchArxivMinimal(arxivString string, rw http.ResponseWriter) {
+    // check for valid characters in arxiv string
+    for _, r := range arxivString {
+        if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
+            // invalid character
+            return
+        }
+    }
+
+    // query the paper and its refs and cites
+    paper := h.papers.QueryPaper(0, arxivString)
+
+    // check the paper exists
+    if paper == nil {
+        return
+    }
+
+    // print the json output
+    fmt.Fprintf(rw, "[{\"id\":%d,\"nc\":%d}]", paper.id, paper.numCites)
 }
 
 func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWriter) {
