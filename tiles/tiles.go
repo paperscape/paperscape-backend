@@ -583,8 +583,10 @@ func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeig
 
     //fmt.Println("writing file")
     os.MkdirAll(filepath.Dir(filename),0755)
-    surf.WriteToPNG(filename)
-    //canv.EncodeJPEG("out-.jpg")
+    // save with full colours
+    surf.WriteToPNG(filename+".png")
+    // TODO save grayscale (or dimmer version)
+    //surf.WriteToPNG(filename+"g.png")
     surf.Finish()
 
 }
@@ -625,7 +627,7 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
             for xi := 1; xi <= divs; xi++ {
                 for yi := 1; yi <= divs; yi++ {
                     //filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
-                    filename := fmt.Sprintf("%stiles/%d/%d/%d.png",outPrefix,depth,xi,yi)
+                    filename := fmt.Sprintf("%stiles/%d/%d/%d",outPrefix,depth,xi,yi)
                     DrawTile(graph,worldDim,worldDim,xi,yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename)
                 }
             }
