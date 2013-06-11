@@ -41,9 +41,9 @@ import (
 var GRAPH_PADDING = 100 // what to pad graph by on each side
 var TILE_PIXEL_LEN = 256
 
+
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
-var flagTileDepth = flag.Uint("depth", 1, "Depth to tile to")
 var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
 
 //var flagLogFile = flag.String("log-file", "", "file to output log information to")
@@ -590,8 +590,8 @@ func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeig
 }
 
 func GenerateAllTiles(graph *Graph, outPrefix string) {
-    indexFile := outPrefix + "tile_index.json"
-    os.MkdirAll(filepath.Dir(outPrefix),0755)
+    indexFile := outPrefix + "tiles/tile_index.json"
+    os.MkdirAll(filepath.Dir(indexFile),0755)
     fo, _ := os.Create(indexFile)
     defer fo.Close()
     w := bufio.NewWriter(fo)
@@ -601,11 +601,15 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
 
     fmt.Fprintf(w,"{\"map_file\":\"%s\",\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",flag.Arg(0),latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
-    depths := *flagTileDepth
+    //divisionSet := [...]int{3,9,27,81,243}
+    divisionSet := [...]int{4,8,24,72,216}
+
+    //depths := *flagTileDepth
     first := true
-    var depth uint
-    for depth = 0; depth <= depths; depth++ {
-        divs := int(math.Pow(2.,float64(depth)))
+    //var depth uint
+    //for depth = 0; depth <= depths; depth++ {
+    for depth, divs := range divisionSet {
+        //divs := int(math.Pow(2.,float64(depth)))
         worldDim := int(math.Max(float64(graph.BoundsX)/float64(divs), float64(graph.BoundsY)/float64(divs)))
 
         if !first {
@@ -620,7 +624,8 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
             // directions accordingly
             for xi := 1; xi <= divs; xi++ {
                 for yi := 1; yi <= divs; yi++ {
-                    filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
+                    //filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
+                    filename := fmt.Sprintf("%stiles/%d/%d/%d.png",outPrefix,depth,xi,yi)
                     DrawTile(graph,worldDim,worldDim,xi,yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename)
                 }
             }
