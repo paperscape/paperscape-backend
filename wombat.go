@@ -43,9 +43,6 @@ var ID_CONVERSION_LIMIT = 50
 
 var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
 var flagLogFile = flag.String("log-file", "", "file to output log information to")
-var flagPciteTable = flag.String("pcite-table", "pcite", "MySQL database table to get pcite data from")
-var flagMapTable = flag.String("map-table", "map_data", "MySQL database table to get map data from")
-var flagTileTable = flag.String("tile-table", "tile_data", "MySQL database table to get tile data from")
 var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
 var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
@@ -617,7 +614,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     }
 
     //// Get number of times cited, and change in number of cites
-    query = fmt.Sprintf("SELECT numCites,dNumCites1,dNumCites5 FROM %s WHERE id = %d", *flagPciteTable, paper.id)
+    query = fmt.Sprintf("SELECT numCites,dNumCites1,dNumCites5 FROM pcite WHERE id = %d", paper.id)
     row2 := papers.QuerySingleRow(query)
 
     if row2 != nil {
@@ -791,7 +788,7 @@ func (papers *PapersEnv) QueryRefs(paper *Paper, queryRefsMeta bool) {
     if len(paper.refs) != 0 { return }
 
     // perform query
-    query := fmt.Sprintf("SELECT refs FROM %s WHERE id = %d", *flagPciteTable, paper.id)
+    query := fmt.Sprintf("SELECT refs FROM pcite WHERE id = %d", paper.id)
     row := papers.QuerySingleRow(query)
     if row == nil { papers.QueryEnd(); return }
 
@@ -822,7 +819,7 @@ func (papers *PapersEnv) QueryCites(paper *Paper, queryCitesMeta bool) {
     if len(paper.cites) != 0 { return }
 
     // perform query
-    query := fmt.Sprintf("SELECT cites FROM %s WHERE id = %d", *flagPciteTable, paper.id)
+    query := fmt.Sprintf("SELECT cites FROM pcite WHERE id = %d", paper.id)
     row := papers.QuerySingleRow(query)
     if row == nil { papers.QueryEnd(); return }
 
@@ -1236,6 +1233,18 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             h.GetDataForIDs(ids,flags,rw)
             logDescription = fmt.Sprintf("gdata (%d)",len(req.Form["gdata[]"]))
+        } else if req.Form["mp2l[]"] != nil {
+            // map: paper ids to locations
+            var ids []uint
+            for _, strId := range req.Form["mp2l[]"] {
+                if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
+                    ids = append(ids, uint(preId))
+                } else {
+                    log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
+                }
+            }
+            logDescription = fmt.Sprintf("Paper ids to map locations for")
+            h.MapLocationFromPaperId(ids,rw)
         } else {
             // unknown ajax request
             logDescription = fmt.Sprintf("unknown")
@@ -1964,21 +1973,26 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
 
 func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
 
-    var xmin,ymin,xmax,ymax,idmax int
-    var tpixw,tpixh uint
+    var xmin,ymin,xmax,ymax int
+    var tpixw,tpixh,idmax,idnew uint
     var tilings string
 
-    stmt := h.papers.StatementBegin("SELECT max(id) FROM " + *flagMapTable)
+    stmt := h.papers.StatementBegin("SELECT max(id) FROM map_data")
     if !h.papers.StatementBindSingleRow(stmt,&idmax) {
         return
     }
 
-    stmt = h.papers.StatementBegin("SELECT xmin,ymin,xmax,ymax,tile_pixel_w,tile_pixel_h,tilings FROM " + *flagTileTable + " WHERE latest_id = ?",idmax)
+    stmt = h.papers.StatementBegin("SELECT max(datebdry.id) FROM datebdry,map_data WHERE datebdry.id < ?",idmax)
+    if !h.papers.StatementBindSingleRow(stmt,&idnew) {
+        return
+    }
+
+    stmt = h.papers.StatementBegin("SELECT tile_data.xmin,tile_data.ymin,tile_data.xmax,tile_data.ymax,tile_data.tile_pixel_w,tile_data.tile_pixel_h,tile_data.tilings FROM tile_data WHERE tile_data.latest_id = ?",idmax)
     if !h.papers.StatementBindSingleRow(stmt,&xmin,&ymin,&xmax,&ymax,&tpixw,&tpixh,&tilings) {
         return
     }
 
-    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s}",xmin, ymin,xmax,ymax,idmax,tpixw,tpixh,tilings)
+    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s}",xmin, ymin,xmax,ymax,idmax,idnew,tpixw,tpixh,tilings)
 }
 
 func (h *MyHTTPHandler) MapLocationFromPaperId(ids []uint, rw http.ResponseWriter) {
@@ -2005,7 +2019,7 @@ func (h *MyHTTPHandler) MapLocationFromPaperId(ids []uint, rw http.ResponseWrite
     }
     args.WriteString(")")
 
-    sql := fmt.Sprintf("SELECT id,x,y,r FROM " + *flagMapTable + " WHERE id IN %s LIMIT %d",args.String(),len(ids))
+    sql := fmt.Sprintf("SELECT id,x,y,r FROM map_data WHERE id IN %s LIMIT %d",args.String(),len(ids))
 
     // create interface of arguments for statement
     hIdsInt := make([]interface{},len(ids))
@@ -2049,7 +2063,7 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
 
     fmt.Printf("%f %f\n",x,y)
 
-    sql := "SELECT id,x,y,r FROM " + *flagMapTable + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
+    sql := "SELECT id,x,y,r FROM map_data WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
 
     stmt := h.papers.StatementBegin(sql,x,y)
     if !h.papers.StatementBindSingleRow(stmt,&id,&resx,&resy,&resr) {
@@ -2422,8 +2436,7 @@ func (h *MyHTTPHandler) SearchArxivMinimal(arxivString string, rw http.ResponseW
 
 func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWriter) {
 
-    //stmt := h.papers.StatementBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id = " + *flagPciteTable + ".id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 25",h.papers.db.Escape(searchString))
-    stmt := h.papers.StatementBegin("SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id = " + *flagPciteTable + ".id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 25",h.papers.db.Escape(searchString))
+    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 25",h.papers.db.Escape(searchString))
 
     var id,numCites uint64
     //var refStr []byte
@@ -2598,8 +2611,7 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
 // builds a JSON list with id, numCites, refs for up to 500 results
 func (h *MyHTTPHandler) SearchGeneric(whereClause string, rw http.ResponseWriter) {
     // build basic query
-    //query := "SELECT meta_data.id," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id=" + *flagPciteTable + ".id AND (" + whereClause + ")"
-    query := "SELECT meta_data.id," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id=" + *flagPciteTable + ".id AND (" + whereClause + ")"
+    query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id=pcite.id AND (" + whereClause + ")"
 
     // don't include results that we have no way of uniquely identifying (ie must have arxiv or publ info)
     query += " AND (meta_data.arxiv IS NOT NULL OR meta_data.publ IS NOT NULL)"
@@ -2668,8 +2680,7 @@ func (h *MyHTTPHandler) SearchNewPapers(idFrom string, idTo string, rw http.Resp
         idTo = "4000000000";
     }
 
-    //if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.allcats," + *flagPciteTable + ".numCites," + *flagPciteTable + ".refs FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
-    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.allcats," + *flagPciteTable + ".numCites FROM meta_data," + *flagPciteTable + " WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.id = " + *flagPciteTable + ".id LIMIT 500") {
+    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.allcats,pcite.numCites FROM meta_data,pcite WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.id = pcite.id LIMIT 500") {
         fmt.Fprintf(rw, "[]")
         return
     }
