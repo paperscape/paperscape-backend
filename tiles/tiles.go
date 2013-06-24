@@ -267,6 +267,17 @@ func (paper *Paper) setColour() {
     r = saturation + (r * (1 - age) + age) * (1 - saturation)
     g = saturation + (g * (1 - age)      ) * (1 - saturation)
     b = saturation + (b * (1 - age)      ) * (1 - saturation)
+    
+    // Try pure heatmap instead
+    var coldR, coldG, coldB, hotR, hotG, hotB float64
+    scale := float64(paper.age)
+
+    coldR, coldG, coldB = 0, 0, 1
+    hotR, hotG, hotB = 1, 0, 0
+    r = (hotR - coldR)*scale + coldR
+    g = (hotG - coldG)*scale + coldG
+    b = (hotB - coldB)*scale + coldB
+    
     paper.colFG = CairoColor{r, g, b}
 }
 
@@ -459,18 +470,9 @@ func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeig
     surf.Paint()
 
     matrix := new(cairo.Matrix)
-    //matrix.Xx = float64(surf.GetWidth()*xtot) / float64(graph.BoundsX)
-    //matrix.Yy = float64(surf.GetHeight()*ytot) / float64(graph.BoundsY)
     matrix.Xx = float64(surf.GetWidth()) / float64(worldWidth)
     matrix.Yy = float64(surf.GetHeight()) / float64(worldHeight)
-    // Make it square
-    //if matrix.Xx < matrix.Yy {
-    //    matrix.Yy = matrix.Xx
-    //} else {
-    //    matrix.Xx = matrix.Yy
-    //}
 
-    // Move to lowest x,y point
     matrix.X0 = -float64(graph.MinX)*matrix.Xx + float64((1-xi)*surf.GetWidth())
     matrix.Y0 = -float64(graph.MinY)*matrix.Yy + float64((1-yi)*surf.GetHeight())
 
@@ -585,6 +587,16 @@ func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeig
     os.MkdirAll(filepath.Dir(filename),0755)
     // save with full colours
     surf.WriteToPNG(filename+".png")
+   
+    //fo, _ := os.Create(filename+"_v2.png")
+    //defer fo.Close()
+    //w := bufio.NewWriter(fo)
+    //err:= png.Encode(w, surf.GetImage())
+    //if err != nil {
+    //    fmt.Println(err)
+    //}
+    //w.Flush()
+
     // TODO save grayscale (or dimmer version)
     //surf.WriteToPNG(filename+"g.png")
     surf.Finish()
@@ -603,8 +615,8 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
 
     fmt.Fprintf(w,"{\"map_file\":\"%s\",\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",flag.Arg(0),latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
-    //divisionSet := [...]int{3,9,27,81,243}
     divisionSet := [...]int{4,8,24,72,216}
+    //divisionSet := [...]int{4,8,24}
 
     //depths := *flagTileDepth
     first := true

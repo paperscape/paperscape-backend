@@ -1,0 +1,15 @@
+#!/bin/sh
+
+function usage {
+    echo "$0: usage:"
+    echo "  specify directory path of tiles"
+
+}
+
+if [ $# -lt 1 ]
+then
+	usage;	
+	exit
+fi
+
+find $1 -type f -name "*.png" | xargs --max-proc=`nproc` -n 1 optipng
