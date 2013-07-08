@@ -68,7 +68,7 @@ map_env_t *map_env_new() {
     map_env->force_params.close_repulsion_c = 1.1;
     map_env->force_params.close_repulsion_d = 0.6;
     map_env->force_params.use_ref_freq = true;
-    map_env->force_params.anti_gravity_falloff_rsq = 1e5;
+    map_env->force_params.anti_gravity_falloff_rsq = 1e6;
     map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
     map_env->force_params.link_strength = 4.0;
 
@@ -890,8 +890,8 @@ static void map_env_compute_forces(map_env_t *map_env) {
     }
 
     // rotate everything by a little each iteration to eliminate artifacts from quad tree force algo
-    double ctheta = cos(0.05);
-    double stheta = sin(0.05);
+    double ctheta = cos(0.001);
+    double stheta = sin(0.001);
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
         layout_node_t *n = &map_env->layout->nodes[i];
         double x = n->x;
