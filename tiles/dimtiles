@@ -2,11 +2,11 @@
 
 function usage {
     echo "$0: usage:"
-    echo "  specify directory path of tiles"
+    echo "  specify directory path of tiles and output directory of bw tiles (in this order)"
 
 }
 
-if [ $# -lt 1 ]
+if [ $# -lt 2 ]
 then
 	usage;	
 	exit
@@ -14,10 +14,25 @@ fi
 
 files=`find $1 -type f -name "*.png"`
 
+outdir=$2
+if [ ${outdir:(-1)} == '/' ]; then
+    outdir=${2:0:(-1)}
+fi
+
 for f in $files
 do
-    if [ "${f:(-5)}" != "g.png" ]; then
-        newFile="${f:0:(-4)}g.png" 
-        convert -type Grayscale $f $newFile
+    newfile="$outdir${f:${#1}}"
+    dirname=${newfile%/*}
+    if [ ! -d $dirname ]; then
+        mkdir -p $dirname
     fi
+    convert -type grayscale $f $newfile
 done
+
+#for f in $files
+#do
+#    if [ "${f:(-5)}" != "g.png" ]; then
+#        newfile="${f:0:(-4)}g.png" 
+#        convert -type grayscale $f $newfile
+#    fi
+#done

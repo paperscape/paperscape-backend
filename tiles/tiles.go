@@ -43,6 +43,7 @@ var TILE_PIXEL_LEN = 256
 
 
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
+//var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles") // now the default
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
 var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
 
@@ -264,19 +265,20 @@ func (paper *Paper) setColour() {
 
     // foreground colour; newer papers tend towards red
     age = age * age
-    r = saturation + (r * (1 - age) + age) * (1 - saturation)
+    //r = saturation + (r * (1 - age) + age) * (1 - saturation)
+    r = saturation + (r * (1 - age)      ) * (1 - saturation)
     g = saturation + (g * (1 - age)      ) * (1 - saturation)
     b = saturation + (b * (1 - age)      ) * (1 - saturation)
     
     // Try pure heatmap instead
-    var coldR, coldG, coldB, hotR, hotG, hotB float64
-    scale := float64(paper.age)
+    //var coldR, coldG, coldB, hotR, hotG, hotB float64
+    //scale := float64(paper.age)
 
-    coldR, coldG, coldB = 0, 0, 1
-    hotR, hotG, hotB = 1, 0, 0
-    r = (hotR - coldR)*scale + coldR
-    g = (hotG - coldG)*scale + coldG
-    b = (hotB - coldB)*scale + coldB
+    //coldR, coldG, coldB = 0, 0, 1
+    //hotR, hotG, hotB = 1, 0, 0
+    //r = (hotR - coldR)*scale + coldR
+    //g = (hotG - coldG)*scale + coldG
+    //b = (hotB - coldB)*scale + coldB
     
     paper.colFG = CairoColor{r, g, b}
 }
