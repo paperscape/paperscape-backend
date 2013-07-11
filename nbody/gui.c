@@ -1,15 +1,13 @@
 #include <stdio.h>
 #include <math.h>
-#include <gtk/gtk.h>
 #include <sys/time.h>
+#include <gtk/gtk.h>
 
 #include "xiwilib.h"
 #include "common.h"
 #include "map.h"
 #include "mysql.h"
-#include "gui.h"
 #include "cairohelper.h"
-#include "tile.h"
 
 vstr_t *vstr;
 GtkWidget *window;
@@ -362,6 +360,9 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
 // for a gtk example, see: http://git.gnome.org/browse/gtk+/tree/demos/gtk-demo/drawingarea.c
 
 void build_gui(map_env_t *map_env, const char *papers_string) {
+    // init gtk
+    gtk_init(&argc, &argv);
+
     vstr = vstr_new();
     included_papers_string = papers_string;
 
@@ -469,4 +470,21 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
         "    left drag - move a paper around / pan the view\n"
         "       scroll - zoom in/out\n"
     );
+
+    // start the main loop and block until the application is closed
+    gtk_main();
+}
+
+int main(int argc, char *argv[]) {
+    map_env_t *map_env;
+    const char *where_clause;
+
+    int ret = init(argc, argv, 10, &map_env, &where_clause);
+    if (ret) {
+        return ret;
+    }
+
+    run_gui(map_env, where_clause);
+
+    return 0;
 }

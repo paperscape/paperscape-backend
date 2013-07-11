@@ -1,6 +1,3 @@
-#ifndef _INCLUDED_FORCE_H
-#define _INCLUDED_FORCE_H
-
 typedef struct _force_params_t {
     bool do_close_repulsion;
     double close_repulsion_a;
@@ -13,11 +10,7 @@ typedef struct _force_params_t {
     double link_strength;
 } force_params_t;
 
-typedef struct _paper_t paper_t;
-typedef struct _layout_t layout_t;
-typedef struct _quad_tree_t quad_tree_t;
+struct _quad_tree_t;
 
-void quad_tree_forces(force_params_t *param, quad_tree_t *qt);
+void quad_tree_forces(force_params_t *param, struct _quad_tree_t *qt);
 void compute_attractive_link_force(force_params_t *param, bool do_tred, layout_t *layout);
-
-#endif // _INCLUDED_FORCE_H

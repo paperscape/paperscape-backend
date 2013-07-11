@@ -12,9 +12,6 @@
 #define VSTR_2 (2)
 #define VSTR_MAX (3)
 
-//#define DB_HOST "localhost"
-#define DB_HOST "susi"
-
 typedef struct _env_t {
     vstr_t *vstr[VSTR_MAX];
     bool close_mysql;
@@ -46,10 +43,12 @@ static bool env_set_up(env_t* env) {
     env->close_mysql = true;
 
     // connect to the MySQL server
-    if (mysql_real_connect(&env->mysql, DB_HOST, "hidden", "hidden", "xiwi", 0, NULL, 0) == NULL) {
-        if (mysql_real_connect(&env->mysql, "localhost", "hidden", "hidden", "xiwi", 0, "/home/damien/mysql/mysql.sock", 0) == NULL) {
-            have_error(env);
-            return false;
+    if (mysql_real_connect(&env->mysql, "localhost", "hidden", "hidden", "xiwi", 0, NULL, 0) == NULL) {
+        if (mysql_real_connect(&env->mysql, "susi", "hidden", "hidden", "xiwi", 0, NULL, 0) == NULL) {
+            if (mysql_real_connect(&env->mysql, "localhost", "hidden", "hidden", "xiwi", 0, "/home/damien/mysql/mysql.sock", 0) == NULL) {
+                have_error(env);
+                return false;
+            }
         }
     }
 

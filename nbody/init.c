@@ -1,16 +1,15 @@
-#include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
+#include <stdlib.h>
 #include <string.h>
-#include <gtk/gtk.h>
+//#include <sys/time.h>
 
 #include "xiwilib.h"
 #include "common.h"
 #include "map.h"
 #include "mysql.h"
-#include "gui.h"
+#include "init.h"
 
-int usage(const char *progname) {
+static int usage(const char *progname) {
     printf("\n");
     printf("usage: %s [options]\n", progname);
     printf("\n");
@@ -22,7 +21,7 @@ int usage(const char *progname) {
     return 1;
 }
 
-int main(int argc, char *argv[]) {
+int init(int argc, char *argv[], int num_coarsenings, map_env_t **map_env_out, const char **where_clause_out) {
     // parse command line arguments
     double arg_anti_grav_rsq = -1;
     double arg_link_strength = -1;
@@ -63,7 +62,7 @@ int main(int argc, char *argv[]) {
     //const char *where_clause = "(maincat='astro-ph' OR maincat='cond-mat' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='hep-ph' OR maincat='hep-th' OR maincat='math-ph' OR maincat='nlin' OR maincat='nucl-ex' OR maincat='nucl-th' OR maincat='physics' OR maincat='quant-ph') AND id >= 1900000000";
     //const char *where_clause = "(maincat='cs') AND id >= 2090000000";
     //const char *where_clause = "(maincat='math') AND id >= 1900000000";
-    const char *where_clause = "(arxiv IS NOT NULL)";
+    const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
 
     // load the papers from the DB
     int num_papers;
@@ -107,21 +106,13 @@ int main(int argc, char *argv[]) {
     }
 
     if (arg_layout == NULL) {
-        map_env_select_new_layout(map_env);
+        map_env_select_new_layout(map_env, num_coarsenings);
     } else {
         map_env_select_old_layout(map_env, arg_layout);
     }
 
-    // init gtk
-    gtk_init(&argc, &argv);
-
-    // build the gui elements
-    build_gui(map_env, where_clause);
-
-    // start the main loop and block until the application is closed
-    gtk_main();
-
-    //mysql_save_paper_positions(num_papers, papers);
+    *map_env_out = map_env;
+    *where_clause_out = where_clause;
 
     return 0;
 }
