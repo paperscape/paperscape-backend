@@ -16,7 +16,7 @@ import (
     "encoding/json"
     //"text/scanner"
     "GoMySQL"
-    //"runtime"
+    "runtime"
     //"bytes"
     //"time"
     //"strings"
@@ -269,7 +269,7 @@ func (paper *Paper) setColour() {
     r = saturation + (r * (1 - age)      ) * (1 - saturation)
     g = saturation + (g * (1 - age)      ) * (1 - saturation)
     b = saturation + (b * (1 - age)      ) * (1 - saturation)
-    
+
     // Try pure heatmap instead
     //var coldR, coldG, coldB, hotR, hotG, hotB float64
     //scale := float64(paper.age)
@@ -279,7 +279,7 @@ func (paper *Paper) setColour() {
     //r = (hotR - coldR)*scale + coldR
     //g = (hotG - coldG)*scale + coldG
     //b = (hotB - coldB)*scale + coldB
-    
+
     paper.colFG = CairoColor{r, g, b}
 }
 
@@ -464,7 +464,7 @@ func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
     qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, rx, ry, f)
 }
 
-func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeight int, filename string) {
+func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeight int, filename string) {
 
     surf := cairo.NewSurface(cairo.FORMAT_RGB24, surfWidth, surfHeight)
     //surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
@@ -586,10 +586,14 @@ func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeig
     })
 
     //fmt.Println("writing file")
-    os.MkdirAll(filepath.Dir(filename),0755)
+    if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
+        fmt.Println(err)
+        return
+    }
+
     // save with full colours
     surf.WriteToPNG(filename+".png")
-   
+
     //fo, _ := os.Create(filename+"_v2.png")
     //defer fo.Close()
     //w := bufio.NewWriter(fo)
@@ -605,9 +609,23 @@ func DrawTile(graph *Graph,worldWidth,worldHeight,xi,yi int, surfWidth, surfHeig
 
 }
 
+func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
+    for xi := xiFirst; xi <= xiLast; xi++ {
+        for yi := yiFirst; yi <= yiLast; yi++ {
+            //filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
+            filename := fmt.Sprintf("%s/tiles/%d/%d/%d", outPrefix, depth, xi, yi)
+            DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename)
+        }
+    }
+    channel <- 1 // signal that this set of tiles is done
+}
+
 func GenerateAllTiles(graph *Graph, outPrefix string) {
-    indexFile := outPrefix + "tiles/tile_index.json"
-    os.MkdirAll(filepath.Dir(indexFile),0755)
+    indexFile := outPrefix + "/tiles/tile_index.json"
+    if err := os.MkdirAll(filepath.Dir(indexFile),0755); err != nil {
+        fmt.Println(err)
+        return
+    }
     fo, _ := os.Create(indexFile)
     defer fo.Close()
     w := bufio.NewWriter(fo)
@@ -633,18 +651,31 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
         }
         first = false
         fmt.Fprintf(w,"{\"z\":%d,\"tw\":%d,\"th\":%d,\"nx\":%d,\"ny\":%d}",depth, worldDim, worldDim, divs,divs)
-        
+
         if !*flagSkipTiles {
             fmt.Printf("Generating tiles at depth %d\n",divs)
-            // TODO if graph far from from square, shorten tile
-            // directions accordingly
-            for xi := 1; xi <= divs; xi++ {
-                for yi := 1; yi <= divs; yi++ {
-                    //filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
-                    filename := fmt.Sprintf("%stiles/%d/%d/%d",outPrefix,depth,xi,yi)
-                    DrawTile(graph,worldDim,worldDim,xi,yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename)
+            // TODO if graph far from from square, shorten tile directions accordingly
+
+            // parallelise the drawing of tiles, using as many cpus as we have available to us
+            maxCpu := runtime.NumCPU()
+            runtime.GOMAXPROCS(maxCpu)
+            channel := make(chan int, maxCpu)
+            numRoutines := 0
+            xiPerCpu := (divs + maxCpu - 1) / maxCpu
+            for xi := 1; xi <= divs; {
+                xiLast := xi + xiPerCpu - 1
+                if xiLast > divs {
+                    xiLast = divs
                 }
+                go ParallelDrawTile(graph, outPrefix, depth, worldDim, xi, xiLast, 1, divs, channel)
+                numRoutines += 1
+                xi = xiLast + 1
             }
+            // drain the channel
+            for i := 0; i < numRoutines; i++ {
+                <-channel // wait for one task to complete
+            }
+            // all tasks are finished
         }
     }
     fmt.Fprintf(w,"]}")
