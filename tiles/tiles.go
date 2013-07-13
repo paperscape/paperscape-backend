@@ -43,7 +43,7 @@ var TILE_PIXEL_LEN = 256
 
 
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
-//var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles") // now the default
+var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles") // now the default
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
 var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
 
@@ -265,10 +265,20 @@ func (paper *Paper) setColour() {
 
     // foreground colour; newer papers tend towards red
     age = age * age
-    //r = saturation + (r * (1 - age) + age) * (1 - saturation)
-    r = saturation + (r * (1 - age)      ) * (1 - saturation)
+    r = saturation + (r * (1 - age) + age) * (1 - saturation)
     g = saturation + (g * (1 - age)      ) * (1 - saturation)
     b = saturation + (b * (1 - age)      ) * (1 - saturation)
+    //r = saturation + (r) * (1 - saturation)
+    //g = saturation + (g) * (1 - saturation)
+    //b = saturation + (b) * (1 - saturation)
+
+    if *flagGrayScale {
+        //lum := 0.21 * r + 0.72 * g + 0.07 * b 
+        lum := 0.289 * r + 0.587 * g + 0.114 * b 
+        r = lum
+        g = lum
+        b = lum
+    }
 
     // Try pure heatmap instead
     //var coldR, coldG, coldB, hotR, hotG, hotB float64
@@ -610,10 +620,14 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
 }
 
 func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
+    suffix := ""
+    if *flagGrayScale {
+        suffix = "-bw"
+    }
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
             //filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
-            filename := fmt.Sprintf("%s/tiles/%d/%d/%d", outPrefix, depth, xi, yi)
+            filename := fmt.Sprintf("%s/tiles%s/%d/%d/%d", outPrefix, suffix, depth, xi, yi)
             DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename)
         }
     }
