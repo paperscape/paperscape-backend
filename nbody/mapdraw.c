@@ -1,5 +1,17 @@
-// everything to do with drawing map_env to a cairo canvas
+// in here is everything to do with drawing map_env to a cairo canvas
+
+#include <stdlib.h>
+#include <math.h>
 #include <cairo.h>
+
+#include "xiwilib.h"
+#include "common.h"
+#include "layout.h"
+#include "force.h"
+#include "quadtree.h"
+#include "map.h"
+#include "mapdraw.h"
+#include "mapprivate.h"
 
 static void paper_colour(paper_t *p, double *r, double *g, double *b) {
     category_t c = p->allcats[0];
@@ -17,7 +29,8 @@ static void paper_colour(paper_t *p, double *r, double *g, double *b) {
     else { *r = 0.7; *g = 1.0; *b = 0.3; }
 }
 
-void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+/* unused function
+static void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     layout_node_t *l = p->layout_node;
     double x = l->x;
     double y = l->y;
@@ -29,8 +42,9 @@ void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
     cairo_fill(cr);
 }
+*/
 
-void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+static void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     /*
     double h = w * 1.41;
     cairo_set_source_rgba(cr, 0.9, 0.9, 0.8, 0.9);
@@ -75,7 +89,7 @@ void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     cairo_fill(cr);
 }
 
-void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+static void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     if (p->title != NULL && p->r * map_env->tr_scale > 20) {
         double x = p->layout_node->x;
         double y = p->layout_node->y;
@@ -87,7 +101,7 @@ void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     }
 }
 
-void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
+static void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         const char *str = NULL;
@@ -117,7 +131,7 @@ void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
     }
 }
 
-void draw_category_labels(cairo_t *cr, map_env_t *map_env) {
+static void draw_category_labels(cairo_t *cr, map_env_t *map_env) {
     for (int i = 0; i < CAT_NUMBER_OF; i++) {
         category_info_t *cat = &map_env->category_info[i];
         if (cat->num > 0) {
@@ -133,7 +147,7 @@ void draw_category_labels(cairo_t *cr, map_env_t *map_env) {
     }
 }
 
-void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double min_y, double max_x, double max_y) {
+static void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double min_y, double max_x, double max_y) {
     if (q != NULL) {
         if (q->num_items == 1) {
             cairo_rectangle(cr, min_x, min_y, max_x - min_x, max_y - min_y);

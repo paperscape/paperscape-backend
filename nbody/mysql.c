@@ -235,6 +235,7 @@ static paper_t *env_get_paper_by_id(env_t *env, int id) {
     return NULL;
 }
 
+/* unused function
 static bool env_load_pos(env_t *env) {
     MYSQL_RES *result;
     MYSQL_ROW row;
@@ -268,6 +269,7 @@ static bool env_load_pos(env_t *env) {
 
     return true;
 }
+*/
 
 static bool env_load_refs(env_t *env) {
     MYSQL_RES *result;

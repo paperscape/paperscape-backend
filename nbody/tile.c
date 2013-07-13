@@ -6,6 +6,7 @@
 #include "xiwilib.h"
 #include "common.h"
 #include "map.h"
+#include "mapdraw.h"
 #include "cairohelper.h"
 #include "tile.h"
 
