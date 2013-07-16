@@ -221,7 +221,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         // write map to JSON
         vstr_reset(vstr);
         vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
-        map_env_write_layout_to_json(map_env, vstr_str(vstr));
+        map_env_layout_save_to_json(map_env, vstr_str(vstr));
 
     } else if (event->keyval == GDK_KEY_j) {
         map_env_jolt(map_env, 0.5);
@@ -513,7 +513,8 @@ static int usage(const char *progname) {
     return 1;
 }
 
-static int init(int argc, char *argv[], int num_coarsenings, map_env_t **map_env_out, const char **where_clause_out) {
+int main(int argc, char *argv[]) {
+
     // parse command line arguments
     double arg_anti_grav_rsq = -1;
     double arg_link_strength = -1;
@@ -605,22 +606,7 @@ static int init(int argc, char *argv[], int num_coarsenings, map_env_t **map_env
     } else if (arg_layout_json != NULL) {
         map_env_layout_load_from_json(map_env, arg_layout_json);
     } else {
-        map_env_layout_new(map_env, num_coarsenings);
-    }
-
-    *map_env_out = map_env;
-    *where_clause_out = where_clause;
-
-    return 0;
-}
-
-int main(int argc, char *argv[]) {
-    map_env_t *map_env;
-    const char *where_clause;
-
-    int ret = init(argc, argv, 10, &map_env, &where_clause);
-    if (ret) {
-        return ret;
+        map_env_layout_new(map_env, 10);
     }
 
     // init gtk

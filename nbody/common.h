@@ -29,8 +29,6 @@ typedef struct _paper_t {
     struct _keyword_t **keywords;
 
     bool pos_valid;
-    //float x;
-    //float y;
 
     // stuff for colouring
     int colour;

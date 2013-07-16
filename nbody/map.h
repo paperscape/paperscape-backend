@@ -10,7 +10,7 @@ void map_env_papers_test2(map_env_t *map_env, int n);
 void map_env_world_to_screen(map_env_t *map_env, double *x, double *y);
 void map_env_screen_to_world(map_env_t *map_env, double *x, double *y);
 int map_env_get_num_papers(map_env_t *map_env);
-paper_t *map_env_get_paper_at(map_env_t *map_env, double screen_x, double screen_y);
+layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_x, double screen_y);
 
 void map_env_centre_view(map_env_t *map_env);
 void map_env_set_zoom_to_fit_n_standard_deviations(map_env_t *map_env, double n, double screen_w, double screen_h);

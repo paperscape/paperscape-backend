@@ -57,7 +57,7 @@ static void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     layout_node_t *l = p->layout_node;
     double x = l->x;
     double y = l->y;
-    double w = p->r;
+    double w = p->radius;
     double age = p->age;
     /*
     if (p->id == 1992546899 || p->id == 1993234723) {
@@ -90,7 +90,7 @@ static void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
 }
 
 static void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
-    if (p->title != NULL && p->r * map_env->tr_scale > 20) {
+    if (p->title != NULL && p->radius * map_env->tr_scale > 20) {
         double x = p->layout_node->x;
         double y = p->layout_node->y;
         map_env_world_to_screen(map_env, &x, &y);
@@ -177,9 +177,9 @@ static int paper_cmp_id(const void *in1, const void *in2) {
 static int paper_cmp_radius(const void *in1, const void *in2) {
     paper_t *p1 = *(paper_t **)in1;
     paper_t *p2 = *(paper_t **)in2;
-    if (p1->r < p2->r) {
+    if (p1->radius < p2->radius) {
         return -1;
-    } else if (p1->r > p2->r) {
+    } else if (p1->radius > p2->radius) {
         return 1;
     } else {
         return 0;

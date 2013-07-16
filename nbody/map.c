@@ -71,6 +71,7 @@ int map_env_get_num_papers(map_env_t *map_env) {
 }
 
 layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double x, double y) {
+    map_env_screen_to_world(map_env, &x, &y);
     return layout_get_node_at(map_env->layout, x, y);
 }
 
