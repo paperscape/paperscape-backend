@@ -1,6 +1,3 @@
-#ifndef _INCLUDED_LAYOUT_H
-#define _INCLUDED_LAYOUT_H
-
 typedef struct _layout_node_t {
     struct _layout_node_t *parent;
     union {
@@ -42,5 +39,6 @@ layout_t *build_layout_from_papers(int num_papers, struct _paper_t **papers, boo
 layout_t *build_reduced_layout_from_layout(layout_t *layout);
 void layout_propagate_positions_to_children(layout_t *layout);
 void layout_print(layout_t *layout);
-
-#endif // _INCLUDED_LAYOUT_H
+layout_node_t *layout_get_node_by_id(layout_t *layout, int id);
+void layout_node_export_quantities(layout_node_t *l, int *x_out, int *y_out, int *r_out);
+void layout_node_import_quantities(layout_node_t *l, int x_in, int y_in);

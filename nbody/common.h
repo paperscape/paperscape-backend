@@ -71,8 +71,8 @@ typedef struct _keyword_t {
 typedef struct _keyword_set_t keyword_set_t;
 
 keyword_set_t *keyword_set_new();
-void keyword_set_free(keyword_set_t * kws);
-int keyword_set_get_total(keyword_set_t * kws);
+void keyword_set_free(keyword_set_t *kws);
+int keyword_set_get_total(keyword_set_t *kws);
 void keyword_set_clear_data(keyword_set_t *kws);
 keyword_t *keyword_set_lookup_or_insert(keyword_set_t *kws, const char *kw, size_t kw_len);
 

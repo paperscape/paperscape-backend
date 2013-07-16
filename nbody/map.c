@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <assert.h>
 #include <string.h>
 #include <math.h>
@@ -11,6 +14,7 @@
 #include "quadtree.h"
 #include "map.h"
 #include "mapprivate.h"
+#include "mysql.h"
 
 map_env_t *map_env_new() {
     map_env_t *map_env = m_new(map_env_t, 1);
@@ -325,37 +329,6 @@ static void rotate_for_user_view(map_env_t *map_env) {
 static void rotate_for_computation(map_env_t *map_env) {
 }
 */
-
-void vstr_add_json_str(vstr_t *vstr, const char *s) {
-    vstr_add_byte(vstr, '"');
-    for (; *s != '\0'; s++) {
-        if (*s == '"') {
-            vstr_add_byte(vstr, '\\');
-            vstr_add_byte(vstr, '"');
-        } else {
-            vstr_add_byte(vstr, *s);
-        }
-    }
-    vstr_add_byte(vstr, '"');
-}
-
-int double_for_json(double x) {
-    // so we can store as integers, multiply by some number to include a bit of the fraction
-    return round(x * 20);
-}
-
-void map_env_draw_to_json(map_env_t *map_env, vstr_t *vstr) {
-    // write the papers as JSON
-    vstr_printf(vstr, "[");
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
-        if (i > 0) {
-            vstr_printf(vstr, ",");
-        }
-        vstr_printf(vstr, "[%d,%d,%d,%d]", p->id, double_for_json(p->layout_node->x), double_for_json(p->layout_node->y), double_for_json(p->r));
-    }
-    vstr_printf(vstr, "]");
-}
 
 /* compute node-node forces using naive gravity/anti-gravity method
  * this method is of order N^2, and hence very slow (but accurate)
@@ -1002,24 +975,31 @@ void map_env_select_new_layout(map_env_t *map_env, int num_coarsenings) {
     map_env->step_size = 1;
 }
 
-// this should go in layout.c
-static layout_node_t *map_env_get_layout_by_paper_id(layout_t *layout, int id) {
-    int lo = 0;
-    int hi = layout->num_nodes - 1;
-    while (lo <= hi) {
-        int mid = (lo + hi) / 2;
-        if (id == layout->nodes[mid].paper->id) {
-            return &layout->nodes[mid];
-        } else if (id < layout->nodes[mid].paper->id) {
-            hi = mid - 1;
-        } else {
-            lo = mid + 1;
-        }
+void map_env_select_old_layout_db(map_env_t *map_env) {
+    // make a single layout
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
+    map_env->layout = l;
+
+    // initialise random positions, in case we can't/don't load a position for a given paper
+    for (int i = 0; i < l->num_nodes; i++) {
+        l->nodes[i].x = 100.0 * random() / RAND_MAX;
+        l->nodes[i].y = 100.0 * random() / RAND_MAX;
     }
-    return NULL;
+
+    // print info about the layout
+    layout_print(l);
+
+    // load the layout using MySQL
+    mysql_load_paper_positions(l);
+
+    // set do_close_repulsion, since we are loading a layout that was saved this way
+    map_env->force_params.do_close_repulsion = true;
+
+    // small step size for the next force iteration
+    map_env->step_size = 0.1;
 }
 
-void map_env_select_old_layout(map_env_t *map_env, const char *json_filename) {
+void map_env_select_old_layout_json(map_env_t *map_env, const char *json_filename) {
     // make a single layout
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
     map_env->layout = l;
@@ -1056,10 +1036,9 @@ void map_env_select_old_layout(map_env_t *map_env, const char *json_filename) {
             printf("WARNING: malformed JSON file %s; reading entry %d\n", json_filename, entry_num);
             return;
         }
-        layout_node_t *n = map_env_get_layout_by_paper_id(l, id);
+        layout_node_t *n = layout_get_node_by_id(l, id);
         if (n != NULL) {
-            n->x = (double)x / 20.0;
-            n->y = (double)y / 20.0;
+            layout_node_import_quantities(n, x, y);
         }
         entry_num += 1;
         if ((c = fgetc(fp)) != ',') {
@@ -1105,4 +1084,43 @@ void map_env_flip_x(map_env_t *map_env) {
         layout_node_t *n = &map_env->layout->nodes[i];
         n->x = -n->x;
     }
+}
+
+/* obsolete
+void vstr_add_json_str(vstr_t *vstr, const char *s) {
+    vstr_add_byte(vstr, '"');
+    for (; *s != '\0'; s++) {
+        if (*s == '"') {
+            vstr_add_byte(vstr, '\\');
+            vstr_add_byte(vstr, '"');
+        } else {
+            vstr_add_byte(vstr, *s);
+        }
+    }
+    vstr_add_byte(vstr, '"');
+}
+*/
+
+void map_env_write_layout_to_json(map_env_t *map_env, const char *file) {
+    // write the papers as JSON to a vstr
+    vstr_t *vstr = vstr_new();
+    vstr_printf(vstr, "[");
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        if (i > 0) {
+            vstr_printf(vstr, ",");
+        }
+        int x, y, r;
+        layout_node_export_quantities(p->layout_node, &x, &y, &r);
+        vstr_printf(vstr, "[%d,%d,%d,%d]", p->id, x, y, r);
+    }
+    vstr_printf(vstr, "]");
+
+    // write the vstr to a file
+    int fd = open(file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    write(fd, vstr_str(vstr), vstr_len(vstr));
+    close(fd);
+    vstr_free(vstr);
+
+    printf("wrote %d papers to JSON file %s\n", map_env->num_papers, file);
 }

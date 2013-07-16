@@ -8,7 +8,7 @@
 #include "common.h"
 #include "layout.h"
 
-void layout_combine_duplicate_links(layout_t *layout) {
+static void layout_combine_duplicate_links(layout_t *layout) {
     // combine duplicate links
     for (int i = 0; i < layout->num_nodes; i++) {
         layout_node_t *node = &layout->nodes[i];
@@ -137,7 +137,7 @@ typedef struct _node_weight_t {
     float weight;
 } node_weight_t;
 
-int node_weight_cmp(const void *nw1_in, const void *nw2_in) {
+static int node_weight_cmp(const void *nw1_in, const void *nw2_in) {
     node_weight_t *nw1 = (node_weight_t*)nw1_in;
     node_weight_t *nw2 = (node_weight_t*)nw2_in;
     // largest weight first
@@ -309,7 +309,7 @@ layout_t *build_reduced_layout_from_layout(layout_t *layout) {
     return layout2;
 }
 
-void layout_node_propagate_position_to_children(layout_t *layout, layout_node_t *node) {
+static void layout_node_propagate_position_to_children(layout_t *layout, layout_node_t *node) {
     if (layout->child_layout != NULL) {
         node->child1->x = node->x;
         node->child1->y = node->y;
@@ -365,4 +365,39 @@ void layout_print(layout_t *l) {
         printf(")\n");
     }
     */
+}
+
+layout_node_t *layout_get_node_by_id(layout_t *layout, int id) {
+    assert(layout->child_layout == NULL);
+    int lo = 0;
+    int hi = layout->num_nodes - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (id == layout->nodes[mid].paper->id) {
+            return &layout->nodes[mid];
+        } else if (id < layout->nodes[mid].paper->id) {
+            hi = mid - 1;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    return NULL;
+}
+
+// when we export layout positions/radius we want to use integers for performance reasons
+// therefore we have a multiplicative factor to include a bit of the fraction
+// all export/import code must go through these 2 functions
+
+static const double export_import_double_conversion_factor = 20.0;
+
+void layout_node_export_quantities(layout_node_t *l, int *x_out, int *y_out, int *r_out) {
+    *x_out = round(l->x * export_import_double_conversion_factor);
+    *y_out = round(l->y * export_import_double_conversion_factor);
+    *r_out = round(l->radius * export_import_double_conversion_factor);
+}
+
+void layout_node_import_quantities(layout_node_t *l, int x_in, int y_in) {
+    l->x = (double)x_in / export_import_double_conversion_factor;
+    l->y = (double)y_in / export_import_double_conversion_factor;
+    // radius is not imported
 }

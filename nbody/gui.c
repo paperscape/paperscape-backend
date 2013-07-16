@@ -2,6 +2,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include <gtk/gtk.h>
+#include <cairo.h>
 
 #include "xiwilib.h"
 #include "common.h"
@@ -89,7 +90,7 @@ static gboolean map_env_update(map_env_t *map_env) {
         vstr_printf(vstr_info, "date: %02u-%02u-%04u to ", d, m, y);
         unique_id_to_date(id_range_end, &y, &m, &d);
         vstr_printf(vstr_info, "%02u-%02u-%04u\n%d papers", d, m, y, map_env_get_num_papers(map_env));
-        write_tiles(map_env, 1000, 1000, vstr_str(vstr), vstr_info);
+        draw_to_png(map_env, 1000, 1000, vstr_str(vstr), vstr_info);
 
         vstr_free(vstr_info);
 
@@ -109,6 +110,28 @@ static gboolean map_env_update(map_env_t *map_env) {
     // force a redraw
     gtk_widget_queue_draw(window);
     return TRUE; // yes, we want to be called again
+}
+
+static void draw_to_png(map_env_t *map_env, int width, int height, const char *file, vstr_t *vstr_info) {
+    cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_RGB24, width, height);
+    cairo_t *cr = cairo_create(surface);
+    map_env_draw(map_env, cr, width, height, NULL);
+
+    if (vstr_info != NULL) {
+        cairo_identity_matrix(cr);
+        cairo_set_source_rgb(cr, 0, 0, 0);
+        cairo_set_font_size(cr, 10);
+        cairo_helper_draw_text_lines(cr, 10, 20, vstr_info);
+    }
+
+    cairo_status_t status = cairo_surface_write_to_png(surface, file);
+    cairo_destroy(cr);
+    cairo_surface_destroy(surface);
+    if (status != CAIRO_STATUS_SUCCESS) {
+        printf("ERROR: cannot write PNG to file %s\n", file);
+    } else {
+        printf("wrote PNG to file %s\n", file);
+    }
 }
 
 static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env) {
@@ -195,8 +218,8 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_J) {
         // write map to JSON
         vstr_reset(vstr);
-        vstr_printf(vstr, "map-%07u.json", map_env_get_num_papers(map_env));
-        write_tiles_to_json(map_env, vstr_str(vstr));
+        vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
+        map_env_write_layout_to_json(map_env, vstr_str(vstr));
 
     } else if (event->keyval == GDK_KEY_j) {
         map_env_jolt(map_env, 0.5);
@@ -219,7 +242,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_toggle_use_ref_freq(map_env);
 
     } else if (event->keyval == GDK_KEY_w) {
-        write_tiles(map_env, 1000, 1000, "out.png", NULL);
+        draw_to_png(map_env, 1000, 1000, "out.png", NULL);
 
     } else if (event->keyval == GDK_KEY_z) {
         map_env_centre_view(map_env);

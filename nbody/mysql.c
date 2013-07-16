@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <string.h>
 #include <mysql/mysql.h>
 
 #include "xiwilib.h"
 #include "common.h"
+#include "layout.h"
 #include "mysql.h"
 
 #define VSTR_0 (0)
@@ -63,6 +65,8 @@ static void env_finish(env_t* env) {
     if (env->close_mysql) {
         mysql_close(&env->mysql);
     }
+
+    keyword_set_free(env->keyword_set);
 }
 
 static bool env_query_one_row(env_t *env, const char *q, int expected_num_fields, MYSQL_RES **result) {
@@ -234,42 +238,6 @@ static paper_t *env_get_paper_by_id(env_t *env, int id) {
     }
     return NULL;
 }
-
-/* unused function
-static bool env_load_pos(env_t *env) {
-    MYSQL_RES *result;
-    MYSQL_ROW row;
-
-    printf("reading mappos\n");
-
-    // get the positions from the mappos table
-    vstr_t *vstr = env->vstr[VSTR_0];
-    vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,x,y FROM mappos");
-    if (vstr_had_error(vstr)) {
-        return false;
-    }
-    if (!env_query_many_rows(env, vstr_str(vstr), 3, &result)) {
-        return false;
-    }
-
-    int total_pos = 0;
-    while ((row = mysql_fetch_row(result))) {
-        paper_t *paper = env_get_paper_by_id(env, atoi(row[0]));
-        if (paper != NULL) {
-            paper->pos_valid = true;
-            paper->x = atof(row[1]);
-            paper->y = atof(row[2]);
-            total_pos += 1;
-        }
-    }
-    mysql_free_result(result);
-
-    printf("read %d total positions\n", total_pos);
-
-    return true;
-}
-*/
 
 static bool env_load_refs(env_t *env) {
     MYSQL_RES *result;
@@ -485,31 +453,7 @@ bool mysql_load_papers(const char *where_clause, int *num_papers_out, paper_t **
 /* stuff to save papers positions to DB                         */
 /****************************************************************/
 
-// save paper positions to mappos table
-static bool env_save_pos(env_t *env) {
-    vstr_t *vstr = env->vstr[VSTR_0];
-    for (int i = 0; i < env->num_papers; i++) {
-        paper_t *paper = &env->papers[i];
-
-        if (paper->pos_valid) {
-            vstr_reset(vstr);
-            vstr_printf(vstr, "REPLACE INTO mappos (id,x,y) VALUES (%d,%.3f,%.3f)", paper->id, paper->x, paper->y);
-            if (vstr_had_error(vstr)) {
-                return false;
-            }
-
-            if (!env_query_no_result(env, vstr_str(vstr), vstr_len(vstr))) {
-                return false;
-            }
-        }
-    }
-
-    printf("saved %d positions to mappos\n", env->num_papers);
-
-    return true;
-}
-
-bool mysql_save_paper_positions(int num_papers, paper_t *papers) {
+bool mysql_save_paper_positions(layout_t *layout) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
@@ -517,12 +461,76 @@ bool mysql_save_paper_positions(int num_papers, paper_t *papers) {
         return false;
     }
 
-    // set papers
-    env.num_papers = num_papers;
-    env.papers = papers;
-
     // save positions
-    env_save_pos(&env);
+    vstr_t *vstr = env.vstr[VSTR_0];
+    assert(layout->child_layout == NULL);
+    int total_pos = 0;
+    for (int i = 0; i < layout->num_nodes; i++) {
+        layout_node_t *n = &layout->nodes[i];
+
+        if (n->paper->pos_valid) {
+            vstr_reset(vstr);
+            int x, y, r;
+            layout_node_export_quantities(n, &x, &y, &r);
+            vstr_printf(vstr, "REPLACE INTO map_data (id,x,y,r) VALUES (%d,%d,%d,%d)", n->paper->id, x, y, r);
+            if (vstr_had_error(vstr)) {
+                env_finish(&env);
+                return false;
+            }
+            if (!env_query_no_result(&env, vstr_str(vstr), vstr_len(vstr))) {
+                env_finish(&env);
+                return false;
+            }
+            total_pos += 1;
+        }
+    }
+
+    printf("saved %d positions to map_data\n", total_pos);
+
+    // pull down the MySQL environment
+    env_finish(&env);
+
+    return true;
+}
+
+bool mysql_load_paper_positions(layout_t *layout) {
+    // set up environment
+    env_t env;
+    if (!env_set_up(&env)) {
+        env_finish(&env);
+        return false;
+    }
+
+    printf("reading map_data\n");
+
+    // query the positions from the map_data table
+    vstr_t *vstr = env.vstr[VSTR_0];
+    vstr_reset(vstr);
+    vstr_printf(vstr, "SELECT id,x,y FROM map_data");
+    if (vstr_had_error(vstr)) {
+        env_finish(&env);
+        return false;
+    }
+    MYSQL_RES *result;
+    if (!env_query_many_rows(&env, vstr_str(vstr), 3, &result)) {
+        env_finish(&env);
+        return false;
+    }
+
+    // load in all positions
+    int total_pos = 0;
+    MYSQL_ROW row;
+    while ((row = mysql_fetch_row(result))) {
+        layout_node_t *n = layout_get_node_by_id(layout, atoi(row[0]));
+        if (n != NULL) {
+            layout_node_import_quantities(n, atoi(row[1]), atoi(row[2]));
+            n->paper->pos_valid = true;
+            total_pos += 1;
+        }
+    }
+    mysql_free_result(result);
+
+    printf("read %d total positions\n", total_pos);
 
     // pull down the MySQL environment
     env_finish(&env);

@@ -6,6 +6,7 @@
 #include "xiwilib.h"
 #include "common.h"
 #include "map.h"
+#include "layout.h"
 #include "mysql.h"
 #include "init.h"
 
@@ -14,9 +15,10 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    -rsq <num>      r-star squared distance\n");
-    printf("    -link <num>     link strength\n");
-    printf("    -layout <file>  JSON file with layout to load and use\n");
+    printf("    -rsq <num>          r-star squared distance\n");
+    printf("    -link <num>         link strength\n");
+    printf("    -layout-db          load layout from DB\n");
+    printf("    -layout-json <file> load layout from given JSON file\n");
     printf("\n");
     return 1;
 }
@@ -25,7 +27,8 @@ int init(int argc, char *argv[], int num_coarsenings, map_env_t **map_env_out, c
     // parse command line arguments
     double arg_anti_grav_rsq = -1;
     double arg_link_strength = -1;
-    const char *arg_layout = NULL;
+    bool arg_layout_db = false;
+    const char *arg_layout_json = NULL;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "-rsq")) {
             a += 1;
@@ -39,12 +42,14 @@ int init(int argc, char *argv[], int num_coarsenings, map_env_t **map_env_out, c
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
-        } else if (streq(argv[a], "-layout")) {
+        } else if (streq(argv[a], "-layout-db")) {
+            arg_layout_db = true;
+        } else if (streq(argv[a], "-layout-json")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
             }
-            arg_layout = argv[a];
+            arg_layout_json = argv[a];
         } else {
             return usage(argv[0]);
         }
@@ -105,10 +110,12 @@ int init(int argc, char *argv[], int num_coarsenings, map_env_t **map_env_out, c
         map_env_select_date_range(map_env, id_range_start, id_range_end);
     }
 
-    if (arg_layout == NULL) {
-        map_env_select_new_layout(map_env, num_coarsenings);
+    if (arg_layout_db) {
+        map_env_select_old_layout_db(map_env);
+    } else if (arg_layout_json != NULL) {
+        map_env_select_old_layout_json(map_env, arg_layout_json);
     } else {
-        map_env_select_old_layout(map_env, arg_layout);
+        map_env_select_new_layout(map_env, num_coarsenings);
     }
 
     *map_env_out = map_env;
