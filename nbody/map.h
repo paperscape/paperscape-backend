@@ -32,19 +32,19 @@ int map_env_number_of_coarser_layouts(map_env_t *map_env);
 int map_env_number_of_finer_layouts(map_env_t *map_env);
 void map_env_coarsen_layout(map_env_t *map_env);
 void map_env_refine_layout(map_env_t *map_env);
-
-void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max);
-void map_env_inc_num_papers(map_env_t *map_env, int amt);
-void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
-void map_env_select_new_layout(map_env_t *map_env, int num_coarsenings);
-void map_env_select_old_layout_db(map_env_t *map_env);
-void map_env_select_old_layout_json(map_env_t *map_env, const char *json_filename);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
 void map_env_flip_x(map_env_t *map_env);
 
-bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size);
+bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size);
 
-void map_env_export_paper_quantities(double x_in, double y_in, double r_in, int *x_out, int *y_out, int *r_out);
-void map_env_import_paper_quantities(int x_in, int y_in, int r_in, double *x_out, double *y_out, double *r_out);
-void map_env_write_layout_to_json(map_env_t *map_env, const char *file);
+void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max);
+void map_env_inc_num_papers(map_env_t *map_env, int amt);
+void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
+
+void map_env_layout_new(map_env_t *map_env, int num_coarsenings);
+void map_env_layout_XX(map_env_t *map_env);
+void map_env_layout_load_from_db(map_env_t *map_env);
+void map_env_layout_load_from_json(map_env_t *map_env, const char *json_filename);
+void map_env_layout_save_to_db(map_env_t *map_env);
+void map_env_layout_save_to_json(map_env_t *map_env, const char *file);

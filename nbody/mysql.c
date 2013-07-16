@@ -57,7 +57,7 @@ static bool env_set_up(env_t* env) {
     return true;
 }
 
-static void env_finish(env_t* env) {
+static void env_finish(env_t* env, bool free_keyword_set) {
     for (int i = 0; i < VSTR_MAX; i++) {
         vstr_free(env->vstr[i]);
     }
@@ -66,7 +66,10 @@ static void env_finish(env_t* env) {
         mysql_close(&env->mysql);
     }
 
-    keyword_set_free(env->keyword_set);
+    if (free_keyword_set) {
+        keyword_set_free(env->keyword_set);
+        env->keyword_set = NULL;
+    }
 }
 
 static bool env_query_one_row(env_t *env, const char *q, int expected_num_fields, MYSQL_RES **result) {
@@ -128,7 +131,7 @@ static int paper_cmp_id(const void *in1, const void *in2) {
     return p1->id - p2->id;
 }
 
-static bool env_load_ids(env_t *env, const char *where_clause) {
+static bool env_load_ids(env_t *env, const char *where_clause, bool load_authors_and_titles) {
     MYSQL_RES *result;
     MYSQL_ROW row;
 
@@ -149,7 +152,14 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
     // get the ids
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,allcats,authors,title FROM meta_data");
+    int num_fields;
+    if (load_authors_and_titles) {
+        vstr_printf(vstr, "SELECT id,allcats,authors,title FROM meta_data");
+        num_fields = 4;
+    } else {
+        vstr_printf(vstr, "SELECT id,allcats FROM meta_data");
+        num_fields = 2;
+    }
     if (where_clause != NULL && where_clause[0] != 0) {
         vstr_printf(vstr, " WHERE (%s)", where_clause);
     }
@@ -157,7 +167,7 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         return false;
     }
 
-    if (!env_query_many_rows(env, vstr_str(vstr), 4, &result)) {
+    if (!env_query_many_rows(env, vstr_str(vstr), num_fields, &result)) {
         return false;
     }
     int i = 0;
@@ -169,7 +179,7 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
         }
         int id = atoi(row[0]);
         paper_t *paper = &env->papers[i];
-        paper->id = id;
+        paper_init(paper, id);
 
         // parse categories
         int cat_num = 0;
@@ -193,18 +203,12 @@ static bool env_load_ids(env_t *env, const char *where_clause) {
             paper->allcats[cat_num] = CAT_UNKNOWN;
         }
 
-        paper->num_refs = 0;
-        paper->num_cites = 0;
-        paper->refs = NULL;
-        paper->refs_ref_freq = NULL;
-        paper->cites = NULL;
-        paper->authors = strdup(row[2]);
-        paper->title = strdup(row[3]);
-        paper->pos_valid = false;
-        paper->num_keywords = 0;
-        paper->keywords = NULL;
-        paper->x = 0;
-        paper->y = 0;
+        // load authors and title if wanted
+        if (load_authors_and_titles) {
+            paper->authors = strdup(row[2]);
+            paper->title = strdup(row[3]);
+        }
+
         i += 1;
     }
     env->num_papers = i;
@@ -415,19 +419,18 @@ static bool env_load_keywords(env_t *env) {
     return true;
 }
 
-bool mysql_load_papers(const char *where_clause, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
+bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
-        env_finish(&env);
+        env_finish(&env, true);
         return false;
     }
 
     // load the DB
-    if (!env_load_ids(&env, where_clause)) {
+    if (!env_load_ids(&env, where_clause, load_authors_and_titles)) {
         return false;
     }
-    //env_load_pos(&env);
     if (!env_load_refs(&env)) {
         return false;
     }
@@ -439,7 +442,7 @@ bool mysql_load_papers(const char *where_clause, int *num_papers_out, paper_t **
     }
 
     // pull down the MySQL environment (doesn't free the papers or keywords)
-    env_finish(&env);
+    env_finish(&env, false);
 
     // return the papers and keywords
     *num_papers_out = env.num_papers;
@@ -457,7 +460,7 @@ bool mysql_save_paper_positions(layout_t *layout) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
-        env_finish(&env);
+        env_finish(&env, true);
         return false;
     }
 
@@ -474,11 +477,11 @@ bool mysql_save_paper_positions(layout_t *layout) {
             layout_node_export_quantities(n, &x, &y, &r);
             vstr_printf(vstr, "REPLACE INTO map_data (id,x,y,r) VALUES (%d,%d,%d,%d)", n->paper->id, x, y, r);
             if (vstr_had_error(vstr)) {
-                env_finish(&env);
+                env_finish(&env, true);
                 return false;
             }
             if (!env_query_no_result(&env, vstr_str(vstr), vstr_len(vstr))) {
-                env_finish(&env);
+                env_finish(&env, true);
                 return false;
             }
             total_pos += 1;
@@ -488,7 +491,7 @@ bool mysql_save_paper_positions(layout_t *layout) {
     printf("saved %d positions to map_data\n", total_pos);
 
     // pull down the MySQL environment
-    env_finish(&env);
+    env_finish(&env, true);
 
     return true;
 }
@@ -497,7 +500,7 @@ bool mysql_load_paper_positions(layout_t *layout) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
-        env_finish(&env);
+        env_finish(&env, true);
         return false;
     }
 
@@ -508,12 +511,12 @@ bool mysql_load_paper_positions(layout_t *layout) {
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT id,x,y FROM map_data");
     if (vstr_had_error(vstr)) {
-        env_finish(&env);
+        env_finish(&env, true);
         return false;
     }
     MYSQL_RES *result;
     if (!env_query_many_rows(&env, vstr_str(vstr), 3, &result)) {
-        env_finish(&env);
+        env_finish(&env, true);
         return false;
     }
 
@@ -533,7 +536,7 @@ bool mysql_load_paper_positions(layout_t *layout) {
     printf("read %d total positions\n", total_pos);
 
     // pull down the MySQL environment
-    env_finish(&env);
+    env_finish(&env, true);
 
     return true;
 }

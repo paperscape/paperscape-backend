@@ -1,30 +1,20 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <sys/time.h>
 
 #include "xiwilib.h"
 #include "common.h"
+#include "layout.h"
 #include "map.h"
 #include "mysql.h"
-#include "init.h"
 
-const char *included_papers_string = NULL;
-bool update_running = true;
-int boost_step_size = 0;
-bool mouse_held = false;
-bool mouse_dragged;
-bool auto_refine = true;
+static int boost_step_size = 0;
+static bool auto_refine = true;
 static int iterate_counter_full_refine = 0;
-bool lock_view_all = true;
-double mouse_last_x = 0, mouse_last_y = 0;
-paper_t *mouse_paper = NULL;
-
-/* obsolete
-int id_range_start = 2050000000;
-int id_range_end = 2060000000;
-*/
-
 static int iterate_counter = 0;
+
 static bool map_env_update(map_env_t *map_env) {
     bool converged = false;
     struct timeval tp;
@@ -38,7 +28,7 @@ static bool map_env_update(map_env_t *map_env) {
         }
         */
         printf("nbody iteration %d\n", iterate_counter);
-        if (map_env_iterate(map_env, mouse_paper, boost_step_size > 0)) {
+        if (map_env_iterate(map_env, NULL, boost_step_size > 0)) {
             converged = true;
             break;
         }
@@ -70,29 +60,71 @@ static bool map_env_update(map_env_t *map_env) {
     return true; // yes, we want to be called again
 }
 
-void run_headless(map_env_t *map_env, const char *papers_string) {
-    included_papers_string = papers_string;
+static int usage(const char *progname) {
+    printf("\n");
+    printf("usage: %s [options]\n", progname);
+    printf("\n");
+    printf("options:\n");
+    printf("    -write-db           write positions back to DB\n");
+    printf("\n");
+    return 1;
+}
+
+int main(int argc, char *argv[]) {
+
+    // parse command line arguments
+    bool arg_write_db = false;
+    for (int a = 1; a < argc; a++) {
+        if (streq(argv[a], "-write-db")) {
+            arg_write_db = true;
+        } else {
+            return usage(argv[0]);
+        }
+    }
+
+    //const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
+    const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
+
+    // load the papers from the DB
+    int num_papers;
+    paper_t *papers;
+    keyword_set_t *keyword_set;
+    if (!mysql_load_papers(where_clause, false, &num_papers, &papers, &keyword_set)) {
+        return 1;
+    }
+
+    // create the map object
+    map_env_t *map_env = map_env_new();
+
+    // set the papers
+    map_env_set_papers(map_env, num_papers, papers, keyword_set);
+
+    // select the date range
+    {
+        int id_min;
+        int id_max;
+        map_env_get_max_id_range(map_env, &id_min, &id_max);
+        map_env_select_date_range(map_env, id_min, id_max);
+    }
+
+    // load existing positions from DB
+    map_env_layout_load_from_db(map_env);
+
+    // assign positions to new papers
+    map_env_layout_XX(map_env);
 
     // print some help text :)
     printf("running headless, only ctrl-C can kill me now!\n");
 
     // run the nbody algo until it's done
     while (map_env_update(map_env)) {
-    }
-}
-
-int main(int argc, char *argv[]) {
-    map_env_t *map_env;
-    const char *where_clause;
-
-    int ret = init(argc, argv, 0, &map_env, &where_clause);
-    if (ret) {
-        return ret;
+        break;
     }
 
-    run_headless(map_env, where_clause);
-
-    //mysql_save_paper_positions(num_papers, papers);
+    // write the new positions to the DB
+    if (arg_write_db) {
+        map_env_layout_save_to_db(map_env);
+    }
 
     return 0;
 }

@@ -54,7 +54,7 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
         node->parent = NULL;
         node->paper = paper;
         node->mass = paper->mass;
-        node->radius = paper->r;
+        node->radius = paper->radius;
         node->x = 0;
         node->y = 0;
         node->fx = 0;
@@ -379,6 +379,19 @@ layout_node_t *layout_get_node_by_id(layout_t *layout, int id) {
             hi = mid - 1;
         } else {
             lo = mid + 1;
+        }
+    }
+    return NULL;
+}
+
+layout_node_t *layout_get_node_at(layout_t *layout, double x, double y) {
+    for (int i = 0; i < layout->num_nodes; i++) {
+        layout_node_t *n = &layout->nodes[i];
+        double dx = n->x - x;
+        double dy = n->y - y;
+        double r = dx*dx + dy*dy;
+        if (r < n->radius*n->radius) {
+            return n;
         }
     }
     return NULL;

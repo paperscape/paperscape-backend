@@ -12,7 +12,6 @@ SRC_COMMON = \
 	force.c \
 	map.c \
 	mysql.c \
-	init.c \
 
 SRC_HEADLESS = \
 	headless.c \
@@ -20,7 +19,6 @@ SRC_HEADLESS = \
 SRC_GUI = \
 	mapdraw.c \
 	cairohelper.c \
-	tile.c \
 	gui.c \
 
 OBJ_COMMON = $(SRC_COMMON:.c=.o)

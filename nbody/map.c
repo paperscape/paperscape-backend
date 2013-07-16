@@ -70,18 +70,8 @@ int map_env_get_num_papers(map_env_t *map_env) {
     return map_env->num_papers;
 }
 
-paper_t *map_env_get_paper_at(map_env_t *map_env, double x, double y) {
-    map_env_screen_to_world(map_env, &x, &y);
-    for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
-        double dx = p->x - x;
-        double dy = p->y - y;
-        double r = dx*dx + dy*dy;
-        if (r < p->r*p->r) {
-            return p;
-        }
-    }
-    return NULL;
+layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double x, double y) {
+    return layout_get_node_at(map_env->layout, x, y);
 }
 
 void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *kws) {
@@ -91,18 +81,12 @@ void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, key
     map_env->keyword_set = kws;
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        p->num_fake_links = 0;
-        p->fake_links = NULL;
 #ifdef ENABLE_TRED
         p->refs_tred_computed = m_new(int, p->num_refs);
 #endif
         p->num_included_cites = p->num_cites;
-        p->mass = 0.05 + 0.2 * p->num_included_cites;
-        p->r = sqrt(p->mass / M_PI);
-        if (!p->pos_valid) {
-            p->x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
-            p->y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
-        }
+        p->mass = 0.2 + 0.2 * p->num_included_cites;
+        p->radius = sqrt(p->mass / M_PI);
     }
 }
 
@@ -112,14 +96,12 @@ void map_env_random_papers(map_env_t *map_env, int n) {
     map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     for (int i = 0; i < n; i++) {
         paper_t *p = &map_env->all_papers[i];
+        paper_init(p, i + 1);
         p->allcats[0] = random() % CAT_NUMBER_OF;
-        p->r = 0.1 + 0.05 / (0.01 + 1.0 * random() / RAND_MAX);
-        if (p->r > 4) { p->r = 4; }
-        p->mass = M_PI * p->r * p->r;
-        p->x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
-        p->y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
-        p->num_refs = 0;
+        p->radius = 0.1 + 0.05 / (0.01 + 1.0 * random() / RAND_MAX);
+        if (p->radius > 4) { p->radius = 4; }
+        p->mass = M_PI * p->radius * p->radius;
     }
 }
 
@@ -130,19 +112,16 @@ void map_env_papers_test1(map_env_t *map_env, int n) {
     map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     for (int i = 0; i < n; i++) {
         paper_t *p = &map_env->all_papers[i];
+        paper_init(p, i + 1);
         p->allcats[0] = 1;
-        if (i == 0) {
-            p->mass = 0.05 + 0.1 * (n - 1);
-        } else {
-            p->mass = 0.05;
-        }
-        p->r = sqrt(p->mass / M_PI);
-        p->x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
-        p->y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
         if (i == 0) {
-            p->num_refs = 0;
+            p->mass = 0.2 + 0.1 * (n - 1);
         } else {
+            p->mass = 0.2;
+        }
+        p->radius = sqrt(p->mass / M_PI);
+        if (i > 0) {
             p->num_refs = 1;
             p->refs = m_new(paper_t*, 1);
             p->refs[0] = &map_env->all_papers[0];
@@ -158,18 +137,14 @@ void map_env_papers_test2(map_env_t *map_env, int n) {
     for (int i = 0; i < n; i++) {
         paper_t *p = &map_env->all_papers[i];
         p->allcats[0] = 1;
-        if (i < 2) {
-            p->mass = 0.05 + 0.1 * (n - 2);
-        } else {
-            p->mass = 0.05;
-        }
-        p->r = sqrt(p->mass / M_PI);
-        p->x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
-        p->y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
         p->index = i;
         if (i < 2) {
-            p->num_refs = 0;
+            p->mass = 0.2 + 0.1 * (n - 2);
         } else {
+            p->mass = 0.2;
+        }
+        p->radius = sqrt(p->mass / M_PI);
+        if (i >= 2) {
             p->num_refs = 2;
             p->refs = m_new(paper_t*, 2);
             p->refs[0] = &map_env->all_papers[0];
@@ -307,6 +282,33 @@ void map_env_refine_layout(map_env_t *map_env) {
                 node->y = parent->y;
             }
         }
+    }
+}
+
+void map_env_jolt(map_env_t *map_env, double amt) {
+    for (int i = 0; i < map_env->layout->num_nodes; i++) {
+        layout_node_t *n = &map_env->layout->nodes[i];
+        n->x += amt * (-0.5 + 1.0 * random() / RAND_MAX);
+        n->y += amt * (-0.5 + 1.0 * random() / RAND_MAX);
+    }
+}
+
+void map_env_rotate_all(map_env_t *map_env, double angle) {
+    double s_angle = sin(angle);
+    double c_angle = cos(angle);
+    for (int i = 0; i < map_env->layout->num_nodes; i++) {
+        layout_node_t *n = &map_env->layout->nodes[i];
+        double x = n->x;
+        double y = n->y;
+        n->x = c_angle * x - s_angle * y;
+        n->y = s_angle * x + c_angle * y;
+    }
+}
+
+void map_env_flip_x(map_env_t *map_env) {
+    for (int i = 0; i < map_env->layout->num_nodes; i++) {
+        layout_node_t *n = &map_env->layout->nodes[i];
+        n->x = -n->x;
     }
 }
 
@@ -511,7 +513,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     //attract_disconnected_to_centre_of_category(map_env);
 }
 
-bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_size) {
+bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size) {
     map_env_compute_forces(map_env);
 
     // boost the step size if asked
@@ -538,11 +540,9 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
     double max_fmag = 0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
         layout_node_t *n = &map_env->layout->nodes[i];
-        /*
-        if (p == hold_still) {
+        if (n == hold_still) {
             continue;
         }
-        */
 
         n->fx /= n->mass;
         n->fy /= n->mass;
@@ -575,11 +575,9 @@ bool map_env_iterate(map_env_t *map_env, paper_t *hold_still, bool boost_step_si
     y_sum /= total_mass;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
         layout_node_t *n = &map_env->layout->nodes[i];
-        /*
         if (n == hold_still) {
             continue;
         }
-        */
         n->x -= x_sum;
         n->y -= y_sum;
     }
@@ -696,18 +694,18 @@ static void map_env_compute_best_start_position_for_paper(map_env_t* map_env, pa
     for (int j = 0; j < p->num_refs; j++) {
         paper_t *p2 = p->refs[j];
         if (p2->included) {
-            x += p2->x;
-            y += p2->y;
+            x += p2->layout_node->x;
+            y += p2->layout_node->y;
             n += 1;
         }
     }
     if (n == 0) {
-        p->x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
-        p->y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->layout_node->x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
+        p->layout_node->y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
     } else {
         // add some random element to average, mainly so we don't put it at the same pos for n=1
-        p->x = x / n + (-0.5 + 1.0 * random() / RAND_MAX);
-        p->y = y / n + (-0.5 + 1.0 * random() / RAND_MAX);
+        p->layout_node->x = x / n + (-0.5 + 1.0 * random() / RAND_MAX);
+        p->layout_node->y = y / n + (-0.5 + 1.0 * random() / RAND_MAX);
     }
 }
 
@@ -782,7 +780,13 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
         // found an appropriate paper, so make a fake link
         if (want_kw->paper != NULL) {
             paper->fake_links[paper->num_fake_links++] = want_kw->paper;
-            //printf("connected %s to %s\n", paper->title, p_found->title);
+            /*
+            if (paper->title == NULL || p_found->title == NULL) {
+                printf("connected %d to %d\n", paper->id, p_found->id);
+            } else {
+                printf("connected %s to %s\n", paper->title, p_found->title);
+            }
+            */
         }
     }
 
@@ -856,9 +860,9 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     // recompute mass and radius based on num_included_cites
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        //p->mass = 0.05 + 0.2 * p->num_included_cites;
         p->mass = 0.2 + 0.2 * p->num_included_cites;
-        p->r = sqrt(p->mass / M_PI);
+        p->radius = sqrt(p->mass / M_PI);
+        /* obsolete, since layout_X should set positions
         if (p->included) {
             if (!p->pos_valid) {
                 map_env_compute_best_start_position_for_paper(map_env, p);
@@ -867,6 +871,7 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
         } else {
             p->pos_valid = false;
         }
+        */
     }
 
     // work out the colour of the graph with the most number of connected papers
@@ -952,7 +957,7 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     printf("after making fake links, have %d papers not connected\n", total_not_connected);
 }
 
-void map_env_select_new_layout(map_env_t *map_env, int num_coarsenings) {
+void map_env_layout_new(map_env_t *map_env, int num_coarsenings) {
     // make the layouts, each one coarser than the previous
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
     for (int i = 0; i < num_coarsenings && l->num_links > 1; i++) {
@@ -962,8 +967,8 @@ void map_env_select_new_layout(map_env_t *map_env, int num_coarsenings) {
 
     // initialise the coarsest layout with random positions for the nodes
     for (int i = 0; i < l->num_nodes; i++) {
-        l->nodes[i].x = 100.0 * random() / RAND_MAX;
-        l->nodes[i].y = 100.0 * random() / RAND_MAX;
+        l->nodes[i].x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
+        l->nodes[i].y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
     }
 
     // print info about the layouts
@@ -975,7 +980,23 @@ void map_env_select_new_layout(map_env_t *map_env, int num_coarsenings) {
     map_env->step_size = 1;
 }
 
-void map_env_select_old_layout_db(map_env_t *map_env) {
+void map_env_layout_XX(map_env_t *map_env) {
+    layout_t *l = map_env->layout;
+    int num = 0;
+    int id_low = 0;
+    for (int i = 0; i < l->num_nodes; i++) {
+        layout_node_t *n = &l->nodes[i];
+        if (!n->paper->pos_valid) {
+            if (id_low == 0 || n->paper->id < id_low) {
+                id_low = n->paper->id;
+            }
+            num += 1;
+        }
+    }
+    printf("have %d papers that need positions, min id %d\n", num, id_low);
+}
+
+void map_env_layout_load_from_db(map_env_t *map_env) {
     // make a single layout
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
     map_env->layout = l;
@@ -999,7 +1020,7 @@ void map_env_select_old_layout_db(map_env_t *map_env) {
     map_env->step_size = 0.1;
 }
 
-void map_env_select_old_layout_json(map_env_t *map_env, const char *json_filename) {
+void map_env_layout_load_from_json(map_env_t *map_env, const char *json_filename) {
     // make a single layout
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
     map_env->layout = l;
@@ -1039,6 +1060,7 @@ void map_env_select_old_layout_json(map_env_t *map_env, const char *json_filenam
         layout_node_t *n = layout_get_node_by_id(l, id);
         if (n != NULL) {
             layout_node_import_quantities(n, x, y);
+            n->paper->pos_valid = true;
         }
         entry_num += 1;
         if ((c = fgetc(fp)) != ',') {
@@ -1059,33 +1081,6 @@ void map_env_select_old_layout_json(map_env_t *map_env, const char *json_filenam
     map_env->step_size = 0.1;
 }
 
-void map_env_jolt(map_env_t *map_env, double amt) {
-    for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
-        n->x += amt * (-0.5 + 1.0 * random() / RAND_MAX);
-        n->y += amt * (-0.5 + 1.0 * random() / RAND_MAX);
-    }
-}
-
-void map_env_rotate_all(map_env_t *map_env, double angle) {
-    double s_angle = sin(angle);
-    double c_angle = cos(angle);
-    for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
-        double x = n->x;
-        double y = n->y;
-        n->x = c_angle * x - s_angle * y;
-        n->y = s_angle * x + c_angle * y;
-    }
-}
-
-void map_env_flip_x(map_env_t *map_env) {
-    for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
-        n->x = -n->x;
-    }
-}
-
 /* obsolete
 void vstr_add_json_str(vstr_t *vstr, const char *s) {
     vstr_add_byte(vstr, '"');
@@ -1101,7 +1096,18 @@ void vstr_add_json_str(vstr_t *vstr, const char *s) {
 }
 */
 
-void map_env_write_layout_to_json(map_env_t *map_env, const char *file) {
+void map_env_layout_save_to_db(map_env_t *map_env) {
+    // get the finest layout, corresponding to one layout_node per paper
+    layout_t *l = map_env->layout;
+    while (l->child_layout != NULL) {
+        l = l->child_layout;
+    }
+
+    // save the layout using MySQL
+    mysql_save_paper_positions(l);
+}
+
+void map_env_layout_save_to_json(map_env_t *map_env, const char *file) {
     // write the papers as JSON to a vstr
     vstr_t *vstr = vstr_new();
     vstr_printf(vstr, "[");

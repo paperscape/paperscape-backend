@@ -6,6 +6,13 @@
 #include "xiwilib.h"
 #include "common.h"
 
+void paper_init(paper_t *p, unsigned int id) {
+    // all entries have initial state which is 0x00
+    memset(p, 0, sizeof(paper_t));
+    // set the paper id
+    p->id = id;
+}
+
 // the keyword pool is a linked list of hash tables, each one bigger than the previous
 typedef struct _keyword_pool_t {
     int size;

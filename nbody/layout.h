@@ -40,5 +40,6 @@ layout_t *build_reduced_layout_from_layout(layout_t *layout);
 void layout_propagate_positions_to_children(layout_t *layout);
 void layout_print(layout_t *layout);
 layout_node_t *layout_get_node_by_id(layout_t *layout, int id);
+layout_node_t *layout_get_node_at(layout_t *layout, double x, double y);
 void layout_node_export_quantities(layout_node_t *l, int *x_out, int *y_out, int *r_out);
 void layout_node_import_quantities(layout_node_t *l, int x_in, int y_in);

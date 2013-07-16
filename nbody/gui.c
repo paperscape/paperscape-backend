@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <sys/time.h>
 #include <gtk/gtk.h>
@@ -6,11 +8,11 @@
 
 #include "xiwilib.h"
 #include "common.h"
+#include "layout.h"
 #include "map.h"
+#include "mysql.h"
 #include "mapdraw.h"
-#include "init.h"
 #include "cairohelper.h"
-#include "tile.h"
 
 vstr_t *vstr;
 GtkWidget *window;
@@ -27,7 +29,7 @@ bool auto_refine = true;
 static int iterate_counter_full_refine = 0;
 bool lock_view_all = true;
 double mouse_last_x = 0, mouse_last_y = 0;
-paper_t *mouse_paper = NULL;
+layout_node_t *mouse_layout_node = NULL;
 
 /* obsolete
 int id_range_start = 2050000000;
@@ -48,7 +50,7 @@ static gboolean map_env_update(map_env_t *map_env) {
         }
         */
         printf("nbody iteration %d\n", iterate_counter);
-        if (map_env_iterate(map_env, mouse_paper, boost_step_size > 0)) {
+        if (map_env_iterate(map_env, mouse_layout_node, boost_step_size > 0)) {
             converged = true;
             break;
         }
@@ -312,7 +314,7 @@ static gboolean button_press_event_callback(GtkWidget *widget, GdkEventButton *e
         mouse_dragged = FALSE;
         mouse_last_x = event->x;
         mouse_last_y = event->y;
-        mouse_paper = map_env_get_paper_at(map_env, event->x, event->y);
+        mouse_layout_node = map_env_get_layout_node_at(map_env, event->x, event->y);
     }
 
     return TRUE; // we handled the event, stop processing
@@ -322,14 +324,18 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
     if (event->button == GDK_BUTTON_PRIMARY) {
         mouse_held = FALSE;
         if (!mouse_dragged) {
-            if (mouse_paper != NULL) {
-                paper_t *p = mouse_paper;
+            if (mouse_layout_node != NULL && map_env_number_of_finer_layouts(map_env) == 0) {
+                paper_t *p = mouse_layout_node->paper;
                 vstr_reset(vstr);
-                vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites) %s -- %s", p->index, p->id, p->num_refs, p->num_cites, p->title, p->authors);
+                if (p->authors == NULL || p->title == NULL) {
+                    vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites)", p->index, p->id, p->num_refs, p->num_cites);
+                } else {
+                    vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites) %s -- %s", p->index, p->id, p->num_refs, p->num_cites, p->title, p->authors);
+                }
                 gtk_statusbar_push(GTK_STATUSBAR(statusbar), statusbar_context_id, vstr_str(vstr));
             }
         }
-        mouse_paper = NULL;
+        mouse_layout_node = NULL;
     }
 
     return TRUE; // we handled the event, stop processing
@@ -358,7 +364,7 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
                 mouse_dragged = TRUE;
             }
         } else {
-            if (mouse_paper == NULL) {
+            if (mouse_layout_node == NULL) {
                 // mouse dragged on background
                 double dx = event->x - mouse_last_x;
                 double dy = event->y - mouse_last_y;
@@ -368,8 +374,8 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
                 double x = event->x;
                 double y = event->y;
                 map_env_screen_to_world(map_env, &x, &y);
-                mouse_paper->x = x;
-                mouse_paper->y = y;
+                mouse_layout_node->x = x;
+                mouse_layout_node->y = y;
             }
             mouse_last_x = event->x;
             mouse_last_y = event->y;
@@ -492,6 +498,120 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
         "    left drag - move a paper around / pan the view\n"
         "       scroll - zoom in/out\n"
     );
+}
+
+static int usage(const char *progname) {
+    printf("\n");
+    printf("usage: %s [options]\n", progname);
+    printf("\n");
+    printf("options:\n");
+    printf("    -rsq <num>          r-star squared distance\n");
+    printf("    -link <num>         link strength\n");
+    printf("    -layout-db          load layout from DB\n");
+    printf("    -layout-json <file> load layout from given JSON file\n");
+    printf("\n");
+    return 1;
+}
+
+static int init(int argc, char *argv[], int num_coarsenings, map_env_t **map_env_out, const char **where_clause_out) {
+    // parse command line arguments
+    double arg_anti_grav_rsq = -1;
+    double arg_link_strength = -1;
+    bool arg_layout_db = false;
+    const char *arg_layout_json = NULL;
+    for (int a = 1; a < argc; a++) {
+        if (streq(argv[a], "-rsq")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_anti_grav_rsq = strtod(argv[a], NULL);
+        } else if (streq(argv[a], "-link")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_link_strength = strtod(argv[a], NULL);
+        } else if (streq(argv[a], "-layout-db")) {
+            arg_layout_db = true;
+        } else if (streq(argv[a], "-layout-json")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_layout_json = argv[a];
+        } else {
+            return usage(argv[0]);
+        }
+    }
+
+    //const char *where_clause = NULL;
+    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000";
+    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR arxiv IS NULL)";
+    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc') AND id >= 2115000000";
+    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='gr-qc') AND id >= 2110000000";
+    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='gr-qc' OR maincat='astro-ph') AND id >= 2120000000";
+    //const char *where_clause = "(maincat='hep-lat') AND id >= 1910000000";
+    //const char *where_clause = "(maincat='cond-mat' OR maincat='quant-ph') AND id >= 2110000000";
+    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='astro-ph' OR maincat='math-ph') AND id >= 2110000000";
+    //const char *where_clause = "(maincat='astro-ph' OR maincat='cond-mat' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='hep-ph' OR maincat='hep-th' OR maincat='math-ph' OR maincat='nlin' OR maincat='nucl-ex' OR maincat='nucl-th' OR maincat='physics' OR maincat='quant-ph') AND id >= 1900000000";
+    //const char *where_clause = "(maincat='cs') AND id >= 2090000000";
+    //const char *where_clause = "(maincat='math') AND id >= 1900000000";
+    const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
+
+    // load the papers from the DB
+    int num_papers;
+    paper_t *papers;
+    keyword_set_t *keyword_set;
+    if (!mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
+        return 1;
+    }
+
+    // create the map object
+    map_env_t *map_env = map_env_new();
+
+    // set parameters
+    if (arg_anti_grav_rsq > 0) {
+        map_env_set_anti_gravity(map_env, arg_anti_grav_rsq);
+    }
+    if (arg_link_strength > 0) {
+        map_env_set_link_strength(map_env, arg_link_strength);
+    }
+
+    // set the papers
+    map_env_set_papers(map_env, num_papers, papers, keyword_set);
+    //map_env_random_papers(map_env, 1000);
+    //map_env_papers_test2(map_env, 100);
+
+    // select the date range
+    {
+        int id_min;
+        int id_max;
+        map_env_get_max_id_range(map_env, &id_min, &id_max);
+        int id_range_start = id_min;
+        int id_range_end = id_min + 20000000; // plus 2 years
+
+        // for starting part way through
+        id_range_start = date_to_unique_id(2012, 3, 0);
+        id_range_end = id_range_start + 20000000; // plus 2 years
+        id_range_end = id_range_start +  3000000; // plus 0.5 year
+        id_range_start = id_min; id_range_end = id_max; // full range
+
+        map_env_select_date_range(map_env, id_range_start, id_range_end);
+    }
+
+    if (arg_layout_db) {
+        map_env_layout_load_from_db(map_env);
+    } else if (arg_layout_json != NULL) {
+        map_env_layout_load_from_json(map_env, arg_layout_json);
+    } else {
+        map_env_layout_new(map_env, num_coarsenings);
+    }
+
+    *map_env_out = map_env;
+    *where_clause_out = where_clause;
+
+    return 0;
 }
 
 int main(int argc, char *argv[]) {

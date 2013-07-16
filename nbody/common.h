@@ -10,10 +10,6 @@ typedef enum {
     CAT_NUMBER_OF,
 } category_t;
 
-const char *category_enum_to_str(category_t cat);
-category_t category_str_to_enum(const char *str);
-category_t category_strn_to_enum(const char *str, size_t n);
-
 #define PAPER_MAX_CATS (4)
 
 typedef struct _paper_t {
@@ -33,8 +29,8 @@ typedef struct _paper_t {
     struct _keyword_t **keywords;
 
     bool pos_valid;
-    float x;
-    float y;
+    //float x;
+    //float y;
 
     // stuff for colouring
     int colour;
@@ -57,7 +53,7 @@ typedef struct _paper_t {
     int num_included_cites;
     bool connected;
     float age; // between 0.0 and 1.0
-    float r;
+    float radius;
     float mass;
 
     struct _layout_node_t *layout_node;
@@ -69,6 +65,12 @@ typedef struct _keyword_t {
 } keyword_t;
 
 typedef struct _keyword_set_t keyword_set_t;
+
+void paper_init(paper_t *p, unsigned int id);
+
+const char *category_enum_to_str(category_t cat);
+category_t category_str_to_enum(const char *str);
+category_t category_strn_to_enum(const char *str, size_t n);
 
 keyword_set_t *keyword_set_new();
 void keyword_set_free(keyword_set_t *kws);
