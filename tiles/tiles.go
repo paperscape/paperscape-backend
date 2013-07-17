@@ -60,7 +60,7 @@ func main() {
     flag.Parse()
 
     if flag.NArg() != 2 {
-        log.Fatal("need to specify map.json file, and output prefix (without extension)")
+        log.Fatal("need to specify map.json file (db to load from DB), and output prefix (without extension)")
     }
 
     // connect to MySQL database
@@ -215,14 +215,90 @@ func QueryCategories2(db *mysql.Client, papers []*Paper) {
     db.FreeResult()
 }
 
-func MakePaper(db *mysql.Client, id uint, x int, y int, radius int, age float64) *Paper {
+func QueryPapers(db *mysql.Client) []*Paper {
+    // count number of papers
+    err := db.Query("SELECT count(id) FROM map_data")
+    if err != nil {
+        fmt.Println("MySQL query error;", err)
+        return nil
+    }
+
+    // get result set
+    result, err := db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        return nil
+    }
+    row := result.FetchRow()
+    if row == nil {
+        fmt.Println("MySQL didn't return a row")
+        return nil
+    }
+
+    // get number of papers
+    var numPapers int64
+    var ok bool
+    if numPapers, ok = row[0].(int64); !ok {
+        fmt.Println("MySQL didn't return a number")
+        return nil
+    }
+    db.FreeResult()
+
+    // allocate paper array
+    papers := make([]*Paper, numPapers)
+
+    // execute the query
+    err = db.Query("SELECT id,x,y,r FROM map_data")
+    if err != nil {
+        fmt.Println("MySQL query error;", err)
+        return nil
+    }
+
+    // get result set
+    result, err = db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        return nil
+    }
+
+    // get each row from the result
+    index := 0
+    for {
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        var ok bool
+        var id uint64
+        var x, y, r int64
+        if id, ok = row[0].(uint64); !ok { continue }
+        if x, ok = row[1].(int64); !ok { continue }
+        if y, ok = row[2].(int64); !ok { continue }
+        if r, ok = row[3].(int64); !ok { continue }
+
+        var age float64 = float64(index) / float64(numPapers)
+        papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age)
+        index += 1
+    }
+
+    db.FreeResult()
+
+    if int64(index) != numPapers {
+        fmt.Println("could not read all papers from map_data; wanted", numPapers, "got", index)
+        return nil
+    }
+
+    return papers
+}
+
+func MakePaper(id uint, x int, y int, radius int, age float64) *Paper {
     paper := new(Paper)
     paper.id = id
     paper.x = x
     paper.y = y
     paper.radius = radius
     paper.age = float32(age)
-    //paper.maincat = QueryCategories(db, id)
 
     return paper
 }
@@ -261,20 +337,33 @@ func (paper *Paper) setColour() {
 
     // older papers are more saturated in colour
     age := float64(paper.age)
-    saturation := 0.4 * (1 - age)
 
-    // foreground colour; newer papers tend towards red
-    age = age * age
-    r = saturation + (r * (1 - age) + age) * (1 - saturation)
-    g = saturation + (g * (1 - age)      ) * (1 - saturation)
-    b = saturation + (b * (1 - age)      ) * (1 - saturation)
-    //r = saturation + (r) * (1 - saturation)
-    //g = saturation + (g) * (1 - saturation)
-    //b = saturation + (b) * (1 - saturation)
+    // foreground colour; select one by making it's if condition true
+    if (false) {
+        // older papers are saturated, newer papers are coloured
+        saturation := 0.4 * (1 - age)
+        r = saturation + (r) * (1 - saturation)
+        g = saturation + (g) * (1 - saturation)
+        b = saturation + (b) * (1 - saturation)
+    } else if (false) {
+        // older papers are saturated, newer papers are coloured and tend towards a full red component
+        saturation := 0.4 * (1 - age)
+        age = age * age
+        r = saturation + (r * (1 - age) + age) * (1 - saturation)
+        g = saturation + (g * (1 - age)      ) * (1 - saturation)
+        b = saturation + (b * (1 - age)      ) * (1 - saturation)
+    } else if (false) {
+        // older papers are saturated and dark, newer papers are coloured and bright
+        saturation := 0.4 * (1 - age)
+        dim_factor := 0.5 * (1 + age * age)
+        r = dim_factor * (saturation + r * (1 - saturation))
+        g = dim_factor * (saturation + g * (1 - saturation))
+        b = dim_factor * (saturation + b * (1 - saturation))
+    }
 
     if *flagGrayScale {
         //lum := 0.21 * r + 0.72 * g + 0.07 * b 
-        lum := 0.289 * r + 0.587 * g + 0.114 * b 
+        lum := 0.289 * r + 0.587 * g + 0.114 * b
         r = lum
         g = lum
         b = lum
@@ -294,31 +383,49 @@ func (paper *Paper) setColour() {
 }
 
 func ReadGraph(db *mysql.Client, posFilename string) *Graph {
-    file, err := os.Open(flag.Arg(0))
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer file.Close()
-
-    dec := json.NewDecoder(file)
-    var papers [][]int
-    if err := dec.Decode(&papers); err != nil {
-        log.Fatal(err)
-    }
-
-    //papers = papers[0:10000]
-    fmt.Printf("parsed %v papers\n", len(papers))
-
     graph := new(Graph)
-    graph.papers = make([]*Paper, len(papers))
-    for index, paper := range papers {
-        var age float64 = float64(index) / float64(len(papers))
-        paperObj := MakePaper(db, uint(paper[0]), paper[1], paper[2], paper[3], age)
-        graph.papers[index] = paperObj
-        if paperObj.x - paperObj.radius < graph.MinX { graph.MinX = paperObj.x - paperObj.radius }
-        if paperObj.y - paperObj.radius < graph.MinY { graph.MinY = paperObj.y - paperObj.radius }
-        if paperObj.x + paperObj.radius > graph.MaxX { graph.MaxX = paperObj.x + paperObj.radius }
-        if paperObj.y + paperObj.radius > graph.MaxY { graph.MaxY = paperObj.y + paperObj.radius }
+
+    if (posFilename == "db") {
+        // load positions from the data base
+        graph.papers = QueryPapers(db)
+        if graph.papers == nil {
+            log.Fatal("could not read papers from db")
+        }
+        fmt.Printf("read %v papers from db\n", len(graph.papers))
+
+    } else {
+        // load positions from a json file
+
+        file, err := os.Open(flag.Arg(0))
+        if err != nil {
+            log.Fatal(err)
+        }
+        defer file.Close()
+
+        dec := json.NewDecoder(file)
+        var papers [][]int
+        if err := dec.Decode(&papers); err != nil {
+            log.Fatal(err)
+        }
+
+        //papers = papers[0:10000]
+        fmt.Printf("parsed %v papers\n", len(papers))
+
+        graph.papers = make([]*Paper, len(papers))
+        for index, paper := range papers {
+            var age float64 = float64(index) / float64(len(papers))
+            paperObj := MakePaper(uint(paper[0]), paper[1], paper[2], paper[3], age)
+            graph.papers[index] = paperObj
+        }
+    }
+
+    QueryCategories2(db, graph.papers)
+
+    for _, paper := range graph.papers {
+        if paper.x - paper.radius < graph.MinX { graph.MinX = paper.x - paper.radius }
+        if paper.y - paper.radius < graph.MinY { graph.MinY = paper.y - paper.radius }
+        if paper.x + paper.radius > graph.MaxX { graph.MaxX = paper.x + paper.radius }
+        if paper.y + paper.radius > graph.MaxY { graph.MaxY = paper.y + paper.radius }
     }
 
     // TRY Add safety buffers, if we use these must
@@ -331,16 +438,15 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
     graph.BoundsX = graph.MaxX - graph.MinX
     graph.BoundsY = graph.MaxY - graph.MinY
 
-    QueryCategories2(db, graph.papers)
-
     for _, paper := range graph.papers {
         paper.setColour()
     }
 
-    fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
+    fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(graph.papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
 
     // If we use quadtree may as well assign it here
     graph.qt = BuildQuadTree(graph.papers)
+
     return graph
 }
 
@@ -585,9 +691,18 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     surf.SetLineWidth(3)
     // Need to add largest radius to dimensions to ensure we don't miss any papers
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
-        surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
-        surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
-        surf.Fill()
+        if paper.id > 2133969854 {
+            // testing: new papers today are big and bright yellow (normal radius of new paper is 5) with red border
+            surf.Arc(float64(paper.x), float64(paper.y), 30, 0, 2 * math.Pi)
+            surf.SetSourceRGB(1, 1, 0)
+            surf.FillPreserve()
+            surf.SetSourceRGB(1, 0, 0)
+            surf.Stroke()
+        } else {
+            surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+            surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
+            surf.Fill()
+        }
         /* this bit draws a border around each paper; not needed when we have a black background
         surf.FillPreserve()
         surf.SetSourceRGB(0, 0, 0)
