@@ -352,10 +352,11 @@ func (paper *Paper) setColour() {
         r = saturation + (r * (1 - age) + age) * (1 - saturation)
         g = saturation + (g * (1 - age)      ) * (1 - saturation)
         b = saturation + (b * (1 - age)      ) * (1 - saturation)
-    } else if (false) {
+    } else if (true) {
         // older papers are saturated and dark, newer papers are coloured and bright
-        saturation := 0.4 * (1 - age)
-        dim_factor := 0.5 * (1 + age * age)
+        //saturation := 0.4 * (1 - age)
+        saturation := 0.0
+        dim_factor := 0.5 * (1 + age)
         r = dim_factor * (saturation + r * (1 - saturation))
         g = dim_factor * (saturation + g * (1 - saturation))
         b = dim_factor * (saturation + b * (1 - saturation))
@@ -686,21 +687,30 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     x, y := matrixInv.TransformPoint(float64(surfWidth)/2., float64(surfHeight)/2.)
     rx, ry := matrixInv.TransformDistance(float64(surfWidth)/2., float64(surfHeight)/2.)
 
-    // foreground
     surf.SetMatrix(*matrix)
     surf.SetLineWidth(3)
     // Need to add largest radius to dimensions to ensure we don't miss any papers
+
+    // background (just the new papers)
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
         if paper.id > 2133969854 {
-            // testing: new papers today are big and bright yellow (normal radius of new paper is 5) with red border
-            surf.Arc(float64(paper.x), float64(paper.y), 30, 0, 2 * math.Pi)
-            surf.SetSourceRGB(1, 1, 0)
+            // testing: new papers today have a red background
+            surf.Arc(float64(paper.x), float64(paper.y), 100, 0, 2 * math.Pi)
+            surf.SetSourceRGB(0.5, 0, 0)
+            surf.Fill()
+        }
+    })
+
+    // foreground
+    graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
+        surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+        surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
+        if paper.id > 2133969854 {
+            // testing: new papers today have a red border
             surf.FillPreserve()
             surf.SetSourceRGB(1, 0, 0)
             surf.Stroke()
         } else {
-            surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
-            surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
             surf.Fill()
         }
         /* this bit draws a border around each paper; not needed when we have a black background
