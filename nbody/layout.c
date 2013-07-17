@@ -51,6 +51,7 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
     for (int i = 0; i < num_papers; i++) {
         paper_t *paper = papers[i];
         layout_node_t *node = &nodes[i];
+        node->flags = LAYOUT_NODE_IS_FINEST;
         node->parent = NULL;
         node->paper = paper;
         node->mass = paper->mass;
@@ -156,9 +157,6 @@ static int node_weight_cmp(const void *nw1_in, const void *nw2_in) {
 }
 
 layout_t *build_reduced_layout_from_layout(layout_t *layout) {
-    int num_nodes2 = 0;
-    layout_node_t *nodes2 = m_new(layout_node_t, layout->num_nodes);
-
     // clear the parents, and count number of links
     int num_nodes_with_links = 0;
     for (int i = 0; i < layout->num_nodes; i++) {
@@ -187,6 +185,10 @@ layout_t *build_reduced_layout_from_layout(layout_t *layout) {
     }
     qsort(nodes_with_links, num_nodes_with_links, sizeof(node_weight_t), node_weight_cmp);
 
+    // allocate nodes for new layout
+    int num_nodes2 = 0;
+    layout_node_t *nodes2 = m_new(layout_node_t, layout->num_nodes);
+
     // where possible, combine 2 nodes into a new single node
     for (int i = 0; i < num_nodes_with_links; i++) {
         layout_node_t *node = nodes_with_links[i].node;
@@ -211,6 +213,7 @@ layout_t *build_reduced_layout_from_layout(layout_t *layout) {
 
         // combine node with link->node into node2
         layout_node_t *node2 = &nodes2[num_nodes2++];
+        node2->flags = 0;
         node2->parent = NULL;
         node2->child1 = node;
         node2->child2 = max_link->node;
@@ -237,6 +240,7 @@ layout_t *build_reduced_layout_from_layout(layout_t *layout) {
 
         // put node into node2
         layout_node_t *node2 = &nodes2[num_nodes2++];
+        node2->flags = 0;
         node2->parent = NULL;
         node2->child1 = node;
         node2->child2 = NULL;
@@ -395,6 +399,32 @@ layout_node_t *layout_get_node_at(layout_t *layout, double x, double y) {
         }
     }
     return NULL;
+}
+
+void layout_node_compute_best_start_position(layout_node_t *n) {
+    // compute initial position for a node as the average of all its links
+    double x = 0;
+    double y = 0;
+    double weight = 0;
+
+    // average x- and y-pos of links
+    for (int i = 0; i < n->num_links; i++) {
+        layout_link_t *l = &n->links[i];
+        if (l->node->flags & LAYOUT_NODE_POS_VALID) {
+            x += l->weight * l->node->x;
+            y += l->weight * l->node->y;
+            weight += l->weight;
+        }
+    }
+
+    if (weight == 0) {
+        n->x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
+        n->y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
+    } else {
+        // add some random element to average, mainly so we don't put it at the same pos when there is only one link
+        n->x = x / weight + (-0.5 + 1.0 * random() / RAND_MAX);
+        n->y = y / weight + (-0.5 + 1.0 * random() / RAND_MAX);
+    }
 }
 
 // when we export layout positions/radius we want to use integers for performance reasons

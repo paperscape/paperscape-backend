@@ -28,8 +28,6 @@ typedef struct _paper_t {
     int num_keywords;
     struct _keyword_t **keywords;
 
-    bool pos_valid;
-
     // stuff for colouring
     int colour;
     int num_with_my_colour;

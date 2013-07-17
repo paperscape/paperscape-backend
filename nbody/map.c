@@ -541,9 +541,6 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
     double max_fmag = 0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
         layout_node_t *n = &map_env->layout->nodes[i];
-        if (n == hold_still) {
-            continue;
-        }
 
         n->fx /= n->mass;
         n->fy /= n->mass;
@@ -559,8 +556,10 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
 
         double dt = map_env->step_size / fmag;
 
-        n->x += dt * n->fx;
-        n->y += dt * n->fy;
+        if (!(n == hold_still || (n->flags & LAYOUT_NODE_HOLD_STILL))) {
+            n->x += dt * n->fx;
+            n->y += dt * n->fy;
+        }
 
         x_sum += n->x * n->mass;
         y_sum += n->y * n->mass;
@@ -683,30 +682,6 @@ void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max) {
     } else {
         *id_min = 0;
         *id_max = 0;
-    }
-}
-
-static void map_env_compute_best_start_position_for_paper(map_env_t* map_env, paper_t *p) {
-    // compute initial position for newly added paper (average of all its references)
-    double x = 0;
-    double y = 0;
-    int n = 0;
-    // average x- and y-pos of references
-    for (int j = 0; j < p->num_refs; j++) {
-        paper_t *p2 = p->refs[j];
-        if (p2->included) {
-            x += p2->layout_node->x;
-            y += p2->layout_node->y;
-            n += 1;
-        }
-    }
-    if (n == 0) {
-        p->layout_node->x = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
-        p->layout_node->y = 100.0 * (-0.5 + 1.0 * random() / RAND_MAX);
-    } else {
-        // add some random element to average, mainly so we don't put it at the same pos for n=1
-        p->layout_node->x = x / n + (-0.5 + 1.0 * random() / RAND_MAX);
-        p->layout_node->y = y / n + (-0.5 + 1.0 * random() / RAND_MAX);
     }
 }
 
@@ -981,20 +956,32 @@ void map_env_layout_new(map_env_t *map_env, int num_coarsenings) {
     map_env->step_size = 1;
 }
 
-void map_env_layout_XX(map_env_t *map_env) {
+int map_env_layout_place_new_papers(map_env_t *map_env) {
     layout_t *l = map_env->layout;
     int num = 0;
     int id_low = 0;
     for (int i = 0; i < l->num_nodes; i++) {
         layout_node_t *n = &l->nodes[i];
-        if (!n->paper->pos_valid) {
+        if (n->flags & LAYOUT_NODE_POS_VALID) {
+            n->flags |= LAYOUT_NODE_HOLD_STILL;
+        } else {
+            num += 1;
             if (id_low == 0 || n->paper->id < id_low) {
                 id_low = n->paper->id;
             }
-            num += 1;
+            layout_node_compute_best_start_position(n);
         }
     }
-    printf("have %d papers that need positions, min id %d\n", num, id_low);
+    printf("have %d papers that need new positions, min id %d\n", num, id_low);
+    return num;
+}
+
+void map_env_layout_finish_placing_new_papers(map_env_t *map_env) {
+    layout_t *l = map_env->layout;
+    for (int i = 0; i < l->num_nodes; i++) {
+        layout_node_t *n = &l->nodes[i];
+        n->flags = (n->flags & ~LAYOUT_NODE_HOLD_STILL) | LAYOUT_NODE_POS_VALID;
+    }
 }
 
 void map_env_layout_load_from_db(map_env_t *map_env) {
@@ -1002,14 +989,14 @@ void map_env_layout_load_from_db(map_env_t *map_env) {
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
     map_env->layout = l;
 
+    // print info about the layout
+    layout_print(l);
+
     // initialise random positions, in case we can't/don't load a position for a given paper
     for (int i = 0; i < l->num_nodes; i++) {
         l->nodes[i].x = 100.0 * random() / RAND_MAX;
         l->nodes[i].y = 100.0 * random() / RAND_MAX;
     }
-
-    // print info about the layout
-    layout_print(l);
 
     // load the layout using MySQL
     mysql_load_paper_positions(l);
@@ -1061,7 +1048,7 @@ void map_env_layout_load_from_json(map_env_t *map_env, const char *json_filename
         layout_node_t *n = layout_get_node_by_id(l, id);
         if (n != NULL) {
             layout_node_import_quantities(n, x, y);
-            n->paper->pos_valid = true;
+            n->flags |= LAYOUT_NODE_POS_VALID;
         }
         entry_num += 1;
         if ((c = fgetc(fp)) != ',') {

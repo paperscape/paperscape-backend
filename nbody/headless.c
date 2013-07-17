@@ -10,54 +10,16 @@
 #include "map.h"
 #include "mysql.h"
 
-static int boost_step_size = 0;
-static bool auto_refine = true;
-static int iterate_counter_full_refine = 0;
-static int iterate_counter = 0;
-
-static bool map_env_update(map_env_t *map_env) {
-    bool converged = false;
+static void map_env_update(map_env_t *map_env, int num_iterations) {
     struct timeval tp;
     gettimeofday(&tp, NULL);
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-    for (int i = 0; i < 10; i++) {
-        iterate_counter += 1;
-        /*
-        if (iterate_counter == 500) {
-            map_env_toggle_do_close_repulsion(map_env);
-        }
-        */
-        printf("nbody iteration %d\n", iterate_counter);
-        if (map_env_iterate(map_env, NULL, boost_step_size > 0)) {
-            converged = true;
-            break;
-        }
-        if (boost_step_size > 0) {
-            boost_step_size -= 1;
-        }
+    for (int i = 0; i < num_iterations; i++) {
+        map_env_iterate(map_env, NULL, false);
     }
     gettimeofday(&tp, NULL);
     int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-    printf("%f seconds per iteration\n", (end_time - start_time) / 10.0 / 1000.0);
-
-    if (auto_refine) {
-        if (iterate_counter_full_refine > 0 && iterate_counter > iterate_counter_full_refine) {
-            map_env_refine_layout(map_env);
-            boost_step_size = 1;
-            auto_refine = false;
-        } else if (converged) {
-            if (map_env_number_of_finer_layouts(map_env) > 1) {
-                map_env_refine_layout(map_env);
-                boost_step_size = 1;
-            } else if (map_env_number_of_finer_layouts(map_env) == 1) {
-                map_env_set_do_close_repulsion(map_env, true);
-                boost_step_size = 1;
-                iterate_counter_full_refine = iterate_counter + 2000;
-            }
-        }
-    }
-
-    return true; // yes, we want to be called again
+    printf("did %d iterations, %.2f seconds per iteration\n", num_iterations, (end_time - start_time) / 1000.0 / num_iterations);
 }
 
 static int usage(const char *progname) {
@@ -65,7 +27,8 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    -write-db           write positions back to DB\n");
+    printf("    --whole-arxiv       process all papers from the arxiv\n");
+    printf("    --write-db          write positions back to DB\n");
     printf("\n");
     return 1;
 }
@@ -73,17 +36,20 @@ static int usage(const char *progname) {
 int main(int argc, char *argv[]) {
 
     // parse command line arguments
+    const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
     bool arg_write_db = false;
     for (int a = 1; a < argc; a++) {
-        if (streq(argv[a], "-write-db")) {
+        if (streq(argv[a], "--whole-arxiv")) {
+            where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
+        } else if (streq(argv[a], "--write-db")) {
             arg_write_db = true;
         } else {
             return usage(argv[0]);
         }
     }
 
-    //const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
-    const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
+    // print info about the where clause being used
+    printf("using where clause: %s\n", where_clause);
 
     // load the papers from the DB
     int num_papers;
@@ -111,15 +77,18 @@ int main(int argc, char *argv[]) {
     map_env_layout_load_from_db(map_env);
 
     // assign positions to new papers
-    map_env_layout_XX(map_env);
-
-    // print some help text :)
-    printf("running headless, only ctrl-C can kill me now!\n");
-
-    // run the nbody algo until it's done
-    while (map_env_update(map_env)) {
-        break;
+    int n_new = map_env_layout_place_new_papers(map_env);
+    if (n_new > 0) {
+        printf("iterating to place new papers\n");
+        map_env_set_do_close_repulsion(map_env, false);
+        map_env_update(map_env, 30);
     }
+    map_env_layout_finish_placing_new_papers(map_env);
+
+    // iterate to adjust whole graph
+    printf("iterating to adjust entire graph\n");
+    map_env_set_do_close_repulsion(map_env, true);
+    map_env_update(map_env, 100);
 
     // write the new positions to the DB
     if (arg_write_db) {

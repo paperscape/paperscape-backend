@@ -471,7 +471,7 @@ bool mysql_save_paper_positions(layout_t *layout) {
     for (int i = 0; i < layout->num_nodes; i++) {
         layout_node_t *n = &layout->nodes[i];
 
-        if (n->paper->pos_valid) {
+        if (n->flags & LAYOUT_NODE_POS_VALID) {
             vstr_reset(vstr);
             int x, y, r;
             layout_node_export_quantities(n, &x, &y, &r);
@@ -527,7 +527,7 @@ bool mysql_load_paper_positions(layout_t *layout) {
         layout_node_t *n = layout_get_node_by_id(layout, atoi(row[0]));
         if (n != NULL) {
             layout_node_import_quantities(n, atoi(row[1]), atoi(row[2]));
-            n->paper->pos_valid = true;
+            n->flags |= LAYOUT_NODE_POS_VALID;
             total_pos += 1;
         }
     }
