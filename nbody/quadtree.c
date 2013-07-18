@@ -7,13 +7,6 @@
 #include "layout.h"
 #include "quadtree.h"
 
-typedef struct _quad_tree_pool_t {
-    int num_nodes_alloc;
-    int num_nodes_used;
-    quad_tree_node_t *nodes;
-    struct _quad_tree_pool_t *next;
-} quad_tree_pool_t;
-
 quad_tree_pool_t *quad_tree_pool_new(int alloc, quad_tree_pool_t *next) {
     quad_tree_pool_t *qtp = m_new(quad_tree_pool_t, 1);
     qtp->num_nodes_alloc = alloc;

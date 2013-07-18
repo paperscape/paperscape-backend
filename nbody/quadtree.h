@@ -24,6 +24,13 @@ typedef struct _quad_tree_node_t {
     };
 } quad_tree_node_t;
 
+typedef struct _quad_tree_pool_t {
+    int num_nodes_alloc;
+    int num_nodes_used;
+    quad_tree_node_t *nodes;
+    struct _quad_tree_pool_t *next;
+} quad_tree_pool_t;
+
 typedef struct _quad_tree_t {
     struct _quad_tree_pool_t *quad_tree_pool;
     double min_x;

@@ -475,6 +475,10 @@ static void compute_category_locations(map_env_t *map_env) {
     }
 }
 
+static bool layout_node_is_not_held(layout_node_t *n) {
+    return (n->flags & LAYOUT_NODE_HOLD_STILL) == 0;
+}
+
 static void map_env_compute_forces(map_env_t *map_env) {
     // reset the forces
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
@@ -484,15 +488,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     }
 
     // rotate everything by a little each iteration to eliminate artifacts from quad tree force algo
-    double ctheta = cos(0.001);
-    double stheta = sin(0.001);
-    for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
-        double x = n->x;
-        double y = n->y;
-        n->x = ctheta * x + stheta * y;
-        n->y = -stheta * x + ctheta * y;
-    }
+    map_env_rotate_all(map_env, 0.002);
 
     // compute node-link-node spring forces
     compute_attractive_link_force(&map_env->force_params, map_env->do_tred, map_env->layout);
@@ -507,7 +503,12 @@ static void map_env_compute_forces(map_env_t *map_env) {
 
     // compute node-node anti-gravity forces using quad tree
     quad_tree_build(map_env->layout, map_env->quad_tree);
-    quad_tree_forces(&map_env->force_params, map_env->quad_tree);
+    // XXX hack for now
+    if (map_env->force_params.do_close_repulsion) {
+        quad_tree_forces(&map_env->force_params, map_env->quad_tree);
+    } else {
+        quad_tree_force_apply_if(&map_env->force_params, map_env->quad_tree, layout_node_is_not_held);
+    }
 
     //compute_keyword_force(&map_env->force_params, map_env->num_papers, map_env->papers);
 
