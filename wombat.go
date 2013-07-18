@@ -2083,9 +2083,28 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
 
 func (h *MyHTTPHandler) MapKeywordsInWindow(x, y, width, height int64, rw http.ResponseWriter) {
 
+    var xmin,ymin,xmax,ymax int
+    var idmax uint
+
+    // this is temp until we access labels table directly
+    stmt := h.papers.StatementBegin("SELECT max(id) FROM map_data")
+    if !h.papers.StatementBindSingleRow(stmt,&idmax) {
+        return
+    }
+
+    stmt = h.papers.StatementBegin("SELECT tile_data.xmin,tile_data.ymin,tile_data.xmax,tile_data.ymax FROM tile_data WHERE tile_data.latest_id = ?",idmax)
+    if !h.papers.StatementBindSingleRow(stmt,&xmin,&ymin,&xmax,&ymax) {
+        return
+    }
+
     // TODO!
 
-    fmt.Fprintf(rw, "[{\"kw\":\"test keyword\",\"x\":0,\"y\":0}]")
+    // Returns a keyword "region", which is fixed world rectangle
+    // with 
+
+    fmt.Fprintf(rw, "{\"id\":\"foo\",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"ls\":[{\"kw\":\"test keyword\",\"x\":0,\"y\":0}]}",xmin,ymin,xmax-xmin,ymax-ymin)
+
+
 }
 
 
