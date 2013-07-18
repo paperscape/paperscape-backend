@@ -583,9 +583,11 @@ func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
 
 func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeight int, filename string) {
 
-    surf := cairo.NewSurface(cairo.FORMAT_RGB24, surfWidth, surfHeight)
+    //surf := cairo.NewSurface(cairo.FORMAT_RGB24, surfWidth, surfHeight)
+    surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidth, surfHeight)
     //surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
-    surf.SetSourceRGB(0, 0, 0)
+    //surf.SetSourceRGB(0, 0, 0)
+    surf.SetSourceRGBA(0, 0, 0, 0)
     surf.Paint()
 
     matrix := new(cairo.Matrix)
