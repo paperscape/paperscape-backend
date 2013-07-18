@@ -357,7 +357,7 @@ func (paper *Paper) setColour() {
         // older papers are saturated and dark, newer papers are coloured and bright
         //saturation := 0.4 * (1 - age)
         saturation := 0.0
-        dim_factor := 0.25 + 0.75 * age
+        dim_factor := 0.2 + 0.8 * age
         r = dim_factor * (saturation + r * (1 - saturation))
         g = dim_factor * (saturation + g * (1 - saturation))
         b = dim_factor * (saturation + b * (1 - saturation))
@@ -694,28 +694,11 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     surf.SetLineWidth(3)
     // Need to add largest radius to dimensions to ensure we don't miss any papers
 
-    // background (just the new papers)
-    graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
-        if paper.id > 2133969854 {
-            // testing: new papers today have a white background
-            surf.Arc(float64(paper.x), float64(paper.y), 100, 0, 2 * math.Pi)
-            surf.SetSourceRGB(0.8, 0.8, 0.8)
-            surf.Fill()
-        }
-    })
-
     // foreground
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
         surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
-        if paper.id > 2133969854 {
-            // testing: new papers today have a red border
-            surf.FillPreserve()
-            surf.SetSourceRGB(1, 0, 0)
-            surf.Stroke()
-        } else {
-            surf.Fill()
-        }
+        surf.Fill()
         /* this bit draws a border around each paper; not needed when we have a black background
         surf.FillPreserve()
         surf.SetSourceRGB(0, 0, 0)
