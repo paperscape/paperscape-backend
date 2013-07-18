@@ -43,9 +43,10 @@ var TILE_PIXEL_LEN = 256
 
 
 var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
-var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles") // now the default
+var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles")
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
 var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
+var flagMaxCores = flag.Int("cores",-1,"Max number of system cores to use, default is all of them")
 
 //var flagLogFile = flag.String("log-file", "", "file to output log information to")
 //var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
@@ -799,6 +800,9 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
 
             // parallelise the drawing of tiles, using as many cpus as we have available to us
             maxCpu := runtime.NumCPU()
+            if *flagMaxCores > 0 && *flagMaxCores < maxCpu {
+                maxCpu = *flagMaxCores
+            }
             runtime.GOMAXPROCS(maxCpu)
             channel := make(chan int, maxCpu)
             numRoutines := 0
