@@ -41,7 +41,7 @@ var VERSION = "0.14"
 // it will need to make several calls
 var ID_CONVERSION_LIMIT = 50
 
-var flagDB      = flag.String("db", "localhost", "MySQL database to connect to")
+var flagDB      = flag.String("db", "", "MySQL database to connect to")
 var flagLogFile = flag.String("log-file", "", "file to output log information to")
 var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
@@ -70,9 +70,20 @@ func main() {
         *flagMetaBaseDir = "/opt/pscp/data/meta"
     }
 
-    // connect to MySQL database
-    //db, err := mysql.DialUnix("/tmp/mysql.sock", "hidden", "hidden", "xiwi")
-    db, err := mysql.DialTCP(*flagDB, "hidden", "hidden", "xiwi")
+    // connect to MySQL database; using a socket is preferred since it's faster
+    var db *mysql.Client
+    var err error
+    if *flagDB == "" {
+        if fileExists("/run/mysqld/mysqld.sock") {
+            db, err = mysql.DialUnix("/run/mysqld/mysqld.sock", "hidden", "hidden", "xiwi")
+        } else {
+            db, err = mysql.DialTCP("localhost", "hidden", "hidden", "xiwi")
+        }
+    } else if strings.Contains(*flagDB, ".sock") {
+        db, err = mysql.DialUnix(*flagDB, "hidden", "hidden", "xiwi")
+    } else {
+        db, err = mysql.DialTCP(*flagDB, "hidden", "hidden", "xiwi")
+    }
     if err != nil {
         fmt.Println("cannot connect to database;", err)
         return
@@ -113,6 +124,12 @@ func main() {
     if len(*flagHTTPAddr) > 0 {
         serveHTTP(*flagHTTPAddr, papers)
     }
+}
+
+// returns whether the given file or directory exists or not
+func fileExists(path string) bool {
+    _, err := os.Stat(path)
+    return err == nil
 }
 
 /****************************************************************/
