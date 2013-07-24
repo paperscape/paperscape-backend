@@ -510,7 +510,7 @@ func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, worldDim, 
 }
 
 func GenerateAllLabelZones(graph *Graph, outPrefix string) {
-    indexFile := outPrefix + "/zones/zones_index.json"
+    indexFile := outPrefix + "/zones/label_index.json"
     if err := os.MkdirAll(filepath.Dir(indexFile),0755); err != nil {
         fmt.Println(err)
         return
@@ -537,7 +537,7 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
              fmt.Fprintf(w,",")
         }
         first = false
-        fmt.Fprintf(w,"{\"z\":%d,\"zw\":%d,\"zh\":%d,\"nx\":%d,\"ny\":%d}",depth, worldDim, worldDim, divs,divs)
+        fmt.Fprintf(w,"{\"z\":%d,\"w\":%d,\"h\":%d,\"nx\":%d,\"ny\":%d}",depth, worldDim, worldDim, divs,divs)
 
         if !*flagSkipZones {
             fmt.Printf("Generating label zones at depth %d\n",divs)
