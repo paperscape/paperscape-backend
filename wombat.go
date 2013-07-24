@@ -1039,14 +1039,14 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             x, _ := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
             y, _ := strconv.ParseFloat(req.Form["ml2p[]"][1], 0)
             h.MapPaperIdAtLocation(x,y,rw)
-        } else if req.Form["mkws[]"] != nil {
-            // map keywords
-            logDescription = fmt.Sprintf("Keywords for map window")
-            x, _ := strconv.ParseInt(req.Form["mkws[]"][0],10, 0)
-            y, _ := strconv.ParseInt(req.Form["mkws[]"][1],10, 0)
-            width, _ := strconv.ParseInt(req.Form["mkws[]"][2],10, 0)
-            height, _ := strconv.ParseInt(req.Form["mkws[]"][3],10, 0)
-            h.MapKeywordsInWindow(x,y,width,height,rw)
+        //} else if req.Form["mkws[]"] != nil {
+        //    // map keywords
+        //    logDescription = fmt.Sprintf("Keywords for map window")
+        //    x, _ := strconv.ParseInt(req.Form["mkws[]"][0],10, 0)
+        //    y, _ := strconv.ParseInt(req.Form["mkws[]"][1],10, 0)
+        //    width, _ := strconv.ParseInt(req.Form["mkws[]"][2],10, 0)
+        //    height, _ := strconv.ParseInt(req.Form["mkws[]"][3],10, 0)
+        //    h.MapKeywordsInWindow(x,y,width,height,rw)
         } else if req.Form["pchal"] != nil {
             // profile-challenge: authenticate request (send user a new "challenge")
             giveSalt := false
@@ -2084,6 +2084,7 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
     fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id,resx,resy,resr)
 }
 
+/*
 func (h *MyHTTPHandler) MapKeywordsInWindow(x, y, width, height int64, rw http.ResponseWriter) {
 
     var xmin,ymin,xmax,ymax int
@@ -2108,7 +2109,7 @@ func (h *MyHTTPHandler) MapKeywordsInWindow(x, y, width, height int64, rw http.R
     fmt.Fprintf(rw, "{\"id\":\"foo\",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"ls\":[{\"kw\":\"test keyword\",\"x\":0,\"y\":0}]}",xmin,ymin,xmax-xmin,ymax-ymin)
 
 
-}
+}*/
 
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
