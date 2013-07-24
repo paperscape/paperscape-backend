@@ -27,7 +27,7 @@ import (
     "sort"
     "net/smtp"
     "log"
-    //"xiwi"
+    "xiwi"
 )
 
 // Current version of paperscape.
@@ -70,25 +70,11 @@ func main() {
         *flagMetaBaseDir = "/opt/pscp/data/meta"
     }
 
-    // connect to MySQL database; using a socket is preferred since it's faster
-    var db *mysql.Client
-    var err error
-    if *flagDB == "" {
-        if fileExists("/run/mysqld/mysqld.sock") {
-            db, err = mysql.DialUnix("/run/mysqld/mysqld.sock", "hidden", "hidden", "xiwi")
-        } else {
-            db, err = mysql.DialTCP("localhost", "hidden", "hidden", "xiwi")
-        }
-    } else if strings.Contains(*flagDB, ".sock") {
-        db, err = mysql.DialUnix(*flagDB, "hidden", "hidden", "xiwi")
-    } else {
-        db, err = mysql.DialTCP(*flagDB, "hidden", "hidden", "xiwi")
-    }
-    if err != nil {
-        fmt.Println("cannot connect to database;", err)
+    // connect to db
+    db := xiwi.ConnectToDB(*flagDB)
+    if db == nil {
         return
     }
-    fmt.Println("connect to database", *flagDB)
     defer db.Close()
 
     // create papers database
