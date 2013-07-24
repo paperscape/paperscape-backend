@@ -30,9 +30,10 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    --start-afresh      start the graph layout afresh (default is to process only new papers); enabling this writes output data to .json file\n");
+    printf("    --start-afresh      start the graph layout afresh (default is to process only new papers); enabling this enables --write-json\n");
     printf("    --whole-arxiv       process all papers from the arxiv (default is to process only a small, test subset)\n");
-    printf("    --write-db          write positions back to DB (default is to do nothing)\n");
+    printf("    --write-db          write positions to DB (default is not to)\n");
+    printf("    --write-json        write positions to json file (default is not to)\n");
     printf("\n");
     return 1;
 }
@@ -43,13 +44,17 @@ int main(int argc, char *argv[]) {
     bool arg_start_afresh = false;
     const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
     bool arg_write_db = false;
+    bool arg_write_json = false;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "--start-afresh")) {
             arg_start_afresh = true;
+            arg_write_json = true;
         } else if (streq(argv[a], "--whole-arxiv")) {
             where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
         } else if (streq(argv[a], "--write-db")) {
             arg_write_db = true;
+        } else if (streq(argv[a], "--write-json")) {
+            arg_write_json = true;
         } else {
             return usage(argv[0]);
         }
@@ -125,22 +130,24 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // write map to JSON
-        vstr_t *vstr = vstr_new();
-        vstr_reset(vstr);
-        vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
-        map_env_layout_save_to_json(map_env, vstr_str(vstr));
-
     } else {
         // load existing positions from DB
         map_env_layout_load_from_db(map_env);
+
+        // rotate the entire map by a random amount, to reduce quad-tree-force artifacts
+        struct timeval tp;
+        gettimeofday(&tp, NULL);
+        srandom(tp.tv_sec * 1000000 + tp.tv_usec);
+        double angle = 6.28 * (double)random() / (double)RAND_MAX;
+        map_env_rotate_all(map_env, angle);
+        printf("rotated graph by %.2f rad to eliminate quad-tree-force artifacts\n", angle);
 
         // assign positions to new papers
         int n_new = map_env_layout_place_new_papers(map_env);
         if (n_new > 0) {
             printf("iterating to place new papers\n");
             map_env_set_do_close_repulsion(map_env, false);
-            map_env_update(map_env, 200, false);
+            map_env_update(map_env, 250, false);
         }
         map_env_layout_finish_placing_new_papers(map_env);
 
@@ -148,14 +155,22 @@ int main(int argc, char *argv[]) {
         printf("iterating to adjust entire graph\n");
         map_env_set_do_close_repulsion(map_env, true);
         map_env_update(map_env, 100, false);
-
-        // rotate the map back to original orientation
-        map_env_rotate_all(map_env, -300 * 0.002);
     }
+
+    // align the map in a fixed direction
+    map_env_orient(map_env, CAT_hep_ph, 1.9);
 
     // write the new positions to the DB
     if (arg_write_db) {
         map_env_layout_save_to_db(map_env);
+    }
+
+    // write map to JSON
+    if (arg_write_json) {
+        vstr_t *vstr = vstr_new();
+        vstr_reset(vstr);
+        vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
+        map_env_layout_save_to_json(map_env, vstr_str(vstr));
     }
 
     return 0;

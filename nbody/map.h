@@ -34,6 +34,7 @@ void map_env_coarsen_layout(map_env_t *map_env);
 void map_env_refine_layout(map_env_t *map_env);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
+void map_env_orient(map_env_t *map_env, category_t wanted_cat, double wanted_angle);
 void map_env_flip_x(map_env_t *map_env);
 
 bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size);

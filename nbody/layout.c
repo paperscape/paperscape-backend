@@ -427,6 +427,18 @@ void layout_node_compute_best_start_position(layout_node_t *n) {
     }
 }
 
+void layout_rotate_all(layout_t *layout, double angle) {
+    double s_angle = sin(angle);
+    double c_angle = cos(angle);
+    for (int i = 0; i < layout->num_nodes; i++) {
+        layout_node_t *n = &layout->nodes[i];
+        double x = n->x;
+        double y = n->y;
+        n->x = c_angle * x - s_angle * y;
+        n->y = s_angle * x + c_angle * y;
+    }
+}
+
 // when we export layout positions/radius we want to use integers for performance reasons
 // therefore we have a multiplicative factor to include a bit of the fraction
 // all export/import code must go through these 2 functions

@@ -295,14 +295,37 @@ void map_env_jolt(map_env_t *map_env, double amt) {
 }
 
 void map_env_rotate_all(map_env_t *map_env, double angle) {
-    double s_angle = sin(angle);
-    double c_angle = cos(angle);
+    layout_rotate_all(map_env->layout, angle);
+}
+
+void map_env_orient(map_env_t *map_env, category_t wanted_cat, double wanted_angle) {
+    // must be finest layout and must have at least 1 node
+    if (map_env->layout->child_layout != NULL || map_env->layout->num_nodes == 0) {
+        return;
+    }
+
+    // compute average of papers with wanted category
+    double avg_cat_x = 0.0;
+    double avg_cat_y = 0.0;
+    double mass_cat = 0.0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
         layout_node_t *n = &map_env->layout->nodes[i];
-        double x = n->x;
-        double y = n->y;
-        n->x = c_angle * x - s_angle * y;
-        n->y = s_angle * x + c_angle * y;
+        if (n->paper->allcats[0] == wanted_cat) {
+            avg_cat_x += n->mass * n->x;
+            avg_cat_y += n->mass * n->y;
+            mass_cat += n->mass;
+        }
+    }
+
+    // orient papers
+    if (mass_cat == 0.0) {
+        printf("could not orient graph using category %s\n", category_enum_to_str(wanted_cat));
+    } else {
+        avg_cat_x /= mass_cat;
+        avg_cat_y /= mass_cat;
+        double angle = wanted_angle - atan2(avg_cat_y, avg_cat_x);
+        layout_rotate_all(map_env->layout, angle);
+        printf("rotated graph by %.2f rad to orient %s at %.2f rad\n", angle, category_enum_to_str(wanted_cat), wanted_angle);
     }
 }
 

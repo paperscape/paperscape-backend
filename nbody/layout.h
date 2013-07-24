@@ -48,5 +48,6 @@ void layout_print(layout_t *layout);
 layout_node_t *layout_get_node_by_id(layout_t *layout, int id);
 layout_node_t *layout_get_node_at(layout_t *layout, double x, double y);
 void layout_node_compute_best_start_position(layout_node_t *n);
+void layout_rotate_all(layout_t *layout, double angle);
 void layout_node_export_quantities(layout_node_t *l, int *x_out, int *y_out, int *r_out);
 void layout_node_import_quantities(layout_node_t *l, int x_in, int y_in);
