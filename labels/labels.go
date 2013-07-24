@@ -522,9 +522,9 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
     sort.Sort(PaperSortId(graph.papers))
     latestId := graph.papers[0].id
 
-    fmt.Fprintf(w,"{\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"zones\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,)
+    fmt.Fprintf(w,"label_index({\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"zones\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,)
 
-    divisionSet := [...]int{4,8,24,72,216}
+    divisionSet := [...]int{4,8,16,32,64,128,256,512}
     //divisionSet := [...]int{4,8,24}
 
     first := true
@@ -568,6 +568,6 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
             // all tasks are finished
         }
     }
-    fmt.Fprintf(w,"]}")
+    fmt.Fprintf(w,"]})")
     w.Flush()
 }
