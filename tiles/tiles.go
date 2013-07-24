@@ -823,7 +823,7 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
     sort.Sort(PaperSortId(graph.papers))
     latestId := graph.papers[0].id
 
-    fmt.Fprintf(w,"{\"map_file\":\"%s\",\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",flag.Arg(0),latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
+    fmt.Fprintf(w,"tile_index(\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",flag.Arg(0),latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
     divisionSet := [...]int{4,8,24,72,216}
     //divisionSet := [...]int{4,8,24}
@@ -871,6 +871,6 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
             // all tasks are finished
         }
     }
-    fmt.Fprintf(w,"]}")
+    fmt.Fprintf(w,"]})")
     w.Flush()
 }
