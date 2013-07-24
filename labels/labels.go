@@ -524,7 +524,7 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
 
     fmt.Fprintf(w,"label_index({\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"zones\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,)
 
-    divisionSet := [...]int{4,8,16,32,64,128,256,512}
+    divisionSet := [...]int{4,8,16,32,64,128}//,256,512}
     //divisionSet := [...]int{4,8,24}
 
     first := true
