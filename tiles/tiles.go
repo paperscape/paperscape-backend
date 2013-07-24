@@ -741,7 +741,7 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
 
     // set font
     surf.SelectFontFace("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-    surf.SetFontSize(10)
+    surf.SetFontSize(35)
 
     surf.SetMatrix(*matrix)
     surf.SetLineWidth(3)
@@ -749,7 +749,13 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
 
     // foreground
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
-        surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+        pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
+        if pixelRadius < 0.2 {
+            newRadius, _ := matrixInv.TransformDistance(0.2, 0.2)
+            surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
+        } else {
+            surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+        }
         surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
         surf.Fill()
         /* this bit draws a border around each paper; not needed when we have a black background
@@ -758,10 +764,9 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
         surf.Stroke()
         */
         // this bit draws the keyword of the paper if it'll fit
-        r, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
-        if (r > 25) {
+        if (pixelRadius > 21) {
             surf.SetSourceRGB(1, 1, 1)
-            surf.MoveTo(float64(paper.x) - 3 * float64(len(paper.keyword)), float64(paper.y) + 5)
+            surf.MoveTo(float64(paper.x) - 10 * float64(len(paper.keyword)), float64(paper.y) + 5)
             surf.ShowText(paper.keyword)
         }
     })
