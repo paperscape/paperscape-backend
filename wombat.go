@@ -1984,26 +1984,27 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
 
 func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
 
-    var xmin,ymin,xmax,ymax int
+    var txmin,tymin,txmax,tymax int
+    var lxmin,lymin,lxmax,lymax int
     var tpixw,tpixh,idmax,idnew uint
-    var tilings string
+    var tilings,labelings string
 
-    stmt := h.papers.StatementBegin("SELECT max(id) FROM map_data")
-    if !h.papers.StatementBindSingleRow(stmt,&idmax) {
+    //stmt := h.papers.StatementBegin("SELECT max(id) FROM map_data")
+    //if !h.papers.StatementBindSingleRow(stmt,&idmax) {
+    //    return
+    //}
+
+    stmt := h.papers.StatementBegin("SELECT tile_data.latest_id,tile_data.xmin,tile_data.ymin,tile_data.xmax,tile_data.ymax,tile_data.tile_pixel_w,tile_data.tile_pixel_h,tile_data.tilings,label_data.xmin,label_data.ymin,label_data.xmax,label_data.ymax,label_data.zones FROM tile_data,label_data WHERE tile_data.latest_id = label_data.latest_id")
+    if !h.papers.StatementBindSingleRow(stmt,&idmax,&txmin,&tymin,&txmax,&tymax,&tpixw,&tpixh,&tilings,&lxmin,&lymin,&lxmax,&lymax,&labelings) {
         return
     }
 
-    stmt = h.papers.StatementBegin("SELECT max(datebdry.id) FROM datebdry,map_data WHERE datebdry.id < ?",idmax)
+    stmt = h.papers.StatementBegin("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < ?",idmax)
     if !h.papers.StatementBindSingleRow(stmt,&idnew) {
         return
     }
 
-    stmt = h.papers.StatementBegin("SELECT tile_data.xmin,tile_data.ymin,tile_data.xmax,tile_data.ymax,tile_data.tile_pixel_w,tile_data.tile_pixel_h,tile_data.tilings FROM tile_data WHERE tile_data.latest_id = ?",idmax)
-    if !h.papers.StatementBindSingleRow(stmt,&xmin,&ymin,&xmax,&ymax,&tpixw,&tpixh,&tilings) {
-        return
-    }
-
-    fmt.Fprintf(rw, "{\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s}",xmin, ymin,xmax,ymax,idmax,idnew,tpixw,tpixh,tilings)
+    fmt.Fprintf(rw, "{\"txmin\":%d,\"tymin\":%d,\"txmax\":%d,\"tymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s,\"lxmin\":%d,\"lymin\":%d,\"lxmax\":%d,\"lymax\":%d,\"label\":%s}",txmin, tymin,txmax,tymax,idmax,idnew,tpixw,tpixh,tilings,lxmin,lymin,lxmax,lymax,labelings)
 }
 
 func (h *MyHTTPHandler) MapLocationFromPaperId(ids []uint, rw http.ResponseWriter) {
