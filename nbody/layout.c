@@ -72,7 +72,7 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
         node->num_links = paper->num_refs + paper->num_fake_links;
         node->links = links;
         for (int j = 0; j < paper->num_refs; j++) {
-            node->links[j].weight = paper->refs_ref_freq[j];
+            node->links[j].weight = paper->refs_ref_freq[j] * paper->refs_ref_freq[j];
             if (age_weaken) {
                 //node->links[j].weight *= 1.0 - 0.5 * fabs(paper->age - paper->refs[j]->age);
                 node->links[j].weight *= 0.4 + 0.6 * exp(-pow(1e-7 * paper->id - 1e-7 * paper->refs[j]->id, 2));

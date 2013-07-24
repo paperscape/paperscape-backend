@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     }
 
     // align the map in a fixed direction
-    map_env_orient(map_env, CAT_hep_ph, 1.9);
+    map_env_orient(map_env, CAT_hep_ph, 4.2);
 
     // write the new positions to the DB
     if (arg_write_db) {
