@@ -3,13 +3,12 @@ package main
 import (
     "flag"
     "os"
-    "fmt"
     "encoding/json"
-    "GoMySQL"
     "log"
+    "xiwi"
 )
 
-var flagDB        = flag.String("db", "localhost", "MySQL database to connect to")
+var flagDB        = flag.String("db", "", "MySQL database to connect to")
 var flagTileTable = flag.String("tile-table","tile_data", "Name of tile table in db")
 
 type TilesJSON struct {
@@ -35,18 +34,16 @@ type TileDepths struct {
 func main() {
     // parse command line options
     flag.Parse()
-   
+
     if flag.NArg() != 1 {
         log.Fatal("need to specify a tile_index.json file")
     }
 
-    // Connect to MySQL
-    db, err := mysql.DialTCP(*flagDB, "hidden", "hidden", "xiwi")
-    if err != nil {
-        fmt.Println("cannot connect to database;", err)
+    // connect to db
+    db := xiwi.ConnectToDB(*flagDB)
+    if db == nil {
         return
     }
-    fmt.Println("connect to database", *flagDB)
     defer db.Close()
 
     // Open JSON map file

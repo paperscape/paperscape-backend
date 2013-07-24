@@ -19,7 +19,6 @@ import (
     "runtime"
     //"bytes"
     //"time"
-    //"strings"
     "math"
     //"math/rand"
     //"crypto/sha1"
@@ -29,7 +28,7 @@ import (
     "sort"
     //"net/smtp"
     "log"
-    //"xiwi"
+    "xiwi"
     //"image"
     //"image/color"
     //"image/draw"
@@ -42,7 +41,7 @@ var GRAPH_PADDING = 100 // what to pad graph by on each side
 var TILE_PIXEL_LEN = 256
 
 
-var flagDB = flag.String("db", "localhost", "MySQL database to connect to")
+var flagDB = flag.String("db", "", "MySQL database to connect to")
 var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles")
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
 var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
@@ -64,16 +63,18 @@ func main() {
         log.Fatal("need to specify map.json file (db to load from DB), and output prefix (without extension)")
     }
 
-    // connect to MySQL database
-    db, err := mysql.DialTCP(*flagDB, "hidden", "hidden", "xiwi")
-    if err != nil {
-        fmt.Println("cannot connect to database;", err)
+    // connect to the db
+    db := xiwi.ConnectToDB(*flagDB)
+    if db == nil {
         return
     }
     defer db.Close()
 
     // read in the graph
     graph := ReadGraph(db, flag.Arg(0))
+
+    // build the quad tree
+    graph.BuildQuadTree()
 
     if *flagDoSingle {
         DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 12000, 12000, flag.Arg(1))
@@ -446,9 +447,6 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
 
     fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(graph.papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
 
-    // If we use quadtree may as well assign it here
-    graph.qt = BuildQuadTree(graph.papers)
-
     return graph
 }
 
@@ -513,21 +511,21 @@ func QuadTreeInsertPaper(parent *QuadTreeNode, q **QuadTreeNode, paper *Paper, M
     }
 }
 
-func BuildQuadTree(papers []*Paper) *QuadTree {
+func (graph *Graph) BuildQuadTree() {
     qt := new(QuadTree)
 
     // if no papers, return
-    if len(papers) == 0 {
-        return qt
+    if len(graph.papers) == 0 {
+        return
     }
 
     // first work out the bounding box of all papers
-    qt.MinX = papers[0].x
-    qt.MinY = papers[0].y
-    qt.MaxX = papers[0].x
-    qt.MaxY = papers[0].y
-    qt.MaxR = papers[0].radius
-    for _, paper := range papers {
+    qt.MinX = graph.papers[0].x
+    qt.MinY = graph.papers[0].y
+    qt.MaxX = graph.papers[0].x
+    qt.MaxY = graph.papers[0].y
+    qt.MaxR = graph.papers[0].radius
+    for _, paper := range graph.papers {
         if (paper.x < qt.MinX) { qt.MinX = paper.x; }
         if (paper.y < qt.MinY) { qt.MinY = paper.y; }
         if (paper.x > qt.MaxX) { qt.MaxX = paper.x; }
@@ -551,12 +549,14 @@ func BuildQuadTree(papers []*Paper) *QuadTree {
     }
 
     // build the quad tree
-    for _, paper := range papers {
+    for _, paper := range graph.papers {
         QuadTreeInsertPaper(nil, &qt.Root, paper, qt.MinX, qt.MinY, qt.MaxX, qt.MaxY)
     }
 
     fmt.Printf("quad tree bounding box: (%v,%v) -- (%v,%v)\n", qt.MinX, qt.MinY, qt.MaxX, qt.MaxY)
-    return qt
+
+    // store the quad tree in the graph object
+    graph.qt = qt
 }
 
 func (q *QuadTreeNode) ApplyIfWithin(MinX, MinY, MaxX, MaxY int, x, y, rx, ry int, f func(paper *Paper)) {
