@@ -8,6 +8,7 @@ import (
     "bufio"
     "fmt"
     "path/filepath"
+    "strings"
     //"net"
     //"net/http"
     //"net/http/fcgi"
@@ -94,6 +95,7 @@ type Paper struct {
     y       int
     radius  int
     age     float32
+    keyword string
     colBG   CairoColor
     colFG   CairoColor
 }
@@ -109,6 +111,22 @@ type Graph struct {
     qt      *QuadTree
     MinX, MinY, MaxX, MaxY int
     BoundsX, BoundsY int
+}
+
+func (graph *Graph) GetPaperById(id uint) *Paper {
+    lo := 0
+    hi := len(graph.papers) - 1
+    for lo <= hi {
+        mid := (lo + hi) / 2
+        if id == graph.papers[mid].id {
+            return graph.papers[mid]
+        } else if id < graph.papers[mid].id {
+            hi = mid - 1
+        } else {
+            lo = mid + 1
+        }
+    }
+    return nil
 }
 
 func QueryCategories(db *mysql.Client, id uint) string {
@@ -162,23 +180,7 @@ func QueryCategories(db *mysql.Client, id uint) string {
     return maincat
 }
 
-func getPaperById(papers []*Paper, id uint) *Paper {
-    lo := 0
-    hi := len(papers) - 1
-    for lo <= hi {
-        mid := (lo + hi) / 2
-        if id == papers[mid].id {
-            return papers[mid]
-        } else if id < papers[mid].id {
-            hi = mid - 1
-        } else {
-            lo = mid + 1
-        }
-    }
-    return nil
-}
-
-func QueryCategories2(db *mysql.Client, papers []*Paper) {
+func QueryCategories2(db *mysql.Client, graph *Graph) {
     // execute the query
     err := db.Query("SELECT id,maincat,allcats FROM meta_data")
     if err != nil {
@@ -208,9 +210,50 @@ func QueryCategories2(db *mysql.Client, papers []*Paper) {
         if maincat, ok = row[1].(string); !ok { continue }
         //if allcats, ok = row[2].(string); !ok { continue }
 
-        paper := getPaperById(papers, uint(id))
+        paper := graph.GetPaperById(uint(id))
         if paper != nil {
             paper.maincat = maincat
+        }
+    }
+
+    db.FreeResult()
+}
+
+func QueryKeywords(db *mysql.Client, graph *Graph) {
+    // execute the query
+    err := db.Query("SELECT id,keywords FROM keywords")
+    if err != nil {
+        fmt.Println("MySQL query error;", err)
+        return
+    }
+
+    // get result set
+    result, err := db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        return
+    }
+
+    // get each row from the result
+    for {
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        var ok bool
+        var id uint64
+        var keywords string
+        if id, ok = row[0].(uint64); !ok { continue }
+        if keywords, ok = row[1].(string); !ok { continue }
+
+        paper := graph.GetPaperById(uint(id))
+        if paper != nil {
+            idx := strings.Index(keywords, ",")
+            if idx < 0 {
+                idx = len(keywords)
+            }
+            paper.keyword = keywords[0:idx]
         }
     }
 
@@ -422,7 +465,8 @@ func ReadGraph(db *mysql.Client, posFilename string) *Graph {
         }
     }
 
-    QueryCategories2(db, graph.papers)
+    QueryCategories2(db, graph)
+    QueryKeywords(db, graph)
 
     for _, paper := range graph.papers {
         if paper.x - paper.radius < graph.MinX { graph.MinX = paper.x - paper.radius }
@@ -690,6 +734,10 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     x, y := matrixInv.TransformPoint(float64(surfWidth)/2., float64(surfHeight)/2.)
     rx, ry := matrixInv.TransformDistance(float64(surfWidth)/2., float64(surfHeight)/2.)
 
+    // set font
+    surf.SelectFontFace("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    surf.SetFontSize(10)
+
     surf.SetMatrix(*matrix)
     surf.SetLineWidth(3)
     // Need to add largest radius to dimensions to ensure we don't miss any papers
@@ -704,6 +752,13 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
         surf.SetSourceRGB(0, 0, 0)
         surf.Stroke()
         */
+        // this bit draws the keyword of the paper if it'll fit
+        r, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
+        if (r > 10) {
+            surf.SetSourceRGB(1, 1, 1)
+            surf.MoveTo(float64(paper.x), float64(paper.y))
+            surf.ShowText(paper.keyword)
+        }
     })
 
     //fmt.Println("writing file")
