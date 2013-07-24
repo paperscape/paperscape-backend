@@ -78,7 +78,7 @@ func main() {
     graph.BuildQuadTree()
 
     if *flagDoSingle {
-        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 12000, 12000, flag.Arg(1))
+        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, flag.Arg(1))
     } else {
         GenerateAllTiles(graph, flag.Arg(1))
     }
@@ -217,6 +217,8 @@ func QueryCategories2(db *mysql.Client, graph *Graph) {
     }
 
     db.FreeResult()
+
+    fmt.Println("read categories")
 }
 
 func QueryKeywords(db *mysql.Client, graph *Graph) {
@@ -243,12 +245,13 @@ func QueryKeywords(db *mysql.Client, graph *Graph) {
 
         var ok bool
         var id uint64
-        var keywords string
+        var keywords1 []byte
         if id, ok = row[0].(uint64); !ok { continue }
-        if keywords, ok = row[1].(string); !ok { continue }
+        if keywords1, ok = row[1].([]byte); !ok { continue }
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
+            keywords := string(keywords1)
             idx := strings.Index(keywords, ",")
             if idx < 0 {
                 idx = len(keywords)
@@ -258,6 +261,8 @@ func QueryKeywords(db *mysql.Client, graph *Graph) {
     }
 
     db.FreeResult()
+
+    fmt.Println("read keywords")
 }
 
 func QueryPapers(db *mysql.Client) []*Paper {
@@ -754,9 +759,9 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
         */
         // this bit draws the keyword of the paper if it'll fit
         r, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
-        if (r > 10) {
+        if (r > 25) {
             surf.SetSourceRGB(1, 1, 1)
-            surf.MoveTo(float64(paper.x), float64(paper.y))
+            surf.MoveTo(float64(paper.x) - 3 * float64(len(paper.keyword)), float64(paper.y) + 5)
             surf.ShowText(paper.keyword)
         }
     })
