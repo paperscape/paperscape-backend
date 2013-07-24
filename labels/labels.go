@@ -475,7 +475,7 @@ func GenerateLabelZone(graph *Graph, width, height, xi, yi int, filename string)
     
     // TODO consider adding depth, x, y, width, height etc.
     // Tho in practice should already have this info before d/l label zone
-    fmt.Fprintf(w,"{\"scale\":%d,\"lbls\":[",scale)
+    fmt.Fprintf(w,"label_zone({\"scale\":%d,\"lbls\":[",scale)
     
     first := true
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx), int(ry), func(paper *Paper) {
@@ -489,7 +489,7 @@ func GenerateLabelZone(graph *Graph, width, height, xi, yi int, filename string)
         }
     })
 
-    fmt.Fprintf(w,"]}")
+    fmt.Fprintf(w,"]})")
     
     //err:= png.Encode(w, surf.GetImage())
     //if err != nil {
@@ -524,7 +524,7 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
 
     fmt.Fprintf(w,"label_index({\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"zones\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,)
 
-    divisionSet := [...]int{4,8,16,32,64,128,256,512}
+    divisionSet := [...]int{4,8,16,32,64,128}
     //divisionSet := [...]int{4,8,24}
 
     first := true
