@@ -60,6 +60,11 @@ func main() {
     GenerateAllLabelZones(graph, flag.Arg(0))
 }
 
+type LabelDepth struct {
+    tdivs   uint
+    sdivs   uint
+}
+
 type Paper struct {
     id      uint
     maincat string
@@ -452,7 +457,7 @@ func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
     qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, rx, ry, f)
 }
 
-func GenerateLabelZone(graph *Graph, width, height, xi, yi int, filename string) {
+func GenerateLabelZone(graph *Graph, scale, width, height, xi, yi int, filename string) {
 
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
         log.Fatal(err)
@@ -470,16 +475,16 @@ func GenerateLabelZone(graph *Graph, width, height, xi, yi int, filename string)
 
     // need to add largest radius to dimensions to ensure we don't miss any papers
 
-    // typical scale
-    scale := int(math.Sqrt(float64(width)*float64(width) + float64(height)*float64(height))*0.01)
-    
     // TODO consider adding depth, x, y, width, height etc.
     // Tho in practice should already have this info before d/l label zone
     fmt.Fprintf(w,"label_zone({\"scale\":%d,\"lbls\":[",scale)
-    
+   
+
+    min_rad := int(float64(scale)*0.01)
+
     first := true
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx), int(ry), func(paper *Paper) {
-        if paper.label != "" && paper.radius > scale {
+        if paper.label != "" && paper.radius > min_rad {
             if first {
                 first = false
             } else {
@@ -498,12 +503,12 @@ func GenerateLabelZone(graph *Graph, width, height, xi, yi int, filename string)
     w.Flush()
 }
 
-func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, worldDim, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
+func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, scale, width, height, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
             //filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
             filename := fmt.Sprintf("%s/zones/%d/%d/%d", outPrefix, depth, xi, yi)
-            GenerateLabelZone(graph, worldDim, worldDim, xi, yi,filename)
+            GenerateLabelZone(graph, scale, width, height, xi, yi,filename)
         }
     }
     channel <- 1 // signal that this set of tiles is done
@@ -524,23 +529,37 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
 
     fmt.Fprintf(w,"label_index({\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"zones\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,)
 
-    divisionSet := [...]int{4,8,16,32,64,128}
+    //divisionSet := [...]int{4,8,16,32,64,128}
+    // depth, tile divisions, scale divisions
+    depthSet := [...]LabelDepth{
+        {1,1},
+        {1,2},
+        {1,4},
+        {1,8},
+        {2,16},
+        {4,32},
+        {8,64},
+    }
     //divisionSet := [...]int{4,8,24}
 
     first := true
-    
-    for depth, divs := range divisionSet {
+
+    for depth, labelDepth := range depthSet {
         //divs := int(math.Pow(2.,float64(depth)))
-        worldDim := int(math.Max(float64(graph.BoundsX)/float64(divs), float64(graph.BoundsY)/float64(divs)))
+        tile_width := int(math.Max(float64(graph.BoundsX)/float64(labelDepth.tdivs), float64(graph.BoundsY)/float64(labelDepth.tdivs)))
+        tile_height := tile_width
+
+        // typical scale of tile
+        scale := int(math.Max(float64(graph.BoundsX)/float64(labelDepth.sdivs), float64(graph.BoundsY)/float64(labelDepth.sdivs)))
 
         if !first {
              fmt.Fprintf(w,",")
         }
         first = false
-        fmt.Fprintf(w,"{\"z\":%d,\"w\":%d,\"h\":%d,\"nx\":%d,\"ny\":%d}",depth, worldDim, worldDim, divs,divs)
+        fmt.Fprintf(w,"{\"z\":%d,\"s\":%d,\"w\":%d,\"h\":%d,\"nx\":%d,\"ny\":%d}",depth, scale, tile_width, tile_height,labelDepth.tdivs,labelDepth.tdivs)
 
         if !*flagSkipZones {
-            fmt.Printf("Generating label zones at depth %d\n",divs)
+            fmt.Printf("Generating label zones at depth %d\n",depth)
             // TODO if graph far from from square, shorten tile directions accordingly
 
             // parallelise the drawing of zones, using as many cpus as we have available to us
@@ -551,13 +570,13 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
             runtime.GOMAXPROCS(maxCpu)
             channel := make(chan int, maxCpu)
             numRoutines := 0
-            xiPerCpu := (divs + maxCpu - 1) / maxCpu
-            for xi := 1; xi <= divs; {
+            xiPerCpu := (int(labelDepth.tdivs) + maxCpu - 1) / maxCpu
+            for xi := 1; xi <= int(labelDepth.tdivs); {
                 xiLast := xi + xiPerCpu - 1
-                if xiLast > divs {
-                    xiLast = divs
+                if xiLast > int(labelDepth.tdivs) {
+                    xiLast = int(labelDepth.tdivs)
                 }
-                go ParallelGenerateLabelZone(graph, outPrefix, depth, worldDim, xi, xiLast, 1, divs, channel)
+                go ParallelGenerateLabelZone(graph, outPrefix, depth, scale, tile_width, tile_height, xi, xiLast, 1, int(labelDepth.tdivs), channel)
                 numRoutines += 1
                 xi = xiLast + 1
             }
