@@ -490,7 +490,8 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, fi
             } else {
                 fmt.Fprintf(w,",")
             }
-            fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"lbl\":\"%s\"}",paper.x,paper.y,paper.label)
+            label := paper.label
+            fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",paper.x,paper.y,paper.radius,label)
         }
     })
 
@@ -532,6 +533,7 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
         {2,16},
         {4,32},
         {8,64},
+        {16,128},
     }
 
     first := true
