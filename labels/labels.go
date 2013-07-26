@@ -60,11 +60,6 @@ func main() {
     GenerateAllLabelZones(graph, flag.Arg(0))
 }
 
-type LabelDepth struct {
-    tdivs   uint
-    sdivs   uint
-}
-
 type Paper struct {
     id      uint
     maincat string
@@ -544,16 +539,18 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
     fmt.Fprintf(w,"label_index({\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"zones\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,)
 
     // tile divisions, scale divisions
-    depthSet := [...]LabelDepth{
+    depthSet := []struct {
+        tdivs, sdivs uint  
+    }{
         {1,1},
         {1,2},
         {1,4},
-        {2,8},
-        {4,16},
-        {8,32},
-        {16,64},
-        {32,128},
-        {64,256},
+        {1,8},
+        {2,16},
+        {4,32},
+        {8,64},
+        {16,128},
+        {32,256},
     }
 
     first := true
