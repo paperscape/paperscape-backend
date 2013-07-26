@@ -139,6 +139,27 @@ func QueryCategories(db *mysql.Client, id uint) string {
     return maincat
 }
 
+func cleanJsonString(input string) string {
+    inbytes := []byte(input)
+    output := make([]byte,0)
+
+    // TODO work out exactly which chars are causing
+    // parsing error and blacklist or escape them
+    // inplace of this whitelist
+    validChars := []byte{'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','1','2','3','4','5','6','7','8','9','0'}
+
+    for _, b := range(inbytes) {
+        for _, c := range validChars {
+            if b == c {
+                output = append(output,b)
+                break
+            }
+        }
+    }
+
+    return string(output)
+}
+
 func getPaperById(papers []*Paper, id uint) *Paper {
     lo := 0
     hi := len(papers) - 1
@@ -473,12 +494,9 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, fi
     x  := graph.MinX + (xi-1)*int(width) + rx
     y  := graph.MinY + (yi-1)*int(height) + ry
 
-    // need to add largest radius to dimensions to ensure we don't miss any papers
-
     // TODO consider adding depth, x, y, width, height etc.
     // Tho in practice should already have this info before d/l label zone
     fmt.Fprintf(w,"lz_%d_%d_%d({\"scale\":%d,\"lbls\":[",depth,xi,yi,scale)
-   
 
     min_rad := int(float64(scale)*0.01)
 
@@ -490,7 +508,8 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, fi
             } else {
                 fmt.Fprintf(w,",")
             }
-            label := paper.label
+            // TODO hopefully temporary
+            label := cleanJsonString(paper.label)
             fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",paper.x,paper.y,paper.radius,label)
         }
     })
