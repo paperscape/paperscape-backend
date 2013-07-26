@@ -457,7 +457,7 @@ func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
     qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, rx, ry, f)
 }
 
-func GenerateLabelZone(graph *Graph, scale, width, height, xi, yi int, filename string) {
+func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, filename string) {
 
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
         log.Fatal(err)
@@ -468,22 +468,22 @@ func GenerateLabelZone(graph *Graph, scale, width, height, xi, yi int, filename 
     w := bufio.NewWriter(fo)
 
     // Get midpoint of zone
-    rx := float64(width/2)
-    ry := float64(height/2)
-    x  := float64(1-xi)*float64(width) + rx
-    y  := float64(1-yi)*float64(height) + ry
+    rx := width/2
+    ry := height/2
+    x  := graph.MinX + (xi-1)*int(width) + rx
+    y  := graph.MinY + (yi-1)*int(height) + ry
 
     // need to add largest radius to dimensions to ensure we don't miss any papers
 
     // TODO consider adding depth, x, y, width, height etc.
     // Tho in practice should already have this info before d/l label zone
-    fmt.Fprintf(w,"label_zone({\"scale\":%d,\"lbls\":[",scale)
+    fmt.Fprintf(w,"lz_%d_%d_%d({\"scale\":%d,\"lbls\":[",depth,xi,yi,scale)
    
 
     min_rad := int(float64(scale)*0.01)
 
     first := true
-    graph.qt.ApplyIfWithin(int(x), int(y), int(rx), int(ry), func(paper *Paper) {
+    graph.qt.ApplyIfWithin(x, y, rx, ry, func(paper *Paper) {
         if paper.label != "" && paper.radius > min_rad {
             if first {
                 first = false
@@ -495,20 +495,14 @@ func GenerateLabelZone(graph *Graph, scale, width, height, xi, yi int, filename 
     })
 
     fmt.Fprintf(w,"]})")
-    
-    //err:= png.Encode(w, surf.GetImage())
-    //if err != nil {
-    //    fmt.Println(err)
-    //}
     w.Flush()
 }
 
 func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, scale, width, height, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
-            //filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
             filename := fmt.Sprintf("%s/zones/%d/%d/%d", outPrefix, depth, xi, yi)
-            GenerateLabelZone(graph, scale, width, height, xi, yi,filename)
+            GenerateLabelZone(graph, scale, width, height, depth, xi, yi,filename)
         }
     }
     channel <- 1 // signal that this set of tiles is done
@@ -529,8 +523,7 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
 
     fmt.Fprintf(w,"label_index({\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"zones\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,)
 
-    //divisionSet := [...]int{4,8,16,32,64,128}
-    // depth, tile divisions, scale divisions
+    // tile divisions, scale divisions
     depthSet := [...]LabelDepth{
         {1,1},
         {1,2},
@@ -540,7 +533,6 @@ func GenerateAllLabelZones(graph *Graph, outPrefix string) {
         {4,32},
         {8,64},
     }
-    //divisionSet := [...]int{4,8,24}
 
     first := true
 
