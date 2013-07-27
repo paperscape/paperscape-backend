@@ -1,40 +1,19 @@
 package main
 
 import (
-    //"io"
-    //"io/ioutil"
     "flag"
     "os"
     "bufio"
     "fmt"
     "path/filepath"
     "strings"
-    //"net"
-    //"net/http"
-    //"net/http/fcgi"
-    //"strconv"
-    //"unicode"
     "encoding/json"
-    //"text/scanner"
     "GoMySQL"
     "runtime"
-    //"bytes"
-    //"time"
     "math"
-    //"math/rand"
-    //"crypto/sha1"
-    //"crypto/sha256"
-    //"compress/gzip"
-    //"crypto/aes"
     "sort"
-    //"net/smtp"
     "log"
     "xiwi"
-    //"image"
-    //"image/color"
-    //"image/draw"
-    //"image/png"
-    //"image/jpeg"
     "github.com/ungerik/go-cairo"
 )
 
@@ -47,14 +26,6 @@ var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles")
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
 var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
 var flagMaxCores = flag.Int("cores",-1,"Max number of system cores to use, default is all of them")
-
-//var flagLogFile = flag.String("log-file", "", "file to output log information to")
-//var flagPciteTable = flag.String("table", "pcite", "MySQL database table to get pcite data from")
-//var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
-//var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
-//var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
-//var flagTestQueryArxiv = flag.String("test-arxiv", "", "run a test query with arxiv")
-//var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
 
 func main() {
     // parse command line options
