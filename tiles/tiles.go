@@ -6,8 +6,7 @@ import (
     "bufio"
     "fmt"
     "path/filepath"
-    "strings"
-    "encoding/json"
+    //"strings"
     "GoMySQL"
     "runtime"
     "math"
@@ -20,9 +19,9 @@ import (
 var GRAPH_PADDING = 100 // what to pad graph by on each side
 var TILE_PIXEL_LEN = 256
 
-
 var flagDB = flag.String("db", "", "MySQL database to connect to")
 var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles")
+var flagHeatMap = flag.Bool("hm", false, "Make heatmap tiles")
 var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
 var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
 var flagMaxCores = flag.Int("cores",-1,"Max number of system cores to use, default is all of them")
@@ -31,8 +30,8 @@ func main() {
     // parse command line options
     flag.Parse()
 
-    if flag.NArg() != 2 {
-        log.Fatal("need to specify map.json file (db to load from DB), and output prefix (without extension)")
+    if flag.NArg() != 1 {
+        log.Fatal("need to specify output prefix")
     }
 
     // connect to the db
@@ -43,15 +42,15 @@ func main() {
     defer db.Close()
 
     // read in the graph
-    graph := ReadGraph(db, flag.Arg(0))
+    graph := ReadGraph(db)
 
     // build the quad tree
     graph.BuildQuadTree()
 
     if *flagDoSingle {
-        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, flag.Arg(1))
+        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, flag.Arg(0))
     } else {
-        GenerateAllTiles(graph, flag.Arg(1))
+        GenerateAllTiles(graph, flag.Arg(0))
     }
 }
 
@@ -66,8 +65,9 @@ type Paper struct {
     y       int
     radius  int
     age     float32
-    keyword string
-    colBG   CairoColor
+    heat    float64
+    //keyword string
+    //colBG   CairoColor
     colFG   CairoColor
 }
 
@@ -100,58 +100,98 @@ func (graph *Graph) GetPaperById(id uint) *Paper {
     return nil
 }
 
-func QueryCategories(db *mysql.Client, id uint) string {
+
+func dateToUniqueId(year,month,day uint) uint {
+    return (year - 1800) * 10000000 + (month - 1) * 625000 + (day - 1) * 15625
+}
+
+func getLE16(blob []byte, i int) uint {
+    return uint(blob[i]) | (uint(blob[i + 1]) << 8)
+}
+func getLE32(blob []byte, i int) uint {
+    return uint(blob[i]) | (uint(blob[i + 1]) << 8) | (uint(blob[i + 2]) << 16) | (uint(blob[i + 3]) << 24)
+}
+
+func QueryHeat(db *mysql.Client, graph *Graph) {
+
     // execute the query
-    query := fmt.Sprintf("SELECT maincat,allcats FROM meta_data WHERE id=%d", id)
-    err := db.Query(query)
+    err := db.Query("SELECT id,numCites,cites FROM pcite")
     if err != nil {
         fmt.Println("MySQL query error;", err)
-        return ""
+        return
     }
 
     // get result set
-    result, err := db.StoreResult()
+    result, err := db.UseResult()
     if err != nil {
-        fmt.Println("MySQL store result error;", err)
-        return ""
+        fmt.Println("MySQL use result error;", err)
+        return
     }
 
-    // check if there are any results
-    if result.RowCount() == 0 {
-        return ""
+    // for normalizing heat
+    //var maxHeat float64
+    //var totalHeat float64
+
+    // get each row from the result
+    for {
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        var ok bool
+        var id uint64
+        //var numCites uint
+        var citesBlob []byte
+        if id, ok = row[0].(uint64); !ok { continue }
+        //if numCites, ok = row[1].(uint); !ok { continue }
+        if citesBlob, ok = row[2].([]byte); !ok { continue }
+
+        citeIds := make([]uint,0)
+
+        for i := 0; i < len(citesBlob); i += 10 {
+            citeIds = append(citeIds,getLE32(citesBlob, i))
+            getLE16(citesBlob, i + 4) //citeOrder
+            getLE16(citesBlob, i + 6) //citeFreq
+            getLE16(citesBlob, i + 8) //numcites
+        }
+
+        numRecentCites := 0
+
+        // TODO temp! last 30 days
+        recentDateBoundary := uint(2133298100)
+
+        for _, citeId := range(citeIds) {
+            if citeId > recentDateBoundary {
+                numRecentCites += 1
+            }
+        }
+
+        var heat float64
+        //heat = math.Pow(float64(numRecentCites)/float64(numCites),1/4)
+        heat = float64(numRecentCites)
+        //totalHeat += heat
+        //if heat > 0 { total = heat }
+
+        paper := graph.GetPaperById(uint(id))
+        if paper != nil {
+            paper.heat = heat
+        }
     }
 
-    // should be only 1 result
-    if result.RowCount() != 1 {
-        fmt.Println("MySQL multiple results; result count =", result.RowCount())
-        return ""
+    // normalize heat
+    for _, paper := range (graph.papers) {
+        paper.heat /= 5
+        if paper.heat > 1 {paper.heat = 1}
     }
-
-    // get the row
-    row := result.FetchRow()
-    if row == nil {
-        return ""
-    }
-
-    // get the categories
-    var ok bool
-    var maincat string
-    if row[0] != nil {
-        if maincat, ok = row[0].(string); !ok { return "" }
-    }
-    /*
-    var allcats string
-    if row[1] != nil {
-        if allcats, ok := row[1].(string); !ok { return "" }
-    }
-    */
+    //fmt.Printf("max %f\n",maxHeat)
 
     db.FreeResult()
 
-    return maincat
+    fmt.Println("read heat from cites")
 }
 
-func QueryCategories2(db *mysql.Client, graph *Graph) {
+func QueryCategories(db *mysql.Client, graph *Graph) {
     // execute the query
     err := db.Query("SELECT id,maincat,allcats FROM meta_data")
     if err != nil {
@@ -192,6 +232,7 @@ func QueryCategories2(db *mysql.Client, graph *Graph) {
     fmt.Println("read categories")
 }
 
+/*
 func QueryKeywords(db *mysql.Client, graph *Graph) {
     // execute the query
     err := db.Query("SELECT id,keywords FROM keywords")
@@ -234,7 +275,7 @@ func QueryKeywords(db *mysql.Client, graph *Graph) {
     db.FreeResult()
 
     fmt.Println("read keywords")
-}
+}*/
 
 func QueryPapers(db *mysql.Client) []*Paper {
     // count number of papers
@@ -327,122 +368,125 @@ func MakePaper(id uint, x int, y int, radius int, age float64) *Paper {
 func (paper *Paper) setColour() {
     // basic colour of paper
     var r, g, b float64
-    if paper.maincat == "hep-th" {
-        r, g, b = 0, 0, 1
-    } else if paper.maincat == "hep-ph" {
-        r, g, b = 0, 1, 0
-    } else if paper.maincat == "hep-ex" {
-        r, g, b = 1, 1, 0 // yellow
-    } else if paper.maincat == "gr-qc" {
-        r, g, b = 0, 1, 1 // cyan
-    } else if paper.maincat == "astro-ph.GA" {
-        r, g, b = 1, 0, 1 // purple
-    } else if paper.maincat == "hep-lat" {
-        r, g, b = 0.7, 0.36, 0.2 // tan brown
-    } else if paper.maincat == "astro-ph.CO" {
-        r, g, b = 0.62, 0.86, 0.24 // lime green
-    } else if paper.maincat == "astro-ph" {
-        r, g, b = 0.89, 0.53, 0.6 // skin pink
-    } else if paper.maincat == "cont-mat" {
-        r, g, b = 0.6, 0.4, 0.4
-    } else if paper.maincat == "quant-ph" {
-        r, g, b = 0.4, 0.7, 0.7
-    } else if paper.maincat == "physics" {
-        r, g, b = 0, 0.5, 0 // dark green
+
+
+    if *flagHeatMap {
+        
+        // Try pure heatmap instead
+        var coldR, coldG, coldB, hotR, hotG, hotB float64
+
+        coldR, coldG, coldB = 0, 0, 1
+        hotR, hotG, hotB = 1, 0, 0
+        r = (hotR - coldR)*paper.heat + coldR
+        g = (hotG - coldG)*paper.heat + coldG
+        b = (hotB - coldB)*paper.heat + coldB
+    
     } else {
-        r, g, b = 0.7, 1, 0.3
+
+        if paper.maincat == "hep-th" {
+            r, g, b = 0, 0, 1
+        } else if paper.maincat == "hep-ph" {
+            r, g, b = 0, 1, 0
+        } else if paper.maincat == "hep-ex" {
+            r, g, b = 1, 1, 0 // yellow
+        } else if paper.maincat == "gr-qc" {
+            r, g, b = 0, 1, 1 // cyan
+        } else if paper.maincat == "astro-ph.GA" {
+            r, g, b = 1, 0, 1 // purple
+        } else if paper.maincat == "hep-lat" {
+            r, g, b = 0.7, 0.36, 0.2 // tan brown
+        } else if paper.maincat == "astro-ph.CO" {
+            r, g, b = 0.62, 0.86, 0.24 // lime green
+        } else if paper.maincat == "astro-ph" {
+            r, g, b = 0.89, 0.53, 0.6 // skin pink
+        } else if paper.maincat == "cont-mat" {
+            r, g, b = 0.6, 0.4, 0.4
+        } else if paper.maincat == "quant-ph" {
+            r, g, b = 0.4, 0.7, 0.7
+        } else if paper.maincat == "physics" {
+            r, g, b = 0, 0.5, 0 // dark green
+        } else {
+            r, g, b = 0.7, 1, 0.3
+        }
+
+        // older papers are more saturated in colour
+        age := float64(paper.age)
+
+        // foreground colour; select one by making it's if condition true
+        if (false) {
+            // older papers are saturated, newer papers are coloured
+            saturation := 0.4 * (1 - age)
+            r = saturation + (r) * (1 - saturation)
+            g = saturation + (g) * (1 - saturation)
+            b = saturation + (b) * (1 - saturation)
+        } else if (false) {
+            // older papers are saturated, newer papers are coloured and tend towards a full red component
+            saturation := 0.4 * (1 - age)
+            age = age * age
+            r = saturation + (r * (1 - age) + age) * (1 - saturation)
+            g = saturation + (g * (1 - age)      ) * (1 - saturation)
+            b = saturation + (b * (1 - age)      ) * (1 - saturation)
+        } else if (true) {
+            // older papers are saturated and dark, newer papers are coloured and bright
+            //saturation := 0.4 * (1 - age)
+            saturation := 0.0
+            dim_factor := 0.2 + 0.8 * age
+            r = dim_factor * (saturation + r * (1 - saturation))
+            g = dim_factor * (saturation + g * (1 - saturation))
+            b = dim_factor * (saturation + b * (1 - saturation))
+        }
+
+        if *flagGrayScale {
+            //lum := 0.21 * r + 0.72 * g + 0.07 * b 
+            lum := 0.289 * r + 0.587 * g + 0.114 * b
+            r = lum
+            g = lum
+            b = lum
+        }
     }
-
-    // background colour
-    paper.colBG = CairoColor{0.7 + 0.3 * r, 0.7 + 0.3 * g, 0.7 + 0.3 * b}
-
-    // older papers are more saturated in colour
-    age := float64(paper.age)
-
-    // foreground colour; select one by making it's if condition true
-    if (false) {
-        // older papers are saturated, newer papers are coloured
-        saturation := 0.4 * (1 - age)
-        r = saturation + (r) * (1 - saturation)
-        g = saturation + (g) * (1 - saturation)
-        b = saturation + (b) * (1 - saturation)
-    } else if (false) {
-        // older papers are saturated, newer papers are coloured and tend towards a full red component
-        saturation := 0.4 * (1 - age)
-        age = age * age
-        r = saturation + (r * (1 - age) + age) * (1 - saturation)
-        g = saturation + (g * (1 - age)      ) * (1 - saturation)
-        b = saturation + (b * (1 - age)      ) * (1 - saturation)
-    } else if (true) {
-        // older papers are saturated and dark, newer papers are coloured and bright
-        //saturation := 0.4 * (1 - age)
-        saturation := 0.0
-        dim_factor := 0.2 + 0.8 * age
-        r = dim_factor * (saturation + r * (1 - saturation))
-        g = dim_factor * (saturation + g * (1 - saturation))
-        b = dim_factor * (saturation + b * (1 - saturation))
-    }
-
-    if *flagGrayScale {
-        //lum := 0.21 * r + 0.72 * g + 0.07 * b 
-        lum := 0.289 * r + 0.587 * g + 0.114 * b
-        r = lum
-        g = lum
-        b = lum
-    }
-
-    // Try pure heatmap instead
-    //var coldR, coldG, coldB, hotR, hotG, hotB float64
-    //scale := float64(paper.age)
-
-    //coldR, coldG, coldB = 0, 0, 1
-    //hotR, hotG, hotB = 1, 0, 0
-    //r = (hotR - coldR)*scale + coldR
-    //g = (hotG - coldG)*scale + coldG
-    //b = (hotB - coldB)*scale + coldB
 
     paper.colFG = CairoColor{r, g, b}
 }
 
-func ReadGraph(db *mysql.Client, posFilename string) *Graph {
+func ReadGraph(db *mysql.Client) *Graph {
     graph := new(Graph)
 
-    if (posFilename == "db") {
-        // load positions from the data base
-        graph.papers = QueryPapers(db)
-        if graph.papers == nil {
-            log.Fatal("could not read papers from db")
-        }
-        fmt.Printf("read %v papers from db\n", len(graph.papers))
-
-    } else {
-        // load positions from a json file
-
-        file, err := os.Open(flag.Arg(0))
-        if err != nil {
-            log.Fatal(err)
-        }
-        defer file.Close()
-
-        dec := json.NewDecoder(file)
-        var papers [][]int
-        if err := dec.Decode(&papers); err != nil {
-            log.Fatal(err)
-        }
-
-        //papers = papers[0:10000]
-        fmt.Printf("parsed %v papers\n", len(papers))
-
-        graph.papers = make([]*Paper, len(papers))
-        for index, paper := range papers {
-            var age float64 = float64(index) / float64(len(papers))
-            paperObj := MakePaper(uint(paper[0]), paper[1], paper[2], paper[3], age)
-            graph.papers[index] = paperObj
-        }
+    // load positions from the data base
+    graph.papers = QueryPapers(db)
+    if graph.papers == nil {
+        log.Fatal("could not read papers from db")
     }
+    fmt.Printf("read %v papers from db\n", len(graph.papers))
 
-    QueryCategories2(db, graph)
-    QueryKeywords(db, graph)
+    //// load positions from a json file
+
+    //file, err := os.Open(flag.Arg(0))
+    //if err != nil {
+    //    log.Fatal(err)
+    //}
+    //defer file.Close()
+
+    //dec := json.NewDecoder(file)
+    //var papers [][]int
+    //if err := dec.Decode(&papers); err != nil {
+    //    log.Fatal(err)
+    //}
+
+    ////papers = papers[0:10000]
+    //fmt.Printf("parsed %v papers\n", len(papers))
+
+    //graph.papers = make([]*Paper, len(papers))
+    //for index, paper := range papers {
+    //    var age float64 = float64(index) / float64(len(papers))
+    //    paperObj := MakePaper(uint(paper[0]), paper[1], paper[2], paper[3], age)
+    //    graph.papers[index] = paperObj
+    //}
+
+    QueryCategories(db, graph)
+    if *flagHeatMap {
+        QueryHeat(db,graph)
+    }
+    //QueryKeywords(db, graph)
 
     for _, paper := range graph.papers {
         if paper.x - paper.radius < graph.MinX { graph.MinX = paper.x - paper.radius }
@@ -604,10 +648,7 @@ func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
 
 func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeight int, filename string) {
 
-    //surf := cairo.NewSurface(cairo.FORMAT_RGB24, surfWidth, surfHeight)
     surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidth, surfHeight)
-    //surf.SetSourceRGB(4.0/15, 5.0/15, 6.0/15)
-    //surf.SetSourceRGB(0, 0, 0)
     surf.SetSourceRGBA(0, 0, 0, 0)
     surf.Paint()
 
@@ -617,15 +658,6 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
 
     matrix.X0 = -float64(graph.MinX)*matrix.Xx + float64((1-xi)*surf.GetWidth())
     matrix.Y0 = -float64(graph.MinY)*matrix.Yy + float64((1-yi)*surf.GetHeight())
-
-    //fmt.Println("rendering background")
-    // simple halo background circle for each paper
-    //surf.SetMatrix(*matrix)
-    //for _, paper := range graph.papers {
-    //    surf.SetSourceRGB(paper.colBG.r, paper.colBG.g, paper.colBG.b)
-    //    surf.Arc(float64(paper.x), float64(paper.y), 2 * float64(paper.radius), 0, 2 * math.Pi)
-    //    surf.Fill()
-    //}
 
     // area-based background
     //qt := graph.qt
@@ -729,20 +761,15 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
         }
         surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
         surf.Fill()
-        /* this bit draws a border around each paper; not needed when we have a black background
-        surf.FillPreserve()
-        surf.SetSourceRGB(0, 0, 0)
-        surf.Stroke()
-        */
+        
         // this bit draws the keyword of the paper if it'll fit
-        if (pixelRadius > 21) {
-            surf.SetSourceRGB(1, 1, 1)
-            surf.MoveTo(float64(paper.x) - 10 * float64(len(paper.keyword)), float64(paper.y) + 5)
-            surf.ShowText(paper.keyword)
-        }
+        //if (pixelRadius > 21) {
+        //    surf.SetSourceRGB(1, 1, 1)
+        //    surf.MoveTo(float64(paper.x) - 10 * float64(len(paper.keyword)), float64(paper.y) + 5)
+        //    surf.ShowText(paper.keyword)
+        //}
     })
 
-    //fmt.Println("writing file")
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
         fmt.Println(err)
         return
@@ -751,17 +778,6 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     // save with full colours
     surf.WriteToPNG(filename+".png")
 
-    //fo, _ := os.Create(filename+"_v2.png")
-    //defer fo.Close()
-    //w := bufio.NewWriter(fo)
-    //err:= png.Encode(w, surf.GetImage())
-    //if err != nil {
-    //    fmt.Println(err)
-    //}
-    //w.Flush()
-
-    // TODO save grayscale (or dimmer version)
-    //surf.WriteToPNG(filename+"g.png")
     surf.Finish()
 
 }
@@ -794,9 +810,10 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
     sort.Sort(PaperSortId(graph.papers))
     latestId := graph.papers[0].id
 
-    fmt.Fprintf(w,"tile_index(\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",flag.Arg(0),latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
+    fmt.Fprintf(w,"tile_index(\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
-    divisionSet := [...]int{4,8,24,72,216}
+    //divisionSet := [...]int{4,8,24,72,216}
+    divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24}
 
     //depths := *flagTileDepth
