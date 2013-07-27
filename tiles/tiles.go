@@ -14,6 +14,7 @@ import (
     "log"
     "xiwi"
     "github.com/ungerik/go-cairo"
+    "time"
 )
 
 var GRAPH_PADDING = 100 // what to pad graph by on each side
@@ -101,8 +102,10 @@ func (graph *Graph) GetPaperById(id uint) *Paper {
 }
 
 
-func dateToUniqueId(year,month,day uint) uint {
-    return (year - 1800) * 10000000 + (month - 1) * 625000 + (day - 1) * 15625
+func idToDaysAgo(id uint) uint {
+    tId := time.Date(((int(id) / 10000000) + 1800),time.Month((((int(id) % 10000000) / 625000) + 1)),(((int(id) % 625000) / 15625) + 1),0,0,0,0,time.UTC)
+    days := uint(time.Now().Sub(tId).Hours()/24)
+    return days
 }
 
 func getLE16(blob []byte, i int) uint {
@@ -129,7 +132,7 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
     }
 
     // for normalizing heat
-    //var maxHeat float64
+    var maxHeat float64
     //var totalHeat float64
 
     // get each row from the result
@@ -141,10 +144,10 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
 
         var ok bool
         var id uint64
-        //var numCites uint
+        var numCites uint64
         var citesBlob []byte
         if id, ok = row[0].(uint64); !ok { continue }
-        //if numCites, ok = row[1].(uint); !ok { continue }
+        if numCites, ok = row[1].(uint64); !ok { continue }
         if citesBlob, ok = row[2].([]byte); !ok { continue }
 
         citeIds := make([]uint,0)
@@ -156,33 +159,32 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
             getLE16(citesBlob, i + 8) //numcites
         }
 
-        numRecentCites := 0
+        var heat float64
 
-        // TODO temp! last 30 days
-        recentDateBoundary := uint(2133298100)
+        lifetime := float64(365.)
 
         for _, citeId := range(citeIds) {
-            if citeId > recentDateBoundary {
-                numRecentCites += 1
-            }
+            citeHeat := math.Exp(-float64(idToDaysAgo(citeId))/lifetime)
+            heat += citeHeat
+            //fmt.Printf("%d,%f,%f,%f\n",citeId,float64(idToDaysAgo(citeId)),citeHeat,heat)
         }
 
-        var heat float64
+        if heat > maxHeat { maxHeat = heat }
+
         //heat = math.Pow(float64(numRecentCites)/float64(numCites),1/4)
-        heat = float64(numRecentCites)
+        //heat = float64(numRecentCites)
         //totalHeat += heat
         //if heat > 0 { total = heat }
 
         paper := graph.GetPaperById(uint(id))
-        if paper != nil {
-            paper.heat = heat
+        if paper != nil && numCites > 0 {
+            paper.heat = heat/float64(numCites)
         }
     }
 
     // normalize heat
     for _, paper := range (graph.papers) {
-        paper.heat /= 5
-        if paper.heat > 1 {paper.heat = 1}
+        paper.heat /= maxHeat
     }
     //fmt.Printf("max %f\n",maxHeat)
 
@@ -787,9 +789,13 @@ func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, 
     if *flagGrayScale {
         suffix = "-bw"
     }
+    if *flagHeatMap {
+        // TODO put back and implement on boa
+        //suffix = "-hm"
+        suffix = ""
+    }
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
-            //filename := fmt.Sprintf("%stiles/%d-%d/tile_%d-%d_%d-%d.png",outPrefix,divs,divs,divs,divs,xi,yi)
             filename := fmt.Sprintf("%s/tiles%s/%d/%d/%d", outPrefix, suffix, depth, xi, yi)
             DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename)
         }
