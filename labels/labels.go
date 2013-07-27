@@ -41,7 +41,7 @@ func main() {
     flag.Parse()
 
     if flag.NArg() != 1 {
-        log.Fatal("need to specify output directory prefix (with trailing /)")
+        log.Fatal("need to specify output directory prefix")
     }
 
     // connect to the db
@@ -135,20 +135,16 @@ func QueryCategories(db *mysql.Client, id uint) string {
 }
 
 func cleanJsonString(input string) string {
-    inbytes := []byte(input)
-    output := make([]byte,0)
-
     // TODO work out exactly which chars are causing
     // parsing error and blacklist or escape them
     // inplace of this whitelist
-    validChars := []byte{'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','1','2','3','4','5','6','7','8','9','0',' '}
+    validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -/.,<>"
 
-    for _, b := range(inbytes) {
-        for _, c := range validChars {
-            if b == c {
-                output = append(output,b)
-                break
-            }
+    output := make([]rune, 0, len(input))
+
+    for _, r := range input {
+        if strings.ContainsRune(validChars, r) {
+            output = append(output, r)
         }
     }
 
@@ -299,8 +295,13 @@ func MakePaper(id uint, x int, y int, radius int, age float64, labels string) *P
     paper.radius = radius
     paper.age = float32(age)
     
-    // For now pick top label only
-    paper.label = strings.Split(labels,",")[0]
+    // For now pick top 2 labels only
+    labs := strings.SplitN(labels, ",", 3)
+    if len(labs) <= 2 {
+        paper.label = labels
+    } else {
+        paper.label = labs[0] + "," + labs[1]
+    }
 
     return paper
 }
