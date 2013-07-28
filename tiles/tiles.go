@@ -84,7 +84,7 @@ func main() {
 }
 
 type CairoColor struct {
-    r, g, b float64
+    r, g, b float32
 }
 
 type Paper struct {
@@ -93,8 +93,8 @@ type Paper struct {
     y           int
     radius      int
     age         float32
-    heat        float64
-    col       CairoColor
+    heat        float32
+    col         CairoColor
     maincat     string
     authors     string
     keywords    string
@@ -173,18 +173,23 @@ func QueryNewPapersId(db *mysql.Client, graph *Graph) uint {
         return latestId
     }
 
+    defer db.FreeResult()
+
+    var ok bool
+    var id uint64
+
     row := result.FetchRow()
     if row == nil {
         fmt.Println("MySQL row error;", err)
         return latestId
     }
 
-    var ok bool
-    var id uint64
     if id, ok = row[0].(uint64); !ok {
         fmt.Println("MySQL id cast error;", err)
         return latestId
     }
+    
+    
     return uint(id)
 }
 
@@ -212,8 +217,8 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
     }
 
     // for normalizing heat
-    var maxHeat float64
-    //var totalHeat float64
+    var maxHeat float32
+    //var totalHeat float32
 
     // get each row from the result
     for {
@@ -239,12 +244,12 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
             getLE16(citesBlob, i + 8) //numcites
         }
 
-        var heat float64
+        var heat float32
 
         lifetime := float64(365.)
 
         for _, citeId := range(citeIds) {
-            citeHeat := math.Exp(-float64(idToDaysAgo(citeId))/lifetime)
+            citeHeat := float32(math.Exp(-float64(idToDaysAgo(citeId))/lifetime))
             heat += citeHeat
             //fmt.Printf("%d,%f,%f,%f\n",citeId,float64(idToDaysAgo(citeId)),citeHeat,heat)
         }
@@ -258,7 +263,7 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil && numCites > 0 {
-            paper.heat = heat/float64(numCites)
+            paper.heat = heat/float32(numCites)
         }
     }
 
@@ -385,7 +390,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
         if r, ok = row[3].(int64); !ok { continue }
         if keywords, ok = row[4].([]byte); !ok { continue }
 
-        var age float64 = float64(index) / float64(numPapers)
+        var age float32 = float32(index) / float32(numPapers)
         papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age,string(keywords))
         index += 1
     }
@@ -400,13 +405,13 @@ func QueryPapers(db *mysql.Client) []*Paper {
     return papers
 }
 
-func MakePaper(id uint, x int, y int, radius int, age float64, keywords string) *Paper {
+func MakePaper(id uint, x int, y int, radius int, age float32, keywords string) *Paper {
     paper := new(Paper)
     paper.id = id
     paper.x = x
     paper.y = y
     paper.radius = radius
-    paper.age = float32(age)
+    paper.age = age
     paper.keywords = keywords
 
     return paper
@@ -451,13 +456,13 @@ func (paper *Paper) DetermineLabel() {
 
 func (paper *Paper) SetColour() {
     // basic colour of paper
-    var r, g, b float64
+    var r, g, b float32
 
 
     if *flagHeatMap {
         
         // Try pure heatmap instead
-        var coldR, coldG, coldB, hotR, hotG, hotB float64
+        var coldR, coldG, coldB, hotR, hotG, hotB float32
 
         coldR, coldG, coldB = 0, 0, 1
         hotR, hotG, hotB = 1, 0, 0
@@ -494,18 +499,18 @@ func (paper *Paper) SetColour() {
         }
 
         // older papers are more saturated in colour
-        age := float64(paper.age)
+        var age float32 = paper.age
 
         // foreground colour; select one by making it's if condition true
         if (false) {
             // older papers are saturated, newer papers are coloured
-            saturation := 0.4 * (1 - age)
+            var saturation float32 = 0.4 * (1 - age)
             r = saturation + (r) * (1 - saturation)
             g = saturation + (g) * (1 - saturation)
             b = saturation + (b) * (1 - saturation)
         } else if (false) {
             // older papers are saturated, newer papers are coloured and tend towards a full red component
-            saturation := 0.4 * (1 - age)
+            var saturation float32 = 0.4 * (1 - age)
             age = age * age
             r = saturation + (r * (1 - age) + age) * (1 - saturation)
             g = saturation + (g * (1 - age)      ) * (1 - saturation)
@@ -513,7 +518,7 @@ func (paper *Paper) SetColour() {
         } else if (true) {
             // older papers are saturated and dark, newer papers are coloured and bright
             //saturation := 0.4 * (1 - age)
-            saturation := 0.0
+            var saturation float32 = 0.0
             dim_factor := 0.2 + 0.8 * age
             r = dim_factor * (saturation + r * (1 - saturation))
             g = dim_factor * (saturation + g * (1 - saturation))
@@ -730,8 +735,8 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     rx, ry := matrixInv.TransformDistance(float64(surfWidth)/2., float64(surfHeight)/2.)
 
     // set font
-    surf.SelectFontFace("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-    surf.SetFontSize(35)
+    //surf.SelectFontFace("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    //surf.SetFontSize(35)
 
     surf.SetMatrix(*matrix)
     surf.SetLineWidth(3)
@@ -746,7 +751,7 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
         } else {
             surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         }
-        surf.SetSourceRGB(paper.col.r, paper.col.g, paper.col.b)
+        surf.SetSourceRGB(float64(paper.col.r), float64(paper.col.g), float64(paper.col.b))
         surf.Fill()
         
     })
@@ -763,7 +768,7 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
 
 }
 
-func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, filename string) {
+func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, showCategories bool, filename string) {
 
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
         log.Fatal(err)
@@ -822,11 +827,11 @@ func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, 
     channel <- 1 // signal that this set of tiles is done
 }
 
-func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, scale, width, height, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
+func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, scale, width, height, xiFirst, xiLast, yiFirst, yiLast int, showCategories bool, channel chan int) {
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
             filename := fmt.Sprintf("%s/zones/%d/%d/%d", outPrefix, depth, xi, yi)
-            GenerateLabelZone(graph, scale, width, height, depth, xi, yi,filename)
+            GenerateLabelZone(graph, scale, width, height, depth, xi, yi, showCategories, filename)
         }
     }
     channel <- 1 // signal that this set of tiles is done
@@ -893,16 +898,17 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
     // tile divisions, scale divisions
     depthSet := []struct {
         tdivs, sdivs uint  
+        showCats bool
     }{
-        {1,1},
-        {1,2},
-        {1,4},
-        {1,8},
-        {2,16},
-        {4,32},
-        {8,64},
-        {16,128},
-        {32,256},
+        {1,1,true},
+        {1,2,true},
+        {1,4,false},
+        {1,8,false},
+        {2,16,false},
+        {4,32,false},
+        {8,64,false},
+        {16,128,false},
+        {32,256,false},
     }
 
     first := true
@@ -939,7 +945,7 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
                 if xiLast > int(labelDepth.tdivs) {
                     xiLast = int(labelDepth.tdivs)
                 }
-                go ParallelGenerateLabelZone(graph, outPrefix, depth, scale, tile_width, tile_height, xi, xiLast, 1, int(labelDepth.tdivs), channel)
+                go ParallelGenerateLabelZone(graph, outPrefix, depth, scale, tile_width, tile_height, xi, xiLast, 1, int(labelDepth.tdivs),labelDepth.showCats, channel)
                 numRoutines += 1
                 xi = xiLast + 1
             }
