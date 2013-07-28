@@ -61,13 +61,14 @@ func main() {
 }
 
 type Paper struct {
-    id      uint
-    maincat string
-    x       int
-    y       int
-    radius  int
-    age     float32
-    label   string
+    id          uint
+    authors     string
+    keywords    string
+    x           int
+    y           int
+    radius      int
+    age         float32
+    label       string
 }
 
 type PaperSortId []*Paper
@@ -81,57 +82,6 @@ type Graph struct {
     qt      *QuadTree
     MinX, MinY, MaxX, MaxY int
     BoundsX, BoundsY int
-}
-
-func QueryCategories(db *mysql.Client, id uint) string {
-    // execute the query
-    query := fmt.Sprintf("SELECT maincat,allcats FROM meta_data WHERE id=%d", id)
-    err := db.Query(query)
-    if err != nil {
-        fmt.Println("MySQL query error;", err)
-        return ""
-    }
-
-    // get result set
-    result, err := db.StoreResult()
-    if err != nil {
-        fmt.Println("MySQL store result error;", err)
-        return ""
-    }
-
-    // check if there are any results
-    if result.RowCount() == 0 {
-        return ""
-    }
-
-    // should be only 1 result
-    if result.RowCount() != 1 {
-        fmt.Println("MySQL multiple results; result count =", result.RowCount())
-        return ""
-    }
-
-    // get the row
-    row := result.FetchRow()
-    if row == nil {
-        return ""
-    }
-
-    // get the categories
-    var ok bool
-    var maincat string
-    if row[0] != nil {
-        if maincat, ok = row[0].(string); !ok { return "" }
-    }
-    /*
-    var allcats string
-    if row[1] != nil {
-        if allcats, ok := row[1].(string); !ok { return "" }
-    }
-    */
-
-    db.FreeResult()
-
-    return maincat
 }
 
 func cleanJsonString(input string) string {
@@ -167,9 +117,9 @@ func getPaperById(papers []*Paper, id uint) *Paper {
     return nil
 }
 
-func QueryCategories2(db *mysql.Client, papers []*Paper) {
+func QueryMetaData(db *mysql.Client, papers []*Paper) {
     // execute the query
-    err := db.Query("SELECT id,maincat,allcats FROM meta_data")
+    err := db.Query("SELECT id,authors FROM meta_data")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
@@ -191,15 +141,23 @@ func QueryCategories2(db *mysql.Client, papers []*Paper) {
 
         var ok bool
         var id uint64
-        var maincat string
+        //var maincat string
         //var allcats string
+        var authors string
         if id, ok = row[0].(uint64); !ok { continue }
-        if maincat, ok = row[1].(string); !ok { continue }
+        //if maincat, ok = row[1].(string); !ok { continue }
         //if allcats, ok = row[2].(string); !ok { continue }
+        if row[1] == nil {
+            continue
+        } else if au, ok := row[1].([]byte); !ok {
+            continue
+        } else {
+            authors = string(au)
+        }
 
         paper := getPaperById(papers, uint(id))
         if paper != nil {
-            paper.maincat = maincat
+            paper.authors = authors
         }
     }
 
@@ -263,15 +221,15 @@ func QueryPapers(db *mysql.Client) []*Paper {
         var ok bool
         var id uint64
         var x, y, r int64
-        var labels []byte
+        var keywords []byte
         if id, ok = row[0].(uint64); !ok { continue }
         if x, ok = row[1].(int64); !ok { continue }
         if y, ok = row[2].(int64); !ok { continue }
         if r, ok = row[3].(int64); !ok { continue }
-        if labels, ok = row[4].([]byte); !ok { continue }
-        
+        if keywords, ok = row[4].([]byte); !ok { continue }
+
         var age float64 = float64(index) / float64(numPapers)
-        papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age, string(labels))
+        papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age, string(keywords))
         index += 1
     }
 
@@ -287,28 +245,52 @@ func QueryPapers(db *mysql.Client) []*Paper {
     return papers
 }
 
-func MakePaper(id uint, x int, y int, radius int, age float64, labels string) *Paper {
+func MakePaper(id uint, x int, y int, radius int, age float64, keywords string) *Paper {
     paper := new(Paper)
     paper.id = id
     paper.x = x
     paper.y = y
     paper.radius = radius
     paper.age = float32(age)
-    
-    // For now pick top 2 labels only
-    labs := strings.SplitN(labels, ",", 3)
-    if len(labs) <= 2 {
-        paper.label = labels
-    } else {
-        paper.label = labs[0] + "," + labs[1]
-    }
-
+    paper.keywords = keywords;
     return paper
 }
 
-func (paper *Paper) setLabel() {
+func (paper *Paper) DetermineLabel() {
+    // work out author string; maximum 2 authors
+    aus := strings.SplitN(paper.authors, ",", 3)
+    for i, au := range aus {
+        // get the last name
+        parts := strings.Split(au, ".")
+        aus[i] = parts[len(parts) - 1]
+    }
+    var auStr string
+    if len(aus) <= 1 {
+        // 0 or 1 author
+        auStr = aus[0] + ","
+    } else if len(aus) == 2 {
+        // 2 authors
+        auStr = aus[0] + "," + aus[1]
+    } else {
+        // 3 or more authors
+        auStr = aus[0] + ",et al."
+    }
 
+    // work out keyword string; maximum 2 keywords
+    kws := strings.SplitN(paper.keywords, ",", 3)
+    var kwStr string
+    if len(kws) <= 1 {
+        // 0 or 1 keywords
+        kwStr = paper.keywords + ","
+    } else if len(kws) == 2 {
+        // 2 keywords
+        kwStr = paper.keywords
+    } else {
+        // 3 or more keywords
+        kwStr = kws[0] + "," + kws[1]
+    }
 
+    paper.label = kwStr + "," + auStr
 }
 
 func ReadGraph(db *mysql.Client) *Graph {
@@ -319,10 +301,18 @@ func ReadGraph(db *mysql.Client) *Graph {
     if graph.papers == nil {
         log.Fatal("could not read papers from db")
     }
+
+    // load extra meta data from the data base
+    QueryMetaData(db, graph.papers)
+
     fmt.Printf("read %v papers from db\n", len(graph.papers))
 
-    QueryCategories2(db, graph.papers)
+    // determine labels to use for each paper
+    for _, paper := range graph.papers {
+        paper.DetermineLabel()
+    }
 
+    // work out graph bounding box
     for _, paper := range graph.papers {
         if paper.x - paper.radius < graph.MinX { graph.MinX = paper.x - paper.radius }
         if paper.y - paper.radius < graph.MinY { graph.MinY = paper.y - paper.radius }
@@ -332,10 +322,6 @@ func ReadGraph(db *mysql.Client) *Graph {
 
     graph.BoundsX = graph.MaxX - graph.MinX
     graph.BoundsY = graph.MaxY - graph.MinY
-
-    //for _, paper := range graph.papers {
-    //    paper.setColour()
-    //}
 
     fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(graph.papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
 
