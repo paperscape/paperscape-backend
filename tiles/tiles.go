@@ -6,7 +6,7 @@ import (
     "bufio"
     "fmt"
     "path/filepath"
-    //"strings"
+    "strings"
     "GoMySQL"
     "runtime"
     "math"
@@ -20,11 +20,14 @@ import (
 var GRAPH_PADDING = 100 // what to pad graph by on each side
 var TILE_PIXEL_LEN = 256
 
-var flagDB = flag.String("db", "", "MySQL database to connect to")
-var flagGrayScale = flag.Bool("gs", false, "Make grayscale tiles")
-var flagHeatMap = flag.Bool("hm", false, "Make heatmap tiles")
-var flagDoSingle = flag.Bool("single", false, "Do a large single tile") // now the default
-var flagSkipTiles = flag.Bool("skip-tiles", false, "Only generate index file not tiles")
+var flagDB         = flag.String("db", "", "MySQL database to connect to")
+var flagGrayScale  = flag.Bool("gs", false, "Make grayscale tiles")
+var flagHeatMap    = flag.Bool("hm", false, "Make heatmap tiles")
+var flagDoSingle   = flag.Bool("single-tile", false, "Only generate a large single tile, no labels or world index information")
+
+var flagSkipTiles  = flag.Bool("skip-tiles", false, "Do not generate tiles (still generates index information)")
+var flagSkipLabels = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
+
 var flagMaxCores = flag.Int("cores",-1,"Max number of system cores to use, default is all of them")
 
 func main() {
@@ -34,6 +37,7 @@ func main() {
     if flag.NArg() != 1 {
         log.Fatal("need to specify output prefix")
     }
+    outPrefix := flag.Arg(0)
 
     // connect to the db
     db := xiwi.ConnectToDB(*flagDB)
@@ -49,9 +53,33 @@ func main() {
     graph.BuildQuadTree()
 
     if *flagDoSingle {
-        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, flag.Arg(0))
+        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, outPrefix)
     } else {
-        GenerateAllTiles(graph, flag.Arg(0))
+        // Create index file
+        indexFile := outPrefix + "/world_index.json"
+
+        if err := os.MkdirAll(filepath.Dir(indexFile),0755); err != nil {
+            fmt.Println(err)
+            return
+        }
+        fo, _ := os.Create(indexFile)
+        defer fo.Close()
+        w := bufio.NewWriter(fo)
+
+        sort.Sort(PaperSortId(graph.papers))
+        latestId := graph.papers[0].id
+        num_papers := len(graph.papers)
+
+        newPapersId := QueryNewPapersId(db,graph)
+
+        fmt.Fprintf(w,"world_index({\"latestid\":%d,\"newid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",latestId,newPapersId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
+
+        GenerateAllTiles(graph, w, outPrefix)
+
+        GenerateAllLabelZones(graph, w, outPrefix)
+
+        fmt.Fprintf(w,"})")
+        w.Flush()
     }
 }
 
@@ -60,16 +88,17 @@ type CairoColor struct {
 }
 
 type Paper struct {
-    id      uint
-    maincat string
-    x       int
-    y       int
-    radius  int
-    age     float32
-    heat    float64
-    //keyword string
-    //colBG   CairoColor
-    colFG   CairoColor
+    id          uint
+    x           int
+    y           int
+    radius      int
+    age         float32
+    heat        float64
+    col       CairoColor
+    maincat     string
+    authors     string
+    keywords    string
+    label       string
 }
 
 type PaperSortId []*Paper
@@ -101,11 +130,62 @@ func (graph *Graph) GetPaperById(id uint) *Paper {
     return nil
 }
 
+func cleanJsonString(input string) string {
+    // TODO work out exactly which chars are causing
+    // parsing error and blacklist or escape them
+    // inplace of this whitelist
+    validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -/.,<>"
+
+    output := make([]rune, 0)
+
+    for _, r := range input {
+        if strings.ContainsRune(validChars, r) {
+            output = append(output, r)
+        }
+    }
+
+    return string(output)
+}
 
 func idToDaysAgo(id uint) uint {
     tId := time.Date(((int(id) / 10000000) + 1800),time.Month((((int(id) % 10000000) / 625000) + 1)),(((int(id) % 625000) / 15625) + 1),0,0,0,0,time.UTC)
     days := uint(time.Now().Sub(tId).Hours()/24)
     return days
+}
+
+func QueryNewPapersId(db *mysql.Client, graph *Graph) uint {
+
+    sort.Sort(PaperSortId(graph.papers))
+    latestId := graph.papers[0].id
+
+    // execute the query
+    query := fmt.Sprintf("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < %d",latestId)
+    err := db.Query(query)
+    if err != nil {
+        fmt.Println("MySQL query error;", err)
+        return latestId
+    }
+
+    // get result set
+    result, err := db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        return latestId
+    }
+
+    row := result.FetchRow()
+    if row == nil {
+        fmt.Println("MySQL row error;", err)
+        return latestId
+    }
+
+    var ok bool
+    var id uint64
+    if id, ok = row[0].(uint64); !ok {
+        fmt.Println("MySQL id cast error;", err)
+        return latestId
+    }
+    return uint(id)
 }
 
 func getLE16(blob []byte, i int) uint {
@@ -193,9 +273,9 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
     fmt.Println("read heat from cites")
 }
 
-func QueryCategories(db *mysql.Client, graph *Graph) {
+func QueryMetaData(db *mysql.Client, graph *Graph) {
     // execute the query
-    err := db.Query("SELECT id,maincat,allcats FROM meta_data")
+    err := db.Query("SELECT id,maincat,authors FROM meta_data")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
@@ -219,65 +299,27 @@ func QueryCategories(db *mysql.Client, graph *Graph) {
         var id uint64
         var maincat string
         //var allcats string
+        var authors string
         if id, ok = row[0].(uint64); !ok { continue }
         if maincat, ok = row[1].(string); !ok { continue }
         //if allcats, ok = row[2].(string); !ok { continue }
+        if row[2] == nil {
+            continue
+        } else if au, ok := row[2].([]byte); !ok {
+            continue
+        } else {
+            authors = string(au)
+        }
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
             paper.maincat = maincat
+            paper.authors = authors
         }
     }
 
     db.FreeResult()
-
-    fmt.Println("read categories")
 }
-
-/*
-func QueryKeywords(db *mysql.Client, graph *Graph) {
-    // execute the query
-    err := db.Query("SELECT id,keywords FROM keywords")
-    if err != nil {
-        fmt.Println("MySQL query error;", err)
-        return
-    }
-
-    // get result set
-    result, err := db.UseResult()
-    if err != nil {
-        fmt.Println("MySQL use result error;", err)
-        return
-    }
-
-    // get each row from the result
-    for {
-        row := result.FetchRow()
-        if row == nil {
-            break
-        }
-
-        var ok bool
-        var id uint64
-        var keywords1 []byte
-        if id, ok = row[0].(uint64); !ok { continue }
-        if keywords1, ok = row[1].([]byte); !ok { continue }
-
-        paper := graph.GetPaperById(uint(id))
-        if paper != nil {
-            keywords := string(keywords1)
-            idx := strings.Index(keywords, ",")
-            if idx < 0 {
-                idx = len(keywords)
-            }
-            paper.keyword = keywords[0:idx]
-        }
-    }
-
-    db.FreeResult()
-
-    fmt.Println("read keywords")
-}*/
 
 func QueryPapers(db *mysql.Client) []*Paper {
     // count number of papers
@@ -312,7 +354,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
     papers := make([]*Paper, numPapers)
 
     // execute the query
-    err = db.Query("SELECT id,x,y,r FROM map_data")
+    err = db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return nil
@@ -336,38 +378,78 @@ func QueryPapers(db *mysql.Client) []*Paper {
         var ok bool
         var id uint64
         var x, y, r int64
+        var keywords []byte
         if id, ok = row[0].(uint64); !ok { continue }
         if x, ok = row[1].(int64); !ok { continue }
         if y, ok = row[2].(int64); !ok { continue }
         if r, ok = row[3].(int64); !ok { continue }
+        if keywords, ok = row[4].([]byte); !ok { continue }
 
         var age float64 = float64(index) / float64(numPapers)
-        papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age)
+        papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age,string(keywords))
         index += 1
     }
 
     db.FreeResult()
 
     if int64(index) != numPapers {
-        fmt.Println("could not read all papers from map_data; wanted", numPapers, "got", index)
+        fmt.Println("could not read all papers from map_data/keywords; wanted", numPapers, "got", index)
         return nil
     }
 
     return papers
 }
 
-func MakePaper(id uint, x int, y int, radius int, age float64) *Paper {
+func MakePaper(id uint, x int, y int, radius int, age float64, keywords string) *Paper {
     paper := new(Paper)
     paper.id = id
     paper.x = x
     paper.y = y
     paper.radius = radius
     paper.age = float32(age)
+    paper.keywords = keywords
 
     return paper
 }
 
-func (paper *Paper) setColour() {
+func (paper *Paper) DetermineLabel() {
+    // work out author string; maximum 2 authors
+    aus := strings.SplitN(paper.authors, ",", 3)
+    for i, au := range aus {
+        // get the last name
+        parts := strings.Split(au, ".")
+        aus[i] = parts[len(parts) - 1]
+    }
+    var auStr string
+    if len(aus) <= 1 {
+        // 0 or 1 author
+        auStr = aus[0] + ","
+    } else if len(aus) == 2 {
+        // 2 authors
+        auStr = aus[0] + "," + aus[1]
+    } else {
+        // 3 or more authors
+        auStr = aus[0] + ",et al."
+    }
+
+    // work out keyword string; maximum 2 keywords
+    kws := strings.SplitN(paper.keywords, ",", 3)
+    var kwStr string
+    if len(kws) <= 1 {
+        // 0 or 1 keywords
+        kwStr = paper.keywords + ","
+    } else if len(kws) == 2 {
+        // 2 keywords
+        kwStr = paper.keywords
+    } else {
+        // 3 or more keywords
+        kwStr = kws[0] + "," + kws[1]
+    }
+
+    paper.label = kwStr + "," + auStr
+}
+
+func (paper *Paper) SetColour() {
     // basic colour of paper
     var r, g, b float64
 
@@ -447,7 +529,7 @@ func (paper *Paper) setColour() {
         }
     }
 
-    paper.colFG = CairoColor{r, g, b}
+    paper.col = CairoColor{r, g, b}
 }
 
 func ReadGraph(db *mysql.Client) *Graph {
@@ -460,35 +542,16 @@ func ReadGraph(db *mysql.Client) *Graph {
     }
     fmt.Printf("read %v papers from db\n", len(graph.papers))
 
-    //// load positions from a json file
+    QueryMetaData(db, graph)
+   
+    // determine labels to use for each paper
+    for _, paper := range graph.papers {
+        paper.DetermineLabel()
+    }
 
-    //file, err := os.Open(flag.Arg(0))
-    //if err != nil {
-    //    log.Fatal(err)
-    //}
-    //defer file.Close()
-
-    //dec := json.NewDecoder(file)
-    //var papers [][]int
-    //if err := dec.Decode(&papers); err != nil {
-    //    log.Fatal(err)
-    //}
-
-    ////papers = papers[0:10000]
-    //fmt.Printf("parsed %v papers\n", len(papers))
-
-    //graph.papers = make([]*Paper, len(papers))
-    //for index, paper := range papers {
-    //    var age float64 = float64(index) / float64(len(papers))
-    //    paperObj := MakePaper(uint(paper[0]), paper[1], paper[2], paper[3], age)
-    //    graph.papers[index] = paperObj
-    //}
-
-    QueryCategories(db, graph)
     if *flagHeatMap {
         QueryHeat(db,graph)
     }
-    //QueryKeywords(db, graph)
 
     for _, paper := range graph.papers {
         if paper.x - paper.radius < graph.MinX { graph.MinX = paper.x - paper.radius }
@@ -497,8 +560,6 @@ func ReadGraph(db *mysql.Client) *Graph {
         if paper.y + paper.radius > graph.MaxY { graph.MaxY = paper.y + paper.radius }
     }
 
-    // TRY Add safety buffers, if we use these must
-    // account for them later in client code!
     graph.MinX -= GRAPH_PADDING
     graph.MaxX += GRAPH_PADDING
     graph.MinY -= GRAPH_PADDING
@@ -508,7 +569,7 @@ func ReadGraph(db *mysql.Client) *Graph {
     graph.BoundsY = graph.MaxY - graph.MinY
 
     for _, paper := range graph.papers {
-        paper.setColour()
+        paper.SetColour()
     }
 
     fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(graph.papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
@@ -661,82 +722,6 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     matrix.X0 = -float64(graph.MinX)*matrix.Xx + float64((1-xi)*surf.GetWidth())
     matrix.Y0 = -float64(graph.MinY)*matrix.Yy + float64((1-yi)*surf.GetHeight())
 
-    // area-based background
-    //qt := graph.qt
-    //surf.IdentityMatrix()
-    //matrixInv := *matrix
-    //matrixInv.Invert()
-    //for v := 0; v + 1 < surf.GetHeight(); v += 2 {
-    //    for u := 0; u + 1 < surf.GetWidth(); u += 2 {
-    //        x, y := matrixInv.TransformPoint(float64(u), float64(v))
-    //        ptR := 0.0
-    //        ptG := 0.0
-    //        ptB := 0.0
-    //        n := 0
-    //        qt.ApplyIfWithin(int(x), int(y), 200, 200, func(paper *Paper) {
-    //            ptR += paper.colBG.r
-    //            ptG += paper.colBG.g
-    //            ptB += paper.colBG.b
-    //            n += 1
-    //        })
-    //        if n > 10 {
-    //            if n < 20 {
-    //                ptR += float64(20 - n) * 4.0/15
-    //                ptG += float64(20 - n) * 5.0/15
-    //                ptB += float64(20 - n) * 6.0/15
-    //                n = 20
-    //            }
-    //            ptR /= float64(n)
-    //            ptG /= float64(n)
-    //            ptB /= float64(n)
-    //            surf.SetSourceRGB(ptR, ptG, ptB)
-    //            surf.Rectangle(float64(u), float64(v), 2, 2)
-    //            surf.Fill()
-    //        }
-    //    }
-    //}
-
-    // apply smoothing
-    //{
-    //    data := surf.GetData()
-    //    w := surf.GetStride()
-    //    fmt.Println(surf.GetFormat())
-    //    data2 := make([]byte, len(data))
-    //    for v := 1; v + 1 < surf.GetHeight(); v += 1 {
-    //        for u := 1; u + 1 < surf.GetWidth(); u += 1 {
-    //            var r, g, b uint
-    //            /*
-    //            if data[v * w + u * 4 + 0] == 0 && data[v * w + u * 4 + 1] == 0 && data[v * w + u * 4 + 2] == 0 {
-    //                r = 5*0x44
-    //                g = 5*0x55
-    //                b = 5*0x66
-    //            } else {
-    //                */
-    //                b = uint(data[(v - 1) * w + (u + 0) * 4 + 0]) +
-    //                    uint(data[(v + 0) * w + (u - 1) * 4 + 0]) +
-    //                    uint(data[(v + 0) * w + (u + 0) * 4 + 0]) +
-    //                    uint(data[(v + 0) * w + (u + 1) * 4 + 0]) +
-    //                    uint(data[(v + 1) * w + (u + 0) * 4 + 0])
-    //                g = uint(data[(v - 1) * w + (u + 0) * 4 + 1]) +
-    //                    uint(data[(v + 0) * w + (u - 1) * 4 + 1]) +
-    //                    uint(data[(v + 0) * w + (u + 0) * 4 + 1]) +
-    //                    uint(data[(v + 0) * w + (u + 1) * 4 + 1]) +
-    //                    uint(data[(v + 1) * w + (u + 0) * 4 + 1])
-    //                r = uint(data[(v - 1) * w + (u + 0) * 4 + 2]) +
-    //                    uint(data[(v + 0) * w + (u - 1) * 4 + 2]) +
-    //                    uint(data[(v + 0) * w + (u + 0) * 4 + 2]) +
-    //                    uint(data[(v + 0) * w + (u + 1) * 4 + 2]) +
-    //                    uint(data[(v + 1) * w + (u + 0) * 4 + 2])
-    //            //}
-
-    //            data2[v * w + u * 4 + 0] = byte(b / 5)
-    //            data2[v * w + u * 4 + 1] = byte(g / 5)
-    //            data2[v * w + u * 4 + 2] = byte(r / 5)
-    //        }
-    //    }
-    //    surf.SetData(data2)
-    //}
-
     // Use quadtree to only draw papers within given tile region
     surf.IdentityMatrix()
     matrixInv := *matrix
@@ -761,15 +746,9 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
         } else {
             surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         }
-        surf.SetSourceRGB(paper.colFG.r, paper.colFG.g, paper.colFG.b)
+        surf.SetSourceRGB(paper.col.r, paper.col.g, paper.col.b)
         surf.Fill()
         
-        // this bit draws the keyword of the paper if it'll fit
-        //if (pixelRadius > 21) {
-        //    surf.SetSourceRGB(1, 1, 1)
-        //    surf.MoveTo(float64(paper.x) - 10 * float64(len(paper.keyword)), float64(paper.y) + 5)
-        //    surf.ShowText(paper.keyword)
-        //}
     })
 
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
@@ -782,6 +761,46 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
 
     surf.Finish()
 
+}
+
+func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, filename string) {
+
+    if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
+        log.Fatal(err)
+    }
+
+    fo, _ := os.Create(filename+".json")
+    defer fo.Close()
+    w := bufio.NewWriter(fo)
+
+    // Get midpoint of zone
+    rx := width/2
+    ry := height/2
+    x  := graph.MinX + (xi-1)*int(width) + rx
+    y  := graph.MinY + (yi-1)*int(height) + ry
+
+    // TODO consider adding depth, x, y, width, height etc.
+    // Tho in practice should already have this info before d/l label zone
+    fmt.Fprintf(w,"lz_%d_%d_%d({\"scale\":%d,\"lbls\":[",depth,xi,yi,scale)
+
+    min_rad := int(float64(scale)*0.01)
+
+    first := true
+    graph.qt.ApplyIfWithin(x, y, rx, ry, func(paper *Paper) {
+        if paper.label != "" && paper.radius > min_rad {
+            if first {
+                first = false
+            } else {
+                fmt.Fprintf(w,",")
+            }
+            // TODO hopefully temporary
+            label := cleanJsonString(paper.label)
+            fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",paper.x,paper.y,paper.radius,label)
+        }
+    })
+
+    fmt.Fprintf(w,"]})")
+    w.Flush()
 }
 
 func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
@@ -803,20 +822,19 @@ func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, 
     channel <- 1 // signal that this set of tiles is done
 }
 
-func GenerateAllTiles(graph *Graph, outPrefix string) {
-    indexFile := outPrefix + "/tiles/tile_index.json"
-    if err := os.MkdirAll(filepath.Dir(indexFile),0755); err != nil {
-        fmt.Println(err)
-        return
+func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, scale, width, height, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
+    for xi := xiFirst; xi <= xiLast; xi++ {
+        for yi := yiFirst; yi <= yiLast; yi++ {
+            filename := fmt.Sprintf("%s/zones/%d/%d/%d", outPrefix, depth, xi, yi)
+            GenerateLabelZone(graph, scale, width, height, depth, xi, yi,filename)
+        }
     }
-    fo, _ := os.Create(indexFile)
-    defer fo.Close()
-    w := bufio.NewWriter(fo)
+    channel <- 1 // signal that this set of tiles is done
+}
 
-    sort.Sort(PaperSortId(graph.papers))
-    latestId := graph.papers[0].id
+func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
 
-    fmt.Fprintf(w,"tile_index({\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
+    fmt.Fprintf(w,",\"tilings\":[")
 
     divisionSet := [...]int{4,8,24,72,216}
     //divisionSet := [...]int{4,8,24,72}
@@ -865,6 +883,72 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
             // all tasks are finished
         }
     }
-    fmt.Fprintf(w,"]})")
-    w.Flush()
+    fmt.Fprintf(w,"]")
+}
+
+func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
+
+    fmt.Fprintf(w,",\"zones\":[")
+
+    // tile divisions, scale divisions
+    depthSet := []struct {
+        tdivs, sdivs uint  
+    }{
+        {1,1},
+        {1,2},
+        {1,4},
+        {1,8},
+        {2,16},
+        {4,32},
+        {8,64},
+        {16,128},
+        {32,256},
+    }
+
+    first := true
+
+    for depth, labelDepth := range depthSet {
+        //divs := int(math.Pow(2.,float64(depth)))
+        tile_width := int(math.Max(float64(graph.BoundsX)/float64(labelDepth.tdivs), float64(graph.BoundsY)/float64(labelDepth.tdivs)))
+        tile_height := tile_width
+
+        // typical scale of tile
+        scale := int(math.Max(float64(graph.BoundsX)/float64(labelDepth.sdivs), float64(graph.BoundsY)/float64(labelDepth.sdivs)))
+
+        if !first {
+             fmt.Fprintf(w,",")
+        }
+        first = false
+        fmt.Fprintf(w,"{\"z\":%d,\"s\":%d,\"w\":%d,\"h\":%d,\"nx\":%d,\"ny\":%d}",depth, scale, tile_width, tile_height,labelDepth.tdivs,labelDepth.tdivs)
+
+        if !*flagSkipLabels {
+            fmt.Printf("Generating label zones at depth %d\n",depth)
+            // TODO if graph far from from square, shorten tile directions accordingly
+
+            // parallelise the drawing of zones, using as many cpus as we have available to us
+            maxCpu := runtime.NumCPU()
+            if *flagMaxCores > 0 && *flagMaxCores < maxCpu {
+                maxCpu = *flagMaxCores
+            }
+            runtime.GOMAXPROCS(maxCpu)
+            channel := make(chan int, maxCpu)
+            numRoutines := 0
+            xiPerCpu := (int(labelDepth.tdivs) + maxCpu - 1) / maxCpu
+            for xi := 1; xi <= int(labelDepth.tdivs); {
+                xiLast := xi + xiPerCpu - 1
+                if xiLast > int(labelDepth.tdivs) {
+                    xiLast = int(labelDepth.tdivs)
+                }
+                go ParallelGenerateLabelZone(graph, outPrefix, depth, scale, tile_width, tile_height, xi, xiLast, 1, int(labelDepth.tdivs), channel)
+                numRoutines += 1
+                xi = xiLast + 1
+            }
+            // drain the channel
+            for i := 0; i < numRoutines; i++ {
+                <-channel // wait for one task to complete
+            }
+            // all tasks are finished
+        }
+    }
+    fmt.Fprintf(w,"]")
 }
