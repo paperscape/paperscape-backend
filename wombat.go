@@ -1017,10 +1017,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 
         if req.Form["test"] != nil {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
-        } else if req.Form["mload"] != nil {
-            // map: load world dims and latest id
-            logDescription = fmt.Sprintf("Load world map")
-            h.MapLoadWorld(rw) 
+        //} else if req.Form["mload"] != nil {
+        //    // map: load world dims and latest id
+        //    logDescription = fmt.Sprintf("Load world map")
+        //    h.MapLoadWorld(rw) 
         } else if req.Form["mp2l[]"] != nil {
             // map: paper ids to locations
             var ids []uint
@@ -1982,6 +1982,7 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
     fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"}",code,modcode)
 }
 
+/*
 func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
 
     var txmin,tymin,txmax,tymax int
@@ -2005,7 +2006,7 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
     }
 
     fmt.Fprintf(rw, "{\"txmin\":%d,\"tymin\":%d,\"txmax\":%d,\"tymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s,\"lxmin\":%d,\"lymin\":%d,\"lxmax\":%d,\"lymax\":%d,\"label\":%s}",txmin, tymin,txmax,tymax,idmax,idnew,tpixw,tpixh,tilings,lxmin,lymin,lxmax,lymax,labelings)
-}
+}*/
 
 func (h *MyHTTPHandler) MapLocationFromPaperId(ids []uint, rw http.ResponseWriter) {
     
