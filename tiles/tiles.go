@@ -281,9 +281,10 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
     fmt.Println("read heat from cites")
 }
 
-func QueryMetaData(db *mysql.Client, graph *Graph) {
+func QueryCategories(db *mysql.Client, graph *Graph) {
+
     // execute the query
-    err := db.Query("SELECT meta_data.id,meta_data.maincat,keywords.keywords,meta_data.authors FROM meta_data,keywords WHERE meta_data.id = keywords.id")
+    err := db.Query("SELECT id,maincat FROM meta_data")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
@@ -306,16 +307,52 @@ func QueryMetaData(db *mysql.Client, graph *Graph) {
         var ok bool
         var id uint64
         var maincat string
+        if id, ok = row[0].(uint64); !ok { continue }
+        if maincat, ok = row[1].(string); !ok { continue }
+
+        paper := graph.GetPaperById(uint(id))
+        if paper != nil {
+            paper.maincat = maincat
+        }
+    }
+
+    db.FreeResult()
+
+}
+
+func QueryLabels(db *mysql.Client, graph *Graph) {
+    // execute the query
+    err := db.Query("SELECT meta_data.id,keywords.keywords,meta_data.authors FROM meta_data,keywords WHERE meta_data.id = keywords.id")
+    if err != nil {
+        fmt.Println("MySQL query error;", err)
+        return
+    }
+
+    // get result set
+    result, err := db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        return
+    }
+
+    // get each row from the result
+    for {
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        var ok bool
+        var id uint64
         var keywords []byte
         //var allcats string
         var authors string
         if id, ok = row[0].(uint64); !ok { continue }
-        if maincat, ok = row[1].(string); !ok { continue }
-        if keywords, ok = row[2].([]byte); !ok { continue }
+        if keywords, ok = row[1].([]byte); !ok { continue }
         //if allcats, ok = row[2].(string); !ok { continue }
-        if row[3] == nil {
+        if row[2] == nil {
             continue
-        } else if au, ok := row[3].([]byte); !ok {
+        } else if au, ok := row[2].([]byte); !ok {
             continue
         } else {
             authors = string(au)
@@ -323,7 +360,6 @@ func QueryMetaData(db *mysql.Client, graph *Graph) {
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
-            paper.maincat = maincat
             paper.DetermineLabel(authors,string(keywords))
         }
     }
@@ -458,7 +494,7 @@ func (paper *Paper) DetermineLabel(authors, keywords string) {
         kwStr = kws[0] + "," + kws[1]
     }
 
-    paper.label = kwStr + "," + auStr
+    paper.label = cleanJsonString(kwStr + "," + auStr)
 }
 
 func (paper *Paper) SetColour() {
@@ -554,7 +590,11 @@ func ReadGraph(db *mysql.Client) *Graph {
     }
     fmt.Printf("read %v papers from db\n", len(graph.papers))
 
-    QueryMetaData(db, graph)
+    QueryCategories(db, graph)
+
+    if !*flagSkipLabels {
+        QueryLabels(db, graph)
+    }
    
     // determine labels to use for each paper
     //for _, paper := range graph.papers {
@@ -752,8 +792,8 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     // foreground
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
         pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
-        if pixelRadius < 0.1 {
-            newRadius, _ := matrixInv.TransformDistance(0.1, 0.1)
+        if pixelRadius < 0.05 {
+            newRadius, _ := matrixInv.TransformDistance(0.05, 0.05)
             surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
         } else {
             surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
@@ -806,8 +846,7 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, sh
                 fmt.Fprintf(w,",")
             }
             // TODO hopefully temporary
-            label := cleanJsonString(paper.label)
-            fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",paper.x,paper.y,paper.radius,label)
+            fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",paper.x,paper.y,paper.radius,paper.label)
         }
     })
 
