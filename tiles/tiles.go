@@ -755,8 +755,8 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     // foreground
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
         pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
-        if pixelRadius < 0.2 {
-            newRadius, _ := matrixInv.TransformDistance(0.2, 0.2)
+        if pixelRadius < 0.1 {
+            newRadius, _ := matrixInv.TransformDistance(0.1, 0.1)
             surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
         } else {
             surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
@@ -818,8 +818,8 @@ func GenerateAllTiles(graph *Graph, outPrefix string) {
 
     fmt.Fprintf(w,"tile_index({\"latestid\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d,\"tilings\":[",latestId,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
-    //divisionSet := [...]int{4,8,24,72,216}
-    divisionSet := [...]int{4,8,24,72}
+    divisionSet := [...]int{4,8,24,72,216}
+    //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24}
 
     //depths := *flagTileDepth
