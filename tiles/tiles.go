@@ -51,6 +51,8 @@ func main() {
 
     // build the quad tree
     graph.BuildQuadTree()
+    
+    runtime.GC()
 
     if *flagDoSingle {
         DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, outPrefix)
@@ -75,6 +77,7 @@ func main() {
         fmt.Fprintf(w,"world_index({\"latestid\":%d,\"newid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",latestId,newPapersId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
         GenerateAllTiles(graph, w, outPrefix)
+        runtime.GC()
 
         GenerateAllLabelZones(graph, w, outPrefix)
 
@@ -96,8 +99,8 @@ type Paper struct {
     heat        float32
     col         CairoColor
     maincat     string
-    authors     string
-    keywords    string
+    //authors     string
+    //keywords    string
     label       string
 }
 
@@ -280,7 +283,7 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
 
 func QueryMetaData(db *mysql.Client, graph *Graph) {
     // execute the query
-    err := db.Query("SELECT id,maincat,authors FROM meta_data")
+    err := db.Query("SELECT meta_data.id,meta_data.maincat,keywords.keywords,meta_data.authors FROM meta_data,keywords WHERE meta_data.id = keywords.id")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
@@ -303,14 +306,16 @@ func QueryMetaData(db *mysql.Client, graph *Graph) {
         var ok bool
         var id uint64
         var maincat string
+        var keywords []byte
         //var allcats string
         var authors string
         if id, ok = row[0].(uint64); !ok { continue }
         if maincat, ok = row[1].(string); !ok { continue }
+        if keywords, ok = row[2].([]byte); !ok { continue }
         //if allcats, ok = row[2].(string); !ok { continue }
-        if row[2] == nil {
+        if row[3] == nil {
             continue
-        } else if au, ok := row[2].([]byte); !ok {
+        } else if au, ok := row[3].([]byte); !ok {
             continue
         } else {
             authors = string(au)
@@ -319,7 +324,7 @@ func QueryMetaData(db *mysql.Client, graph *Graph) {
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
             paper.maincat = maincat
-            paper.authors = authors
+            paper.DetermineLabel(authors,string(keywords))
         }
     }
 
@@ -359,7 +364,8 @@ func QueryPapers(db *mysql.Client) []*Paper {
     papers := make([]*Paper, numPapers)
 
     // execute the query
-    err = db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
+    //err = db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
+    err = db.Query("SELECT id,x,y,r FROM map_data")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return nil
@@ -383,15 +389,16 @@ func QueryPapers(db *mysql.Client) []*Paper {
         var ok bool
         var id uint64
         var x, y, r int64
-        var keywords []byte
+        //var keywords []byte
         if id, ok = row[0].(uint64); !ok { continue }
         if x, ok = row[1].(int64); !ok { continue }
         if y, ok = row[2].(int64); !ok { continue }
         if r, ok = row[3].(int64); !ok { continue }
-        if keywords, ok = row[4].([]byte); !ok { continue }
+        //if keywords, ok = row[4].([]byte); !ok { continue }
 
         var age float32 = float32(index) / float32(numPapers)
-        papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age,string(keywords))
+        //papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age,string(keywords))
+        papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age)
         index += 1
     }
 
@@ -405,21 +412,21 @@ func QueryPapers(db *mysql.Client) []*Paper {
     return papers
 }
 
-func MakePaper(id uint, x int, y int, radius int, age float32, keywords string) *Paper {
+func MakePaper(id uint, x int, y int, radius int, age float32) *Paper {
     paper := new(Paper)
     paper.id = id
     paper.x = x
     paper.y = y
     paper.radius = radius
     paper.age = age
-    paper.keywords = keywords
+    //paper.keywords = keywords
 
     return paper
 }
 
-func (paper *Paper) DetermineLabel() {
+func (paper *Paper) DetermineLabel(authors, keywords string) {
     // work out author string; maximum 2 authors
-    aus := strings.SplitN(paper.authors, ",", 3)
+    aus := strings.SplitN(authors, ",", 3)
     for i, au := range aus {
         // get the last name
         parts := strings.Split(au, ".")
@@ -438,14 +445,14 @@ func (paper *Paper) DetermineLabel() {
     }
 
     // work out keyword string; maximum 2 keywords
-    kws := strings.SplitN(paper.keywords, ",", 3)
+    kws := strings.SplitN(keywords, ",", 3)
     var kwStr string
     if len(kws) <= 1 {
         // 0 or 1 keywords
-        kwStr = paper.keywords + ","
+        kwStr = keywords + ","
     } else if len(kws) == 2 {
         // 2 keywords
-        kwStr = paper.keywords
+        kwStr = keywords
     } else {
         // 3 or more keywords
         kwStr = kws[0] + "," + kws[1]
@@ -550,9 +557,9 @@ func ReadGraph(db *mysql.Client) *Graph {
     QueryMetaData(db, graph)
    
     // determine labels to use for each paper
-    for _, paper := range graph.papers {
-        paper.DetermineLabel()
-    }
+    //for _, paper := range graph.papers {
+    //    paper.DetermineLabel()
+    //}
 
     if *flagHeatMap {
         QueryHeat(db,graph)
@@ -788,7 +795,7 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, sh
     // Tho in practice should already have this info before d/l label zone
     fmt.Fprintf(w,"lz_%d_%d_%d({\"scale\":%d,\"lbls\":[",depth,xi,yi,scale)
 
-    min_rad := int(float64(scale)*0.01)
+    min_rad := int(float32(scale)*0.01)
 
     first := true
     graph.qt.ApplyIfWithin(x, y, rx, ry, func(paper *Paper) {
