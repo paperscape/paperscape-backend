@@ -11,4 +11,4 @@ then
 	exit
 fi
 
-find $1 -type f -name "*.json" | xargs --max-proc=`nproc` -n 1 gzip -k
+find $1 -type f -name "*.json" | xargs --max-proc=`nproc` -n 1 gzip -kf
