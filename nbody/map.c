@@ -336,26 +336,6 @@ void map_env_flip_x(map_env_t *map_env) {
     }
 }
 
-/* TODO
-static void rotate_for_user_view(map_env_t *map_env) {
-    layout_t *l = map_env->layout;
-    if (l->num_nodes == 0) {
-        return;
-    }
-    layout_node_t *biggest_node = &l->nodes[0];
-    for (int i = 0; i < l->num_nodes; i++) {
-        layout_node_t *node = &l->nodes[i];
-        if (node->mass > biggest_node->mass) {
-            biggest_node = node;
-        }
-    }
-    double angle = atan2(
-}
-
-static void rotate_for_computation(map_env_t *map_env) {
-}
-*/
-
 /* compute node-node forces using naive gravity/anti-gravity method
  * this method is of order N^2, and hence very slow (but accurate)
  */
@@ -503,9 +483,11 @@ static bool layout_node_is_not_held(layout_node_t *n) {
 }
 
 static void map_env_compute_forces(map_env_t *map_env) {
-    // reset the forces
+    // reset the forces, and work out if any nodes are held
+    int any_nodes_held = 0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
         layout_node_t *n = &map_env->layout->nodes[i];
+        any_nodes_held |= (n->flags & LAYOUT_NODE_HOLD_STILL);
         n->fx = 0;
         n->fy = 0;
     }
@@ -526,11 +508,10 @@ static void map_env_compute_forces(map_env_t *map_env) {
 
     // compute node-node anti-gravity forces using quad tree
     quad_tree_build(map_env->layout, map_env->quad_tree);
-    // XXX hack for now
-    if (map_env->force_params.do_close_repulsion) {
-        quad_tree_forces(&map_env->force_params, map_env->quad_tree);
-    } else {
+    if (any_nodes_held) {
         quad_tree_force_apply_if(&map_env->force_params, map_env->quad_tree, layout_node_is_not_held);
+    } else {
+        quad_tree_forces(&map_env->force_params, map_env->quad_tree);
     }
 
     //compute_keyword_force(&map_env->force_params, map_env->num_papers, map_env->papers);
@@ -862,16 +843,6 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
         paper_t *p = &map_env->all_papers[i];
         p->mass = 0.2 + 0.2 * p->num_included_cites;
         p->radius = sqrt(p->mass / M_PI);
-        /* obsolete, since layout_X should set positions
-        if (p->included) {
-            if (!p->pos_valid) {
-                map_env_compute_best_start_position_for_paper(map_env, p);
-                p->pos_valid = true;
-            }
-        } else {
-            p->pos_valid = false;
-        }
-        */
     }
 
     // work out the colour of the graph with the most number of connected papers
