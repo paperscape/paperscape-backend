@@ -68,8 +68,7 @@ func main() {
         defer fo.Close()
         w := bufio.NewWriter(fo)
 
-        sort.Sort(PaperSortId(graph.papers))
-        latestId := graph.papers[0].id
+        latestId := graph.papers[len(graph.papers)-1].id
         num_papers := len(graph.papers)
 
         newPapersId := QueryNewPapersId(db,graph)
@@ -106,7 +105,7 @@ type Paper struct {
 
 type PaperSortId []*Paper
 func (p PaperSortId) Len() int           { return len(p) }
-func (p PaperSortId) Less(i, j int) bool { return p[i].id > p[j].id }
+func (p PaperSortId) Less(i, j int) bool { return p[i].id < p[j].id }
 func (p PaperSortId) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 
@@ -158,8 +157,7 @@ func idToDaysAgo(id uint) uint {
 
 func QueryNewPapersId(db *mysql.Client, graph *Graph) uint {
 
-    sort.Sort(PaperSortId(graph.papers))
-    latestId := graph.papers[0].id
+    latestId := graph.papers[len(graph.papers) - 1].id
 
     // execute the query
     query := fmt.Sprintf("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < %d",latestId)
@@ -397,7 +395,8 @@ func QueryPapers(db *mysql.Client) []*Paper {
     db.FreeResult()
 
     // allocate paper array
-    papers := make([]*Paper, numPapers)
+    //papers := make([]*Paper, numPapers)
+    papers := make([]*Paper, 0)
 
     // execute the query
     //err = db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
@@ -415,7 +414,6 @@ func QueryPapers(db *mysql.Client) []*Paper {
     }
 
     // get each row from the result
-    index := 0
     for {
         row := result.FetchRow()
         if row == nil {
@@ -425,37 +423,38 @@ func QueryPapers(db *mysql.Client) []*Paper {
         var ok bool
         var id uint64
         var x, y, r int64
-        //var keywords []byte
         if id, ok = row[0].(uint64); !ok { continue }
         if x, ok = row[1].(int64); !ok { continue }
         if y, ok = row[2].(int64); !ok { continue }
         if r, ok = row[3].(int64); !ok { continue }
-        //if keywords, ok = row[4].([]byte); !ok { continue }
 
-        var age float32 = float32(index) / float32(numPapers)
-        //papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age,string(keywords))
-        papers[index] = MakePaper(uint(id), int(x), int(y), int(r), age)
-        index += 1
+        papers = append(papers,MakePaper(uint(id), int(x), int(y), int(r)))
     }
 
     db.FreeResult()
 
-    if int64(index) != numPapers {
-        fmt.Println("could not read all papers from map_data/keywords; wanted", numPapers, "got", index)
+    // make sure papers are sorted!
+    sort.Sort(PaperSortId(papers))
+
+    // calculate age
+    for index, paper := range(papers) {
+        paper.age = float32(index) / float32(numPapers)
+    }
+
+    if len(papers) != int(numPapers) {
+        fmt.Println("could not read all papers from map_data; wanted", numPapers, "got", len(papers))
         return nil
     }
 
     return papers
 }
 
-func MakePaper(id uint, x int, y int, radius int, age float32) *Paper {
+func MakePaper(id uint, x int, y int, radius int) *Paper {
     paper := new(Paper)
     paper.id = id
     paper.x = x
     paper.y = y
     paper.radius = radius
-    paper.age = age
-    //paper.keywords = keywords
 
     return paper
 }
@@ -531,7 +530,7 @@ func (paper *Paper) SetColour() {
             r, g, b = 0.62, 0.86, 0.24 // lime green
         } else if paper.maincat == "astro-ph" {
             r, g, b = 0.89, 0.53, 0.6 // skin pink
-        } else if paper.maincat == "cont-mat" {
+        } else if paper.maincat == "cond-mat" {
             r, g, b = 0.6, 0.4, 0.4
         } else if paper.maincat == "quant-ph" {
             r, g, b = 0.4, 0.7, 0.7
