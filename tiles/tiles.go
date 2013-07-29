@@ -68,12 +68,14 @@ func main() {
         defer fo.Close()
         w := bufio.NewWriter(fo)
 
-        latestId := graph.papers[len(graph.papers)-1].id
         num_papers := len(graph.papers)
 
-        newPapersId := QueryNewPapersId(db,graph)
+        fmt.Fprintf(w,"world_index({\"latestid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",graph.LatestId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
-        fmt.Fprintf(w,"world_index({\"latestid\":%d,\"newid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",latestId,newPapersId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
+        graph.QueryNewPapersId(db)
+        if graph.NewPapersId != 0 {
+            fmt.Fprintf(w,",\"newid\":%d",graph.NewPapersId)
+        }
 
         GenerateAllTiles(graph, w, outPrefix)
         runtime.GC()
@@ -89,6 +91,11 @@ type CairoColor struct {
     r, g, b float32
 }
 
+type CategoryLabel struct {
+    x,y,radius int
+    label string
+}
+
 type Paper struct {
     id          uint
     x           int
@@ -98,8 +105,6 @@ type Paper struct {
     heat        float32
     col         CairoColor
     maincat     string
-    //authors     string
-    //keywords    string
     label       string
 }
 
@@ -112,8 +117,10 @@ func (p PaperSortId) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 type Graph struct {
     papers  []*Paper
     qt      *QuadTree
+    catLabels []*CategoryLabel
     MinX, MinY, MaxX, MaxY int
     BoundsX, BoundsY int
+    LatestId, NewPapersId uint
 }
 
 func (graph *Graph) GetPaperById(id uint) *Paper {
@@ -155,23 +162,67 @@ func idToDaysAgo(id uint) uint {
     return days
 }
 
-func QueryNewPapersId(db *mysql.Client, graph *Graph) uint {
+func (graph *Graph) CalculateCategoryLabels() {
+    categories := []struct{
+        maincat, label string
+    }{
+        {"hep-th","HEP theory,(hep-th),,"},
+        {"hep-ph","HEP phenomenology,(hep-ph),,"},
+        {"hep-ex","HEP experiment,(hep-ex),,"},
+        {"gr-qc","general relativity/quantum cosmology,(gr-gc),,"},
+        //{"astro-ph.GA","astronomy,astro-ph.GA,,"},
+        {"hep-lat","HEP lattice,(hep-lat),,"},
+        //{"astro-ph.CO","cosmology,astro-ph.CO,,"},
+        {"astro-ph","astrophysics,(astro-ph),,"},
+        {"cond-mat","condensed matter,(cond-mat),,"},
+        {"quant-ph","quantum physics,(quant-ph),,"},
+        {"physics","general physics,(physics),,"},
+    }
 
-    latestId := graph.papers[len(graph.papers) - 1].id
+    for _, category := range(categories) {
+
+        var sumMass, sumMassX, sumMassY int64
+        var minX,minY,maxX,maxY int
+        for _, paper := range(graph.papers) {
+            if paper.maincat == category.maincat {
+                mass := int64(paper.radius*paper.radius)
+                sumMass += mass
+                sumMassX += mass*int64(paper.x)
+                sumMassY += mass*int64(paper.y)
+                if paper.x < minX { minX = paper.x }
+                if paper.x > maxX { maxX = paper.x }
+                if paper.y < minY { minY = paper.y }
+                if paper.y > maxY { maxY = paper.y }
+            }
+        }
+        if sumMass > 0 {
+            label := new(CategoryLabel)
+            label.label = category.label
+
+            label.x = int(sumMassX/sumMass)
+            label.y = int(sumMassY/sumMass)
+            label.radius = int(math.Sqrt(math.Pow(float64(maxX-minX),2) + math.Pow(float64(maxY-minY),2))/2)
+
+            graph.catLabels = append(graph.catLabels,label)
+        }
+    }
+}
+
+func (graph *Graph) QueryNewPapersId(db *mysql.Client) {
 
     // execute the query
-    query := fmt.Sprintf("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < %d",latestId)
+    query := fmt.Sprintf("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < %d",graph.LatestId)
     err := db.Query(query)
     if err != nil {
         fmt.Println("MySQL query error;", err)
-        return latestId
+        return
     }
 
     // get result set
     result, err := db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
-        return latestId
+        return
     }
 
     defer db.FreeResult()
@@ -182,16 +233,15 @@ func QueryNewPapersId(db *mysql.Client, graph *Graph) uint {
     row := result.FetchRow()
     if row == nil {
         fmt.Println("MySQL row error;", err)
-        return latestId
+        return
     }
 
     if id, ok = row[0].(uint64); !ok {
         fmt.Println("MySQL id cast error;", err)
-        return latestId
+        return
     }
     
-    
-    return uint(id)
+    graph.NewPapersId = uint(id)
 }
 
 func getLE16(blob []byte, i int) uint {
@@ -201,7 +251,7 @@ func getLE32(blob []byte, i int) uint {
     return uint(blob[i]) | (uint(blob[i + 1]) << 8) | (uint(blob[i + 2]) << 16) | (uint(blob[i + 3]) << 24)
 }
 
-func QueryHeat(db *mysql.Client, graph *Graph) {
+func (graph *Graph) QueryHeat(db *mysql.Client) {
 
     // execute the query
     err := db.Query("SELECT id,numCites,cites FROM pcite")
@@ -279,7 +329,7 @@ func QueryHeat(db *mysql.Client, graph *Graph) {
     fmt.Println("read heat from cites")
 }
 
-func QueryCategories(db *mysql.Client, graph *Graph) {
+func (graph *Graph) QueryCategories(db *mysql.Client) {
 
     // execute the query
     err := db.Query("SELECT id,maincat FROM meta_data")
@@ -318,7 +368,7 @@ func QueryCategories(db *mysql.Client, graph *Graph) {
 
 }
 
-func QueryLabels(db *mysql.Client, graph *Graph) {
+func (graph *Graph) QueryLabels(db *mysql.Client) {
     // execute the query
     err := db.Query("SELECT meta_data.id,keywords.keywords,meta_data.authors FROM meta_data,keywords WHERE meta_data.id = keywords.id")
     if err != nil {
@@ -589,10 +639,11 @@ func ReadGraph(db *mysql.Client) *Graph {
     }
     fmt.Printf("read %v papers from db\n", len(graph.papers))
 
-    QueryCategories(db, graph)
+    graph.QueryCategories(db)
 
     if !*flagSkipLabels {
-        QueryLabels(db, graph)
+        graph.QueryLabels(db)
+        graph.CalculateCategoryLabels()
     }
    
     // determine labels to use for each paper
@@ -601,7 +652,7 @@ func ReadGraph(db *mysql.Client) *Graph {
     //}
 
     if *flagHeatMap {
-        QueryHeat(db,graph)
+        graph.QueryHeat(db)
     }
 
     for _, paper := range graph.papers {
@@ -618,6 +669,8 @@ func ReadGraph(db *mysql.Client) *Graph {
 
     graph.BoundsX = graph.MaxX - graph.MinX
     graph.BoundsY = graph.MaxY - graph.MinY
+
+    graph.LatestId = graph.papers[len(graph.papers)-1].id
 
     for _, paper := range graph.papers {
         paper.SetColour()
@@ -844,10 +897,22 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, sh
             } else {
                 fmt.Fprintf(w,",")
             }
-            // TODO hopefully temporary
             fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",paper.x,paper.y,paper.radius,paper.label)
         }
     })
+
+    if showCategories {
+        for _, catLabel := range(graph.catLabels) {
+            if catLabel.x > x-rx && catLabel.x < x+rx && catLabel.y > y-ry && catLabel.y < y+ry {
+                if first {
+                    first = false
+                } else {
+                    fmt.Fprintf(w,",")
+                }
+                fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",catLabel.x,catLabel.y,catLabel.radius,catLabel.label)
+            }
+        }
+    }
 
     fmt.Fprintf(w,"]})")
     w.Flush()
@@ -947,8 +1012,8 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
     }{
         {1,1,true},
         {1,2,true},
-        {1,4,false},
-        {1,8,false},
+        {1,4,true},
+        {1,8,true},
         {2,16,false},
         {4,32,false},
         {8,64,false},
@@ -959,7 +1024,6 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
     first := true
 
     for depth, labelDepth := range depthSet {
-        //divs := int(math.Pow(2.,float64(depth)))
         tile_width := int(math.Max(float64(graph.BoundsX)/float64(labelDepth.tdivs), float64(graph.BoundsY)/float64(labelDepth.tdivs)))
         tile_height := tile_width
 
