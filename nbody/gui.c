@@ -68,13 +68,13 @@ static gboolean map_env_update(map_env_t *map_env) {
             boost_step_size = 1;
             auto_refine = false;
         } else if (converged) {
-            if (map_env_number_of_finer_layouts(map_env) > 1) {
+            if (map_env_number_of_finer_layouts(map_env) > 0) {
                 map_env_refine_layout(map_env);
                 boost_step_size = 1;
-            } else if (map_env_number_of_finer_layouts(map_env) == 1) {
+            } else if (map_env_number_of_finer_layouts(map_env) == 0) {
                 map_env_set_do_close_repulsion(map_env, true);
                 boost_step_size = 1;
-                iterate_counter_full_refine = iterate_counter + 2000;
+                //iterate_counter_full_refine = iterate_counter + 2000;
             }
         }
     }

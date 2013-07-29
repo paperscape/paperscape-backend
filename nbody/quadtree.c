@@ -44,8 +44,10 @@ void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, qua
         (*q)->mass = ln->mass;
         (*q)->x = ln->x;
         (*q)->y = ln->y;
+        /*
         (*q)->fx = 0;
         (*q)->fy = 0;
+        */
         (*q)->radius = ln->radius;
         (*q)->item = ln;
 
@@ -55,8 +57,10 @@ void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, qua
         (*q)->mass = 0;
         (*q)->x = 0;
         (*q)->y = 0;
+        /*
         (*q)->fx = 0;
         (*q)->fy = 0;
+        */
         (*q)->q0 = NULL;
         (*q)->q1 = NULL;
         (*q)->q2 = NULL;

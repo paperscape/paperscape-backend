@@ -44,10 +44,14 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
             }
             double fx = dx * fac;
             double fy = dy * fac;
+            /*
             q1->fx += fx;
             q1->fy += fy;
             q2->fx -= fx;
             q2->fy -= fy;
+            */
+            ((layout_node_t*)q1->item)->fx += fx;
+            ((layout_node_t*)q1->item)->fy += fy;
 
         } else {
             // q2 is internal node
@@ -58,10 +62,14 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
                 double fac = q1->mass * q2->mass / rsq;
                 double fx = dx * fac;
                 double fy = dy * fac;
+                /*
                 q1->fx += fx;
                 q1->fy += fy;
                 q2->fx -= fx;
                 q2->fy -= fy;
+                */
+                ((layout_node_t*)q1->item)->fx += fx;
+                ((layout_node_t*)q1->item)->fy += fy;
 
             } else {
                 // q1 and q2 are not "well separated"
@@ -98,6 +106,7 @@ static void quad_tree_forces_descend(force_params_t *param, quad_tree_node_t *q)
     }
 }
 
+/*
 static void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, double fy) {
     if (q == NULL) {
     } else {
@@ -119,13 +128,14 @@ static void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, doub
         }
     }
 }
+*/
 
 // descending then ascending is almost twice as fast (for large graphs) as
 // just naively iterating through all the leaves, possibly due to cache effects
 void quad_tree_forces(force_params_t *param, quad_tree_t *qt) {
     if (qt->root != NULL) {
         quad_tree_forces_descend(param, qt->root);
-        quad_tree_node_forces_propagate(qt->root, 0, 0);
+        //quad_tree_node_forces_propagate(qt->root, 0, 0);
     }
 }
 
@@ -140,6 +150,6 @@ void quad_tree_force_apply_if(force_params_t *param, quad_tree_t *qt, bool (*f)(
                 }
             }
         }
-        quad_tree_node_forces_propagate(qt->root, 0, 0);
+        //quad_tree_node_forces_propagate(qt->root, 0, 0);
     }
 }

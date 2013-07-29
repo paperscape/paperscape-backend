@@ -8,8 +8,10 @@ typedef struct _quad_tree_node_t {
     float mass;             // total mass of this cell (sum of all children)
     float x;                // centre of mass
     float y;                // centre of mass
+    /* OBSOLETE
     float fx;               // net force on this cell
     float fy;               // net force on this cell
+    */
     union {
         struct {            // for a leaf
             float radius;   // radius of item

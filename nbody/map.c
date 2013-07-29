@@ -25,14 +25,14 @@ map_env_t *map_env_new() {
     map_env->quad_tree = quad_tree_new();
 
     map_env->force_params.do_close_repulsion = false;
-    map_env->force_params.close_repulsion_a = 1e8;
-    map_env->force_params.close_repulsion_b = 1e16;
+    map_env->force_params.close_repulsion_a = 1e3;
+    map_env->force_params.close_repulsion_b = 1e9;
     map_env->force_params.close_repulsion_c = 1.1;
     map_env->force_params.close_repulsion_d = 0.6;
     map_env->force_params.use_ref_freq = true;
     map_env->force_params.anti_gravity_falloff_rsq = 1e6;
     map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
-    map_env->force_params.link_strength = 1.6;
+    map_env->force_params.link_strength = 0.8;
 
     map_env->do_tred = false;
     map_env->draw_grid = false;
