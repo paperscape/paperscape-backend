@@ -166,12 +166,12 @@ func (graph *Graph) CalculateCategoryLabels() {
     categories := []struct{
         maincat, label string
     }{
-        {"hep-th","HEP theory,(hep-th),,"},
-        {"hep-ph","HEP phenomenology,(hep-ph),,"},
-        {"hep-ex","HEP experiment,(hep-ex),,"},
+        {"hep-th","high energy theory,(hep-th),,"},
+        {"hep-ph","high energy phenomenology,(hep-ph),,"},
+        {"hep-ex","high energy experiment,(hep-ex),,"},
         {"gr-qc","general relativity/quantum cosmology,(gr-gc),,"},
         //{"astro-ph.GA","astronomy,astro-ph.GA,,"},
-        {"hep-lat","HEP lattice,(hep-lat),,"},
+        {"hep-lat","high energy lattice,(hep-lat),,"},
         //{"astro-ph.CO","cosmology,astro-ph.CO,,"},
         {"astro-ph","astrophysics,(astro-ph),,"},
         {"cond-mat","condensed matter,(cond-mat),,"},
