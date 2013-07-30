@@ -74,18 +74,20 @@ void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, qua
     } else {
         // hit an internal node
 
+        // check cell size didn't get too small
+        if (fabs(min_x - max_x) < 1e-10 || fabs(min_y - max_y) < 1e-10) {
+            printf("ERROR: quad_tree_insert hit minimum cell size; moving node by random amount\n");
+            ln->x += 0.1 * ((double)random() / (double)RAND_MAX - 0.5);
+            ln->y += 0.1 * ((double)random() / (double)RAND_MAX - 0.5);
+            return;
+        }
+
         // update centre of mass and mass of cell
         (*q)->num_items += 1;
         double new_mass = (*q)->mass + ln->mass;
         (*q)->x = ((*q)->mass * (*q)->x + ln->mass * ln->x) / new_mass;
         (*q)->y = ((*q)->mass * (*q)->y + ln->mass * ln->y) / new_mass;
         (*q)->mass = new_mass;
-
-        // check cell size didn't get too small
-        if (fabs(min_x - max_x) < 1e-10 || fabs(min_y - max_y) < 1e-10) {
-            printf("ERROR: quad_tree_insert hit minimum cell size\n");
-            return;
-        }
 
         // compute the dividing x and y positions
         double mid_x = 0.5 * (min_x + max_x);

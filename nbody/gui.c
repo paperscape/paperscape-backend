@@ -37,22 +37,18 @@ int id_range_end = 2060000000;
 */
 
 static int iterate_counter = 0;
+static int converged_counter = 0;
 static gboolean map_env_update(map_env_t *map_env) {
-    bool converged = false;
     struct timeval tp;
     gettimeofday(&tp, NULL);
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     for (int i = 0; i < 10; i++) {
         iterate_counter += 1;
-        /*
-        if (iterate_counter == 500) {
-            map_env_toggle_do_close_repulsion(map_env);
-        }
-        */
         printf("nbody iteration %d\n", iterate_counter);
         if (map_env_iterate(map_env, mouse_layout_node, boost_step_size > 0)) {
-            converged = true;
-            break;
+            converged_counter += 1;
+        } else {
+            converged_counter = 0;
         }
         if (boost_step_size > 0) {
             boost_step_size -= 1;
@@ -64,50 +60,29 @@ static gboolean map_env_update(map_env_t *map_env) {
 
     if (auto_refine) {
         if (iterate_counter_full_refine > 0 && iterate_counter > iterate_counter_full_refine) {
-            map_env_refine_layout(map_env);
-            boost_step_size = 1;
-            auto_refine = false;
-        } else if (converged) {
-            if (map_env_number_of_finer_layouts(map_env) > 0) {
+            if (map_env_number_of_finer_layouts(map_env) > 1) {
+                printf("auto refine: refine with close repulsion\n");
                 map_env_refine_layout(map_env);
                 boost_step_size = 1;
-            } else if (map_env_number_of_finer_layouts(map_env) == 0) {
+                iterate_counter_full_refine = iterate_counter + 2000;
+            } else {
+                printf("auto refine: refine with close repulsion final\n");
+                map_env_refine_layout(map_env);
+                auto_refine = false;
+            }
+        } else if (converged_counter > 100) {
+            if (map_env_number_of_finer_layouts(map_env) > 2) {
+                printf("auto refine: refine\n");
+                map_env_refine_layout(map_env);
+                boost_step_size = 1;
+            } else if (map_env_number_of_finer_layouts(map_env) == 2) {
+                printf("auto refine: do close repulsion\n");
                 map_env_set_do_close_repulsion(map_env, true);
                 boost_step_size = 1;
-                //iterate_counter_full_refine = iterate_counter + 2000;
+                iterate_counter_full_refine = iterate_counter + 2000;
             }
         }
     }
-
-    /* obsolete code to save tiles automatically
-    if (false && (iterate_counter > 100 || converged)) {
-        iterate_counter = 0;
-
-        int y, m, d;
-        vstr_reset(vstr);
-        vstr_t *vstr_info = vstr_new();
-
-        unique_id_to_date(id_range_start, &y, &m, &d);
-        vstr_printf(vstr, "map-%04u-%02u-%02u.png", y, m, d);
-        vstr_printf(vstr_info, "date: %02u-%02u-%04u to ", d, m, y);
-        unique_id_to_date(id_range_end, &y, &m, &d);
-        vstr_printf(vstr_info, "%02u-%02u-%04u\n%d papers", d, m, y, map_env_get_num_papers(map_env));
-        draw_to_png(map_env, 1000, 1000, vstr_str(vstr), vstr_info);
-
-        vstr_free(vstr_info);
-
-        while (true) {
-            id_range_start += 109375; // add 1 week
-            id_range_end += 109375; // add 1 week
-            unique_id_to_date(id_range_start, &y, &m, &d);
-            if (m <= 12) {
-                break;
-            }
-        }
-        map_env_select_date_range(map_env, id_range_start, id_range_end, true);
-        boost_step_size += 3;
-    }
-    */
 
     // force a redraw
     gtk_widget_queue_draw(window);
