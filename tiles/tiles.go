@@ -611,7 +611,7 @@ func (paper *Paper) SetColour() {
             // older papers are saturated and dark, newer papers are coloured and bright
             //saturation := 0.4 * (1 - age)
             var saturation float32 = 0.0
-            dim_factor := 0.2 + 0.8 * age
+            var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*age*age)))
             r = dim_factor * (saturation + r * (1 - saturation))
             g = dim_factor * (saturation + g * (1 - saturation))
             b = dim_factor * (saturation + b * (1 - saturation))
@@ -844,15 +844,14 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     // foreground
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
         pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
-        if pixelRadius < 0.05 {
-            newRadius, _ := matrixInv.TransformDistance(0.05, 0.05)
+        if pixelRadius < 0.09 {
+            newRadius, _ := matrixInv.TransformDistance(0.09, 0.09)
             surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
         } else {
             surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         }
         surf.SetSourceRGB(float64(paper.col.r), float64(paper.col.g), float64(paper.col.b))
         surf.Fill()
-        
     })
 
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
