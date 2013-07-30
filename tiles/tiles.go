@@ -185,7 +185,7 @@ func (graph *Graph) CalculateCategoryLabels() {
         {"math","math,(math),,"},
         {"cs","computer science,(cs),,"},
         {"nucl-ex","nuclear experiment,(nucl-ex),,"},
-        {"nucl-th","nuclear theory,(nucl-th),,"},
+        //{"nucl-th","nuclear theory,(nucl-th),,"},
         {"quant-ph","quantum physics,(quant-ph),,"},
         {"physics","general physics,(physics),,"},
     }
