@@ -7,6 +7,7 @@ import (
     "fmt"
     "path/filepath"
     "strings"
+    "strconv"
     "GoMySQL"
     "runtime"
     "math"
@@ -77,6 +78,11 @@ func main() {
             fmt.Fprintf(w,",\"newid\":%d",graph.NewPapersId)
         }
 
+        graph.QueryLastMetaDownload(db)
+        if graph.LastMetaDownload != "" {
+            fmt.Fprintf(w,",\"lastdl\":\"%s\"",graph.LastMetaDownload)
+        }
+
         GenerateAllTiles(graph, w, outPrefix)
         runtime.GC()
 
@@ -121,6 +127,7 @@ type Graph struct {
     MinX, MinY, MaxX, MaxY int
     BoundsX, BoundsY int
     LatestId, NewPapersId uint
+    LastMetaDownload string
 }
 
 func (graph *Graph) GetPaperById(id uint) *Paper {
@@ -166,12 +173,12 @@ func (graph *Graph) CalculateCategoryLabels() {
     categories := []struct{
         maincat, label string
     }{
-        {"hep-th","HEP theory,(hep-th),,"},
-        {"hep-ph","HEP phenomenology,(hep-ph),,"},
-        {"hep-ex","HEP experiment,(hep-ex),,"},
+        {"hep-th","high energy theory,(hep-th),,"},
+        {"hep-ph","high energy phenomenology,(hep-ph),,"},
+        {"hep-ex","high energy experiment,(hep-ex),,"},
         {"gr-qc","general relativity/quantum cosmology,(gr-gc),,"},
         //{"astro-ph.GA","astronomy,astro-ph.GA,,"},
-        {"hep-lat","HEP lattice,(hep-lat),,"},
+        {"hep-lat","high energy lattice,(hep-lat),,"},
         //{"astro-ph.CO","cosmology,astro-ph.CO,,"},
         {"astro-ph","astrophysics,(astro-ph),,"},
         {"cond-mat","condensed matter,(cond-mat),,"},
@@ -206,6 +213,53 @@ func (graph *Graph) CalculateCategoryLabels() {
             graph.catLabels = append(graph.catLabels,label)
         }
     }
+}
+
+
+func (graph *Graph) QueryLastMetaDownload(db *mysql.Client) {
+
+    // execute the query
+    query := fmt.Sprintf("SELECT value FROM misc WHERE field = \"lastmetadownload\"")
+    err := db.Query(query)
+    if err != nil {
+        fmt.Println("MySQL query error;", err)
+        return
+    }
+
+    // get result set
+    result, err := db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        return
+    }
+
+    defer db.FreeResult()
+
+    var ok bool
+    var value string
+
+    row := result.FetchRow()
+    if row == nil {
+        fmt.Println("MySQL row error;", err)
+        return
+    }
+
+    if value, ok = row[0].(string); !ok {
+        fmt.Println("MySQL id cast error;", err)
+        return
+    }
+    
+    pieces := strings.Split(value, "-")
+    if len(pieces) == 3 {
+        year,_ := strconv.ParseInt(pieces[0],10,0)
+        month,_ := strconv.ParseInt(pieces[1],10,0)
+        day,_ := strconv.ParseInt(pieces[2],10,0)
+        //t := time.Date(int(year),time.Month(int(month)),int(day),0,0,0,0,time.UTC)
+        value = fmt.Sprintf("%d %s %d",day,time.Month(int(month)),year)
+    }
+
+    graph.LastMetaDownload = value
+
 }
 
 func (graph *Graph) QueryNewPapersId(db *mysql.Client) {
@@ -611,7 +665,7 @@ func (paper *Paper) SetColour() {
             // older papers are saturated and dark, newer papers are coloured and bright
             //saturation := 0.4 * (1 - age)
             var saturation float32 = 0.0
-            dim_factor := 0.2 + 0.8 * age
+            var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*age*age)))
             r = dim_factor * (saturation + r * (1 - saturation))
             g = dim_factor * (saturation + g * (1 - saturation))
             b = dim_factor * (saturation + b * (1 - saturation))
@@ -844,15 +898,14 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     // foreground
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
         pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
-        if pixelRadius < 0.05 {
-            newRadius, _ := matrixInv.TransformDistance(0.05, 0.05)
+        if pixelRadius < 0.09 {
+            newRadius, _ := matrixInv.TransformDistance(0.09, 0.09)
             surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
         } else {
             surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         }
         surf.SetSourceRGB(float64(paper.col.r), float64(paper.col.g), float64(paper.col.b))
         surf.Fill()
-        
     })
 
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
