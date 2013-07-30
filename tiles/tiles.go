@@ -182,6 +182,10 @@ func (graph *Graph) CalculateCategoryLabels() {
         //{"astro-ph.CO","cosmology,astro-ph.CO,,"},
         {"astro-ph","astrophysics,(astro-ph),,"},
         {"cond-mat","condensed matter,(cond-mat),,"},
+        {"math","math,(math),,"},
+        {"cs","computer science,(cs),,"},
+        {"nucl-ex","nuclear experiment,(nucl-ex),,"},
+        {"nucl-th","nuclear theory,(nucl-th),,"},
         {"quant-ph","quantum physics,(quant-ph),,"},
         {"physics","general physics,(physics),,"},
     }
