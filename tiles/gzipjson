@@ -11,4 +11,8 @@ then
 	exit
 fi
 
+echo "[gzipjson] gzipping all .json files in $1"
+
 find $1 -type f -name "*.json" | xargs --max-proc=`nproc` -n 1 gzip -kf
+
+echo "**SUMMARY** [gzipjson] gzipped all .json files in $1"
