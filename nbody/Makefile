@@ -25,7 +25,7 @@ OBJ_COMMON = $(SRC_COMMON:.c=.o)
 OBJ_HEADLESS = $(SRC_HEADLESS:.c=.o)
 OBJ_GUI = $(SRC_GUI:.c=.o)
 
-LIB = -lm -lmysqlclient ../../clib/xiwilib.a
+LIB = -lm -lmysqlclient -lpthread ../../clib/xiwilib.a
 
 PROG_HEADLESS = nbody-headless
 PROG_GUI = nbody-gui

@@ -130,11 +130,50 @@ static void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, doub
 }
 */
 
+#include <pthread.h>
+
+typedef struct _multi_env_t {
+    force_params_t *param;
+    quad_tree_node_t *q;
+} multi_env_t;
+
+static void *multi_do(void *env_in) {
+    multi_env_t *env = env_in;
+    if (env->q != NULL) {
+        quad_tree_forces_descend(env->param, env->q);
+    }
+    return NULL;
+}
+
 // descending then ascending is almost twice as fast (for large graphs) as
 // just naively iterating through all the leaves, possibly due to cache effects
 void quad_tree_forces(force_params_t *param, quad_tree_t *qt) {
     if (qt->root != NULL) {
-        quad_tree_forces_descend(param, qt->root);
+        if (qt->root->num_items == 1 || 0) {
+            // without threading
+            quad_tree_forces_descend(param, qt->root);
+        } else {
+            // with threading
+            multi_env_t me1 = {param, qt->root->q0};
+            multi_env_t me2 = {param, qt->root->q1};
+            //multi_env_t me3 = {param, qt->root->q2};
+            //multi_env_t me4 = {param, qt->root->q3};
+            pthread_t pt1, pt2;//, pt3;//, pt4;
+            pthread_create(&pt1, NULL, multi_do, &me1);
+            pthread_create(&pt2, NULL, multi_do, &me2);
+            //pthread_create(&pt3, NULL, multi_do, &me3);
+            //pthread_create(&pt4, NULL, multi_do, &me4);
+            if (qt->root->q2 != NULL) {
+                quad_tree_forces_descend(param, qt->root->q2);
+            }
+            if (qt->root->q3 != NULL) {
+                quad_tree_forces_descend(param, qt->root->q3);
+            }
+            pthread_join(pt1, NULL);
+            pthread_join(pt2, NULL);
+            //pthread_join(pt3, NULL);
+            //pthread_join(pt4, NULL);
+        }
         //quad_tree_node_forces_propagate(qt->root, 0, 0);
     }
 }

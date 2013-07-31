@@ -66,13 +66,21 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
     // build the links
     layout_link_t *all_links = m_new(layout_link_t, num_links);
     layout_link_t *links = all_links;
+    long int ref_freq_sum = 0;
+    long int ref_freq_sq_sum = 0;
+    long int ref_freq_num = 0;
     for (int i = 0; i < num_papers; i++) {
         paper_t *paper = papers[i];
         layout_node_t *node = &nodes[i];
         node->num_links = paper->num_refs + paper->num_fake_links;
         node->links = links;
         for (int j = 0; j < paper->num_refs; j++) {
-            node->links[j].weight = paper->refs_ref_freq[j] * paper->refs_ref_freq[j];
+            int ref_freq = paper->refs_ref_freq[j];
+            //node->links[j].weight = ref_freq; // ref_freq standard
+            node->links[j].weight = ref_freq * ref_freq; // ref_freq squared
+            ref_freq_sum += ref_freq;
+            ref_freq_sq_sum += ref_freq * ref_freq;
+            ref_freq_num += 1;
             if (age_weaken) {
                 //node->links[j].weight *= 1.0 - 0.5 * fabs(paper->age - paper->refs[j]->age);
                 node->links[j].weight *= 0.4 + 0.6 * exp(-pow(1e-7 * paper->id - 1e-7 * paper->refs[j]->id, 2));
@@ -88,6 +96,8 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
         links += node->num_links;
     }
     assert(all_links + num_links == links);
+    printf("avg ref freq    = %f\n", (double)ref_freq_sum / (double)ref_freq_num); // 1.84
+    printf("avg ref freq sq = %f\n", (double)ref_freq_sq_sum / (double)ref_freq_num); // 7.65
 
     // make layout object
     layout_t *layout = m_new(layout_t, 1);
