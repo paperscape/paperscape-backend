@@ -336,6 +336,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
         }
         vstr_printf(vstr_info, "\n");
         vstr_printf(vstr_info, "graph size: %u x %u\n", (int)(map_env->quad_tree->max_x - map_env->quad_tree->min_x), (int)(map_env->quad_tree->max_y - map_env->quad_tree->min_y));
+        vstr_printf(vstr_info, "zoom factor: %.3g\n", map_env->tr_scale);
         vstr_printf(vstr_info, "energy: %.3g\n", map_env->energy);
         vstr_printf(vstr_info, "step size: %.3g\n", map_env->step_size);
         vstr_printf(vstr_info, "max link force: %.2g\n", map_env->max_link_force_mag);
