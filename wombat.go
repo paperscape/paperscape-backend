@@ -1133,6 +1133,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // search-general: do fulltext search of authors and titles
             h.SearchGeneral(req.Form["sge"][0], rw)
             logDescription = fmt.Sprintf("sge \"%s\"",req.Form["sge"][0])
+        } else if req.Form["skw"] != nil {
+            // search-keyword: do fulltext search of keywords
+            h.SearchKeyword(req.Form["skw"][0], rw)
+            logDescription = fmt.Sprintf("skw \"%s\"",req.Form["skw"][0])
         } else if req.Form["sax"] != nil {
             // search-arxiv: search papers for arxiv number
             h.SearchArxiv(req.Form["sax"][0], rw)
@@ -2475,9 +2479,45 @@ func (h *MyHTTPHandler) SearchArxivMinimal(arxivString string, rw http.ResponseW
     fmt.Fprintf(rw, "[{\"id\":%d,\"nc\":%d}]", paper.id, paper.numCites)
 }
 
+
+func (h *MyHTTPHandler) SearchKeyword(searchString string, rw http.ResponseWriter) {
+
+    stmt := h.papers.StatementBegin("SELECT keywords.id,pcite.numCites FROM keywords,pcite WHERE keywords.id = pcite.id AND MATCH(keywords.keywords) AGAINST (?) LIMIT 100",h.papers.db.Escape(searchString))
+
+    var id,numCites uint64
+
+    numResults := 0
+    fmt.Fprintf(rw, "[")
+    if stmt != nil {
+        //stmt.BindResult(&id,&numCites,&refStr)
+        stmt.BindResult(&id,&numCites)
+        for {
+            eof, err := stmt.Fetch()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+                break
+            } else if eof { break }
+            if numResults > 0 {
+                fmt.Fprintf(rw, ",")
+            }
+            //fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"o\":%d,\"ref\":", id, numCites,numResults)
+            //ParseRefsCitesStringToJSONListOfIds(refStr, rw)
+            //fmt.Fprintf(rw, "}")
+            fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"o\":%d}", id, numCites,numResults)
+            numResults += 1
+        }
+        err := stmt.FreeResult()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
+        }
+    }
+    h.papers.StatementEnd(stmt) 
+    fmt.Fprintf(rw, "]")
+}
+
 func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWriter) {
 
-    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 25",h.papers.db.Escape(searchString))
+    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 100",h.papers.db.Escape(searchString))
 
     var id,numCites uint64
     //var refStr []byte
