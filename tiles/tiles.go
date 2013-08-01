@@ -182,12 +182,15 @@ func (graph *Graph) CalculateCategoryLabels() {
         //{"astro-ph.CO","cosmology,astro-ph.CO,,"},
         {"astro-ph","astrophysics,(astro-ph),,"},
         {"cond-mat","condensed matter,(cond-mat),,"},
-        {"math","math,(math),,"},
+        {"math","mathematics,(math),,"},
         {"cs","computer science,(cs),,"},
         {"nucl-ex","nuclear experiment,(nucl-ex),,"},
         //{"nucl-th","nuclear theory,(nucl-th),,"},
         {"quant-ph","quantum physics,(quant-ph),,"},
         {"physics","general physics,(physics),,"},
+        {"q-bio","quantitative biology,(q-bio),,"},
+        {"q-fin","quantitative finance,(q-fin),,"},
+        {"stat","statistics,(stat),,"},
     }
 
     for _, category := range(categories) {
@@ -651,10 +654,10 @@ func (paper *Paper) SetColour() {
         // older papers are more saturated in colour
         var age float32 = paper.age
 
-        // foreground colour; select one by making it's if condition true
+        // foreground colour; select one by making its if condition true
         if (false) {
             // older papers are saturated, newer papers are coloured
-            var saturation float32 = 0.4 * (1 - age)
+            var saturation float32 = 0.3 + 0.4 * (1 - age)
             r = saturation + (r) * (1 - saturation)
             g = saturation + (g) * (1 - saturation)
             b = saturation + (b) * (1 - saturation)
@@ -667,10 +670,13 @@ func (paper *Paper) SetColour() {
             b = saturation + (b * (1 - age)      ) * (1 - saturation)
         } else if (true) {
             // older papers are saturated and dark, newer papers are coloured and bright
-            //saturation := 0.4 * (1 - age)
-            var saturation float32 = 0.0
+            var saturation float32 = 0.1 + 0.3 * (1 - age)
+            //var saturation float32 = 0.0
             //var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*age*age)))
-            var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*(1-age)*(1-age))))
+            var dim_factor float32 = 0.55 + 0.48 * float32(math.Exp(float64(-4*(1-age)*(1-age))))
+            if dim_factor > 1 {
+                dim_factor = 1
+            }
             r = dim_factor * (saturation + r * (1 - saturation))
             g = dim_factor * (saturation + g * (1 - saturation))
             b = dim_factor * (saturation + b * (1 - saturation))
@@ -1009,11 +1015,11 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
 
     fmt.Fprintf(w,",\"tilings\":[")
 
-    //divisionSet := [...]int{4,8,24,72,216}
-    //divisionSet := [...]int{4,8,24,72,216}
-    divisionSet := [...]int{4,8,16,32,64,128,256}
-    //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24}
+    //divisionSet := [...]int{4,8,24,72}
+    //divisionSet := [...]int{4,8,24,72,216}
+    //divisionSet := [...]int{4,8,16,32,64}
+    divisionSet := [...]int{4,8,16,32,64,128,256}
 
     //depths := *flagTileDepth
     first := true
