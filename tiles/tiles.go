@@ -19,7 +19,7 @@ import (
 )
 
 var GRAPH_PADDING = 100 // what to pad graph by on each side
-var TILE_PIXEL_LEN = 256
+var TILE_PIXEL_LEN = 512
 
 var flagDB         = flag.String("db", "", "MySQL database to connect to")
 var flagGrayScale  = flag.Bool("gs", false, "Make grayscale tiles")
@@ -669,7 +669,8 @@ func (paper *Paper) SetColour() {
             // older papers are saturated and dark, newer papers are coloured and bright
             //saturation := 0.4 * (1 - age)
             var saturation float32 = 0.0
-            var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*age*age)))
+            //var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*age*age)))
+            var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*(1-age)*(1-age))))
             r = dim_factor * (saturation + r * (1 - saturation))
             g = dim_factor * (saturation + g * (1 - saturation))
             b = dim_factor * (saturation + b * (1 - saturation))
@@ -1008,7 +1009,9 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
 
     fmt.Fprintf(w,",\"tilings\":[")
 
-    divisionSet := [...]int{4,8,24,72,216}
+    //divisionSet := [...]int{4,8,24,72,216}
+    //divisionSet := [...]int{4,8,24,72,216}
+    divisionSet := [...]int{4,8,16,32,64,128,256}
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24}
 
