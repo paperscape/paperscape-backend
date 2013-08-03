@@ -10,13 +10,13 @@
 #include "map.h"
 #include "mysql.h"
 
-static bool map_env_update(map_env_t *map_env, int num_iterations, bool boost_step_size) {
+static bool map_env_update(map_env_t *map_env, int num_iterations, bool boost_step_size, bool very_fine_steps) {
     struct timeval tp;
     gettimeofday(&tp, NULL);
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     bool converged = false;
     for (int i = 0; i < num_iterations; i++) {
-        converged = map_env_iterate(map_env, NULL, boost_step_size);
+        converged = map_env_iterate(map_env, NULL, boost_step_size, very_fine_steps);
         boost_step_size = false;
     }
     gettimeofday(&tp, NULL);
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
         int iterate_counter = 0;
         int iterate_counter_wait_until = 0;
         while (true) {
-            bool converged = map_env_update(map_env, 50, boost_step_size);
+            bool converged = map_env_update(map_env, 50, boost_step_size, false);
             boost_step_size = false;
             iterate_counter += 50;
             if (refining_stage) {
@@ -147,14 +147,19 @@ int main(int argc, char *argv[]) {
         if (n_new > 0) {
             printf("iterating to place new papers\n");
             map_env_set_do_close_repulsion(map_env, false);
-            map_env_update(map_env, 250, false);
+            map_env_update(map_env, 250, false, false);
         }
         map_env_layout_finish_placing_new_papers(map_env);
 
         // iterate to adjust whole graph
         printf("iterating to adjust entire graph\n");
         map_env_set_do_close_repulsion(map_env, true);
-        map_env_update(map_env, 100, false);
+        map_env_update(map_env, 80, false, false);
+
+        // iterate for final, very fine steps
+        printf("iterating final, very fine steps\n");
+        map_env_set_do_close_repulsion(map_env, true);
+        map_env_update(map_env, 30, false, true);
     }
 
     // align the map in a fixed direction

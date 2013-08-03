@@ -25,8 +25,8 @@ map_env_t *map_env_new() {
     map_env->quad_tree = quad_tree_new();
 
     map_env->force_params.do_close_repulsion = false;
-    map_env->force_params.close_repulsion_a = 1e5;
-    map_env->force_params.close_repulsion_b = 1e10;
+    map_env->force_params.close_repulsion_a = 1e9;
+    map_env->force_params.close_repulsion_b = 1e14;
     map_env->force_params.close_repulsion_c = 1.1;
     map_env->force_params.close_repulsion_d = 0.6;
     map_env->force_params.use_ref_freq = true;
@@ -61,17 +61,19 @@ void map_env_world_to_screen(map_env_t *map_env, double *x, double *y) {
     *y = map_env->tr_scale * (*y) + map_env->tr_y0;
 }
 
-void map_env_screen_to_world(map_env_t *map_env, double *x, double *y) {
-    *x = ((*x) - map_env->tr_x0) / map_env->tr_scale;
-    *y = ((*y) - map_env->tr_y0) / map_env->tr_scale;
+void map_env_screen_to_world(map_env_t *map_env, double screen_w, double screen_h, double *x, double *y) {
+    *x = ((*x) - 0.5 * screen_w - map_env->tr_x0) / map_env->tr_scale;
+    *y = ((*y) - 0.5 * screen_h - map_env->tr_y0) / map_env->tr_scale;
 }
 
 int map_env_get_num_papers(map_env_t *map_env) {
     return map_env->num_papers;
 }
 
-layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double x, double y) {
-    map_env_screen_to_world(map_env, &x, &y);
+layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, double screen_h, double x, double y) {
+    printf("%f, %f --> ", x, y);
+    map_env_screen_to_world(map_env, screen_w, screen_h, &x, &y);
+    printf("%f, %f\n", x, y);
     return layout_get_node_at(map_env->layout, x, y);
 }
 
@@ -519,7 +521,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     //attract_disconnected_to_centre_of_category(map_env);
 }
 
-bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size) {
+bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps) {
     map_env_compute_forces(map_env);
 
     // boost the step size if asked
@@ -534,6 +536,11 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
     // when doing close repulsion, make sure step size is not too big
     if (map_env->force_params.do_close_repulsion) {
         map_env->step_size = fmin(1.0, map_env->step_size);
+    }
+
+    // when doing very fine steps, make sure the step size is small
+    if (very_fine_steps) {
+        map_env->step_size = fmin(0.05, map_env->step_size);
     }
 
     // use the computed forces to update the (x,y) positions of the papers
@@ -620,7 +627,7 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
     }
     map_env->energy = energy;
 
-    if (map_env->force_params.do_close_repulsion && map_env->max_total_force_mag > pow(map_env->max_link_force_mag, 2)) {
+    if (!very_fine_steps && map_env->force_params.do_close_repulsion && map_env->max_total_force_mag > pow(map_env->max_link_force_mag, 2)) {
         if (map_env->step_size < 0.15) {
             map_env->step_size = 0.15;
         }

@@ -42,10 +42,10 @@ static gboolean map_env_update(map_env_t *map_env) {
     struct timeval tp;
     gettimeofday(&tp, NULL);
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-    for (int i = 0; i < 10; i++) {
+    for (int i = 1; i <= 5; i++) {
         iterate_counter += 1;
-        printf("nbody iteration %d\n", iterate_counter);
-        if (map_env_iterate(map_env, mouse_layout_node, boost_step_size > 0)) {
+        printf("nbody iteration %d", iterate_counter);
+        if (map_env_iterate(map_env, mouse_layout_node, boost_step_size > 0, false)) {
             converged_counter += 1;
         } else {
             converged_counter = 0;
@@ -53,10 +53,19 @@ static gboolean map_env_update(map_env_t *map_env) {
         if (boost_step_size > 0) {
             boost_step_size -= 1;
         }
+        if (i == 5) {
+            gettimeofday(&tp, NULL);
+            int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+            double ips = 5.0 * 1000.0 / (end_time - start_time);
+            if (ips > 1) {
+                printf("; %.2f iterations per second\n", ips);
+            } else {
+                printf("; %.2f seconds per iteration\n", 1.0 / ips);
+            }
+        } else {
+            printf("\n");
+        }
     }
-    gettimeofday(&tp, NULL);
-    int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-    printf("%f seconds per iteration\n", (end_time - start_time) / 10.0 / 1000.0);
 
     if (auto_refine) {
         if (iterate_counter_full_refine > 0 && iterate_counter > iterate_counter_full_refine) {
@@ -71,11 +80,11 @@ static gboolean map_env_update(map_env_t *map_env) {
                 auto_refine = false;
             }
         } else if (converged_counter > 100) {
-            if (map_env_number_of_finer_layouts(map_env) > 2) {
+            if (map_env_number_of_finer_layouts(map_env) > 1) {
                 printf("auto refine: refine\n");
                 map_env_refine_layout(map_env);
                 boost_step_size = 1;
-            } else if (map_env_number_of_finer_layouts(map_env) == 2) {
+            } else {
                 printf("auto refine: do close repulsion\n");
                 map_env_set_do_close_repulsion(map_env, true);
                 boost_step_size = 1;
@@ -84,8 +93,11 @@ static gboolean map_env_update(map_env_t *map_env) {
         }
     }
 
-    // force a redraw
-    gtk_widget_queue_draw(window);
+    if (iterate_counter % 50 == 0) {
+        // force a redraw
+        gtk_widget_queue_draw(window);
+    }
+
     return TRUE; // yes, we want to be called again
 }
 
@@ -152,6 +164,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
             update_running = true;
             printf("update running\n");
         }
+
+    } else if (event->keyval == GDK_KEY_Return) {
+        gtk_widget_queue_draw(window);
 
     } else if (event->keyval == GDK_KEY_Tab) {
         boost_step_size += 1;
@@ -289,7 +304,8 @@ static gboolean button_press_event_callback(GtkWidget *widget, GdkEventButton *e
         mouse_dragged = FALSE;
         mouse_last_x = event->x;
         mouse_last_y = event->y;
-        mouse_layout_node = map_env_get_layout_node_at(map_env, event->x, event->y);
+        mouse_layout_node = map_env_get_layout_node_at(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), event->x, event->y);
+        printf("%p\n", mouse_layout_node);
     }
 
     return TRUE; // we handled the event, stop processing
@@ -308,6 +324,7 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
                     vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites) %s -- %s", p->index, p->id, p->num_refs, p->num_cites, p->title, p->authors);
                 }
                 gtk_statusbar_push(GTK_STATUSBAR(statusbar), statusbar_context_id, vstr_str(vstr));
+                printf("%s\n", vstr_str(vstr));
             }
         }
         mouse_layout_node = NULL;
@@ -348,7 +365,7 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
                 // mouse dragged on paper
                 double x = event->x;
                 double y = event->y;
-                map_env_screen_to_world(map_env, &x, &y);
+                map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
                 mouse_layout_node->x = x;
                 mouse_layout_node->y = y;
             }
@@ -480,10 +497,10 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    -rsq <num>          r-star squared distance\n");
-    printf("    -link <num>         link strength\n");
-    printf("    -layout-db          load layout from DB\n");
-    printf("    -layout-json <file> load layout from given JSON file\n");
+    printf("    --rsq <num>          r-star squared distance\n");
+    printf("    --link <num>         link strength\n");
+    printf("    --layout-db          load layout from DB\n");
+    printf("    --layout-json <file> load layout from given JSON file\n");
     printf("\n");
     return 1;
 }
@@ -496,21 +513,21 @@ int main(int argc, char *argv[]) {
     bool arg_layout_db = false;
     const char *arg_layout_json = NULL;
     for (int a = 1; a < argc; a++) {
-        if (streq(argv[a], "-rsq")) {
+        if (streq(argv[a], "--rsq")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
             }
             arg_anti_grav_rsq = strtod(argv[a], NULL);
-        } else if (streq(argv[a], "-link")) {
+        } else if (streq(argv[a], "--link")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
-        } else if (streq(argv[a], "-layout-db")) {
+        } else if (streq(argv[a], "--layout-db")) {
             arg_layout_db = true;
-        } else if (streq(argv[a], "-layout-json")) {
+        } else if (streq(argv[a], "--layout-json")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
