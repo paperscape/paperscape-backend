@@ -430,7 +430,7 @@ func (graph *Graph) QueryCategories(db *mysql.Client) {
 
 func (graph *Graph) QueryLabels(db *mysql.Client) {
     // execute the query
-    err := db.Query("SELECT meta_data.id,keywords.keywords,meta_data.authors FROM meta_data,keywords WHERE meta_data.id = keywords.id")
+    err := db.Query("SELECT id,keywords,authors FROM meta_data")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
