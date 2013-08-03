@@ -1024,8 +1024,8 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
     //divisionSet := [...]int{4,8,24}
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24,72,216}
-    divisionSet := [...]int{4,8,16,32,64}
-    //divisionSet := [...]int{4,8,16,32,64,128,256}
+    //divisionSet := [...]int{4,8,16,32,64}
+    divisionSet := [...]int{4,8,16,32,64,128,256}
 
     //depths := *flagTileDepth
     first := true
