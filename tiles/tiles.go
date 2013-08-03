@@ -177,11 +177,10 @@ func (graph *Graph) CalculateCategoryLabels() {
         {"hep-ph","high energy phenomenology,(hep-ph),,"},
         {"hep-ex","high energy experiment,(hep-ex),,"},
         {"gr-qc","general relativity/quantum cosmology,(gr-gc),,"},
-        //{"astro-ph.GA","astronomy,astro-ph.GA,,"},
         {"hep-lat","high energy lattice,(hep-lat),,"},
-        //{"astro-ph.CO","cosmology,astro-ph.CO,,"},
         {"astro-ph","astrophysics,(astro-ph),,"},
         {"cond-mat","condensed matter,(cond-mat),,"},
+        {"math-ph","mathematical physics,(math-ph),,"},
         {"math","mathematics,(math),,"},
         {"cs","computer science,(cs),,"},
         {"nucl-ex","nuclear experiment,(nucl-ex),,"},
@@ -626,32 +625,34 @@ func (paper *Paper) SetColour() {
     } else {
 
         if paper.maincat == "hep-th" {
-            r, g, b = 0, 0, 1
+            r, g, b = 0, 0, 1 // blue
         } else if paper.maincat == "hep-ph" {
-            r, g, b = 0, 1, 0
+            r, g, b = 0, 1, 0 // green
         } else if paper.maincat == "hep-ex" {
             r, g, b = 1, 1, 0 // yellow
         } else if paper.maincat == "gr-qc" {
             r, g, b = 0, 1, 1 // cyan
-        } else if paper.maincat == "astro-ph.GA" {
-            r, g, b = 1, 0, 1 // purple
         } else if paper.maincat == "hep-lat" {
             r, g, b = 0.7, 0.36, 0.2 // tan brown
-        } else if paper.maincat == "astro-ph.CO" {
-            r, g, b = 0.62, 0.86, 0.24 // lime green
         } else if paper.maincat == "astro-ph" {
             r, g, b = 0.89, 0.53, 0.6 // skin pink
         } else if paper.maincat == "cond-mat" {
-            r, g, b = 0.6, 0.4, 0.4
+            r, g, b = 0.7, 0.5, 0.4
         } else if paper.maincat == "quant-ph" {
             r, g, b = 0.4, 0.7, 0.7
         } else if paper.maincat == "physics" {
-            r, g, b = 0, 0.5, 0 // dark green
+            r, g, b = 1, 0, 0 // red
+        } else if paper.maincat == "math" {
+            r, g, b = 0.62, 0.86, 0.24 // lime green
+        } else if paper.maincat == "cs" {
+            r, g, b = 0.7, 0.3, 0.6 // purple
         } else {
             r, g, b = 0.7, 1, 0.3
         }
 
-        // older papers are more saturated in colour
+        // brighten papers in categories that are mostly tiny dots
+        brighten := paper.maincat == "math" || paper.maincat == "cs"
+
         var age float32 = paper.age
 
         // foreground colour; select one by making its if condition true
@@ -673,7 +674,12 @@ func (paper *Paper) SetColour() {
             var saturation float32 = 0.1 + 0.3 * (1 - age)
             //var saturation float32 = 0.0
             //var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*age*age)))
-            var dim_factor float32 = 0.55 + 0.48 * float32(math.Exp(float64(-4*(1-age)*(1-age))))
+            var dim_factor float32
+            if brighten {
+                dim_factor = 0.8 + 0.20 * float32(math.Exp(float64(-4*(1-age)*(1-age))))
+            } else {
+                dim_factor = 0.55 + 0.48 * float32(math.Exp(float64(-4*(1-age)*(1-age))))
+            }
             if dim_factor > 1 {
                 dim_factor = 1
             }
@@ -1018,8 +1024,8 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
     //divisionSet := [...]int{4,8,24}
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24,72,216}
-    //divisionSet := [...]int{4,8,16,32,64}
-    divisionSet := [...]int{4,8,16,32,64,128,256}
+    divisionSet := [...]int{4,8,16,32,64}
+    //divisionSet := [...]int{4,8,16,32,64,128,256}
 
     //depths := *flagTileDepth
     first := true
