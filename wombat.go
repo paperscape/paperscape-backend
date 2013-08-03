@@ -1039,14 +1039,6 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             x, _ := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
             y, _ := strconv.ParseFloat(req.Form["ml2p[]"][1], 0)
             h.MapPaperIdAtLocation(x,y,rw)
-        //} else if req.Form["mkws[]"] != nil {
-        //    // map keywords
-        //    logDescription = fmt.Sprintf("Keywords for map window")
-        //    x, _ := strconv.ParseInt(req.Form["mkws[]"][0],10, 0)
-        //    y, _ := strconv.ParseInt(req.Form["mkws[]"][1],10, 0)
-        //    width, _ := strconv.ParseInt(req.Form["mkws[]"][2],10, 0)
-        //    height, _ := strconv.ParseInt(req.Form["mkws[]"][3],10, 0)
-        //    h.MapKeywordsInWindow(x,y,width,height,rw)
         } else if req.Form["pchal"] != nil {
             // profile-challenge: authenticate request (send user a new "challenge")
             giveSalt := false
@@ -2090,34 +2082,6 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
     fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id,resx,resy,resr)
 }
 
-/*
-func (h *MyHTTPHandler) MapKeywordsInWindow(x, y, width, height int64, rw http.ResponseWriter) {
-
-    var xmin,ymin,xmax,ymax int
-    var idmax uint
-
-    // this is temp until we access labels table directly
-    stmt := h.papers.StatementBegin("SELECT max(id) FROM map_data")
-    if !h.papers.StatementBindSingleRow(stmt,&idmax) {
-        return
-    }
-
-    stmt = h.papers.StatementBegin("SELECT tile_data.xmin,tile_data.ymin,tile_data.xmax,tile_data.ymax FROM tile_data WHERE tile_data.latest_id = ?",idmax)
-    if !h.papers.StatementBindSingleRow(stmt,&xmin,&ymin,&xmax,&ymax) {
-        return
-    }
-
-    // TODO!
-
-    // Returns a keyword "region", which is fixed world rectangle
-    // with 
-
-    fmt.Fprintf(rw, "{\"id\":\"foo\",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"ls\":[{\"kw\":\"test keyword\",\"x\":0,\"y\":0}]}",xmin,ymin,xmax-xmin,ymax-ymin)
-
-
-}*/
-
-
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
     
     success = false
@@ -2482,7 +2446,7 @@ func (h *MyHTTPHandler) SearchArxivMinimal(arxivString string, rw http.ResponseW
 
 func (h *MyHTTPHandler) SearchKeyword(searchString string, rw http.ResponseWriter) {
 
-    stmt := h.papers.StatementBegin("SELECT keywords.id,pcite.numCites FROM keywords,pcite WHERE keywords.id = pcite.id AND MATCH(keywords.keywords) AGAINST (?) LIMIT 100",h.papers.db.Escape(searchString))
+    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.keywords) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
 
     var id,numCites uint64
 
@@ -2517,7 +2481,8 @@ func (h *MyHTTPHandler) SearchKeyword(searchString string, rw http.ResponseWrite
 
 func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWriter) {
 
-    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 100",h.papers.db.Escape(searchString))
+    //stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
+    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.keywords) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
 
     var id,numCites uint64
     //var refStr []byte
