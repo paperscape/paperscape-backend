@@ -2481,8 +2481,31 @@ func (h *MyHTTPHandler) SearchKeyword(searchString string, rw http.ResponseWrite
 
 func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWriter) {
 
+
+    newWord := true
+    var booleanSearchString bytes.Buffer
+    for _, r := range h.papers.db.Escape(searchString) {
+        if unicode.IsSpace(r) || r == '\'' || r == '+' || r == '\\' {
+            // this characted is a word separator
+            // "illegal" characters are considered word separators
+            if !newWord {
+                booleanSearchString.WriteRune('"')
+            }
+            newWord = true;
+        } else {
+            if newWord {
+                booleanSearchString.WriteString(" +\"")
+                newWord = false
+            }
+            booleanSearchString.WriteRune(r)
+        }
+    }
+    if !newWord {
+        booleanSearchString.WriteRune('"')
+    }
+
     //stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
-    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.keywords) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
+    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE (meta_data.id = pcite.id) AND (MATCH(meta_data.authors,meta_data.keywords) AGAINST (? IN BOOLEAN MODE)) LIMIT 150",booleanSearchString.String())
 
     var id,numCites uint64
     //var refStr []byte
