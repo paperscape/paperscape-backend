@@ -29,7 +29,8 @@ bool auto_refine = true;
 static int iterate_counter_full_refine = 0;
 bool lock_view_all = true;
 double mouse_last_x = 0, mouse_last_y = 0;
-layout_node_t *mouse_layout_node = NULL;
+layout_node_t *mouse_layout_node_held = NULL;
+layout_node_t *mouse_layout_node_prev = NULL;
 
 /* obsolete
 int id_range_start = 2050000000;
@@ -45,7 +46,7 @@ static gboolean map_env_update(map_env_t *map_env) {
     for (int i = 1; i <= 5; i++) {
         iterate_counter += 1;
         printf("nbody iteration %d", iterate_counter);
-        if (map_env_iterate(map_env, mouse_layout_node, boost_step_size > 0, false)) {
+        if (map_env_iterate(map_env, mouse_layout_node_held, boost_step_size > 0, false)) {
             converged_counter += 1;
         } else {
             converged_counter = 0;
@@ -304,8 +305,8 @@ static gboolean button_press_event_callback(GtkWidget *widget, GdkEventButton *e
         mouse_dragged = FALSE;
         mouse_last_x = event->x;
         mouse_last_y = event->y;
-        mouse_layout_node = map_env_get_layout_node_at(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), event->x, event->y);
-        printf("%p\n", mouse_layout_node);
+        mouse_layout_node_held = map_env_get_layout_node_at(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), event->x, event->y);
+        mouse_layout_node_prev = mouse_layout_node_held;
     }
 
     return TRUE; // we handled the event, stop processing
@@ -315,8 +316,8 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
     if (event->button == GDK_BUTTON_PRIMARY) {
         mouse_held = FALSE;
         if (!mouse_dragged) {
-            if (mouse_layout_node != NULL && map_env_number_of_finer_layouts(map_env) == 0) {
-                paper_t *p = mouse_layout_node->paper;
+            if (mouse_layout_node_held != NULL && map_env_number_of_finer_layouts(map_env) == 0) {
+                paper_t *p = mouse_layout_node_held->paper;
                 vstr_reset(vstr);
                 if (p->authors == NULL || p->title == NULL) {
                     vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites)", p->index, p->id, p->num_refs, p->num_cites);
@@ -327,7 +328,20 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
                 printf("%s\n", vstr_str(vstr));
             }
         }
-        mouse_layout_node = NULL;
+        mouse_layout_node_held = NULL;
+    } else if (event->button == GDK_BUTTON_SECONDARY) {
+        if (mouse_layout_node_prev != NULL && map_env_number_of_finer_layouts(map_env) == 0) {
+            // right click move previously clicked paper to this location
+            double x = event->x;
+            double y = event->y;
+            map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
+            mouse_layout_node_prev->x = x;
+            mouse_layout_node_prev->y = y;
+            printf("moved paper %d to (%.2f,%.2f)\n", ((paper_t*)mouse_layout_node_prev->paper)->id, x, y);
+            if (!update_running) {
+                gtk_widget_queue_draw(window);
+            }
+        }
     }
 
     return TRUE; // we handled the event, stop processing
@@ -356,7 +370,7 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
                 mouse_dragged = TRUE;
             }
         } else {
-            if (mouse_layout_node == NULL) {
+            if (mouse_layout_node_held == NULL) {
                 // mouse dragged on background
                 double dx = event->x - mouse_last_x;
                 double dy = event->y - mouse_last_y;
@@ -366,8 +380,8 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
                 double x = event->x;
                 double y = event->y;
                 map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
-                mouse_layout_node->x = x;
-                mouse_layout_node->y = y;
+                mouse_layout_node_held->x = x;
+                mouse_layout_node_held->y = y;
             }
             mouse_last_x = event->x;
             mouse_last_y = event->y;

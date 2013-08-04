@@ -32,7 +32,7 @@ map_env_t *map_env_new() {
     map_env->force_params.use_ref_freq = true;
     map_env->force_params.anti_gravity_falloff_rsq = 1e6;
     map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
-    map_env->force_params.link_strength = 0.8;
+    map_env->force_params.link_strength = 0.77;
 
     map_env->do_tred = false;
     map_env->draw_grid = false;
@@ -71,9 +71,7 @@ int map_env_get_num_papers(map_env_t *map_env) {
 }
 
 layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, double screen_h, double x, double y) {
-    printf("%f, %f --> ", x, y);
     map_env_screen_to_world(map_env, screen_w, screen_h, &x, &y);
-    printf("%f, %f\n", x, y);
     return layout_get_node_at(map_env->layout, x, y);
 }
 
