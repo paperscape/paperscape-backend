@@ -150,7 +150,7 @@ func cleanJsonString(input string) string {
     // TODO work out exactly which chars are causing
     // parsing error and blacklist or escape them
     // inplace of this whitelist
-    validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -/.,<>"
+    validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -/.,<>()"
 
     output := make([]rune, 0)
 
@@ -1025,7 +1025,8 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24,72,216}
     //divisionSet := [...]int{4,8,16,32,64}
-    divisionSet := [...]int{4,8,16,32,64,128,256}
+    divisionSet := [...]int{4,8,16,32,64,128}
+    //divisionSet := [...]int{4,8,16,32,64,128,256}
 
     //depths := *flagTileDepth
     first := true
