@@ -36,6 +36,12 @@ import (
 // Kea equivalent is set in profile.js
 var VERSION = "0.14"
 
+// Current version of paperscape maps.
+// Any client "boa" instances that don't match this will
+// be prompted to do a hard reload of the latest version
+// Boa equivalent is set in main.coffee
+var VERSION_MAPS = "0.1"
+
 // Max number of ids we will convert from human to internal form at a time
 // We need some sane limit to stop mysql being spammed! If profile bigger than this,
 // it will need to make several calls
@@ -1096,6 +1102,12 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             if !success {
                 logDescription = fmt.Sprintf("gdb")
             }
+        } else if req.Form["gdmv"] != nil {
+            // get-date-maps-version
+            success := h.GetDateMapsVersion(rw)
+            if !success {
+                logDescription = fmt.Sprintf("gdmv")
+            }
         } else if req.Form["gdata[]"] != nil && req.Form["flags[]"] != nil {
             var ids, flags []uint
             for _, strId := range req.Form["gdata[]"] {
@@ -2081,6 +2093,57 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
     
     fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id,resx,resy,resr)
 }
+
+
+func (h *MyHTTPHandler) GetDateMapsVersion(rw http.ResponseWriter) (success bool) {
+    
+    success = false
+
+    // perform query
+    if !h.papers.QueryBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo = 0") {
+        return
+    }
+
+    defer h.papers.QueryEnd()
+
+    // get result set  
+    result, err := h.papers.db.UseResult()
+    if err != nil {
+        fmt.Println("MySQL use result error;", err)
+        return
+    }
+
+    fmt.Fprintf(rw, "{\"v\":\"%s\",",VERSION_MAPS)
+    // get each row from the result and create the JSON object
+    numResults := 0
+    for {
+        // get the row
+        row := result.FetchRow()
+        if row == nil {
+            break
+        }
+
+        // parse the row
+        var ok bool
+        var daysAgo uint64
+        var id uint64
+        if daysAgo, ok = row[0].(uint64); !ok { continue }
+        if id, ok = row[1].(uint64); !ok {
+            id = 0
+        }
+
+        // print the result
+        if numResults > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        fmt.Fprintf(rw, "\"d%d\":%d", daysAgo, id)
+        numResults += 1
+    }
+    fmt.Fprintf(rw, "}")
+    success = true
+    return
+}
+
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
     
