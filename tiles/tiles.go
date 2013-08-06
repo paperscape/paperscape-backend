@@ -150,7 +150,7 @@ func cleanJsonString(input string) string {
     // TODO work out exactly which chars are causing
     // parsing error and blacklist or escape them
     // inplace of this whitelist
-    validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -/.,<>()"
+    validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -/.,<>()="
 
     output := make([]rune, 0)
 
@@ -186,7 +186,7 @@ func (graph *Graph) CalculateCategoryLabels() {
         {"nucl-ex","nuclear experiment,(nucl-ex),,"},
         //{"nucl-th","nuclear theory,(nucl-th),,"},
         {"quant-ph","quantum physics,(quant-ph),,"},
-        {"physics","general physics,(physics),,"},
+        //{"physics","general physics,(physics),,"}, this cat is so scattered that its centre of mass is no good
         {"q-bio","quantitative biology,(q-bio),,"},
         {"q-fin","quantitative finance,(q-fin),,"},
         {"stat","statistics,(stat),,"},
