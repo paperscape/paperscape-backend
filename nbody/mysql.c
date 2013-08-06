@@ -132,6 +132,8 @@ static int paper_cmp_id(const void *in1, const void *in2) {
 }
 
 static bool env_load_ids(env_t *env, const char *where_clause, bool load_authors_and_titles) {
+    // TODO sanity checks when allcats or authors or title is null (need to create such entries in DB to test)
+
     MYSQL_RES *result;
     MYSQL_ROW row;
 
