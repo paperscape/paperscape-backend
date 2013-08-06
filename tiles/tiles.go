@@ -16,6 +16,7 @@ import (
     "xiwi"
     "github.com/ungerik/go-cairo"
     "time"
+    "encoding/json"
 )
 
 var GRAPH_PADDING = 100 // what to pad graph by on each side
@@ -25,6 +26,7 @@ var flagDB         = flag.String("db", "", "MySQL database to connect to")
 var flagGrayScale  = flag.Bool("gs", false, "Make grayscale tiles")
 var flagHeatMap    = flag.Bool("hm", false, "Make heatmap tiles")
 var flagDoSingle   = flag.Bool("single-tile", false, "Only generate a large single tile, no labels or world index information")
+var flagRegionFile = flag.String("region-file", "regions.json", "JSON file with region labels")
 
 var flagSkipTiles  = flag.Bool("skip-tiles", false, "Do not generate tiles (still generates index information)")
 var flagSkipLabels = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
@@ -52,7 +54,7 @@ func main() {
 
     // build the quad tree
     graph.BuildQuadTree()
-    
+
     runtime.GC()
 
     if *flagDoSingle {
@@ -102,6 +104,12 @@ type CategoryLabel struct {
     label string
 }
 
+// need to have members start with upper case so json parser loads them
+type RegionLabel struct {
+    X, Y, Radius int
+    Label string
+}
+
 type Paper struct {
     id          uint
     x           int
@@ -124,6 +132,7 @@ type Graph struct {
     papers  []*Paper
     qt      *QuadTree
     catLabels []*CategoryLabel
+    regLabels []RegionLabel
     MinX, MinY, MaxX, MaxY int
     BoundsX, BoundsY int
     LatestId, NewPapersId uint
@@ -221,6 +230,27 @@ func (graph *Graph) CalculateCategoryLabels() {
     }
 }
 
+func (graph *Graph) ReadRegionLabels(filename string) {
+    // open JSON file
+    file, err := os.Open(filename)
+    if err != nil {
+        log.Println(err)
+        return
+    }
+
+    // decode JSON
+    dec := json.NewDecoder(file)
+    if err := dec.Decode(&graph.regLabels); err != nil {
+        log.Println(err)
+        return
+    }
+
+    // close file
+    file.Close()
+
+    // print info
+    fmt.Printf("read %v region labels\n", len(graph.regLabels))
+}
 
 func (graph *Graph) QueryLastMetaDownload(db *mysql.Client) {
 
@@ -254,7 +284,7 @@ func (graph *Graph) QueryLastMetaDownload(db *mysql.Client) {
         fmt.Println("MySQL id cast error;", err)
         return
     }
-    
+
     pieces := strings.Split(value, "-")
     if len(pieces) == 3 {
         year,_ := strconv.ParseInt(pieces[0],10,0)
@@ -715,8 +745,9 @@ func ReadGraph(db *mysql.Client) *Graph {
     if !*flagSkipLabels {
         graph.QueryLabels(db)
         graph.CalculateCategoryLabels()
+        graph.ReadRegionLabels(*flagRegionFile)
     }
-   
+
     // determine labels to use for each paper
     //for _, paper := range graph.papers {
     //    paper.DetermineLabel()
@@ -937,7 +968,7 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
 
 }
 
-func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, showCategories bool, filename string) {
+func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, showCategories, showRegions bool, filename string) {
 
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
         log.Fatal(err)
@@ -984,6 +1015,19 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, sh
         }
     }
 
+    if showRegions {
+        for _, regLabel := range(graph.regLabels) {
+            if regLabel.X > x-rx && regLabel.X < x+rx && regLabel.Y > y-ry && regLabel.Y < y+ry {
+                if first {
+                    first = false
+                } else {
+                    fmt.Fprintf(w,",")
+                }
+                fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",regLabel.X,regLabel.Y,regLabel.Radius,regLabel.Label)
+            }
+        }
+    }
+
     fmt.Fprintf(w,"]})")
     w.Flush()
 }
@@ -1007,11 +1051,11 @@ func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, 
     channel <- 1 // signal that this set of tiles is done
 }
 
-func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, scale, width, height, xiFirst, xiLast, yiFirst, yiLast int, showCategories bool, channel chan int) {
+func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, scale, width, height, xiFirst, xiLast, yiFirst, yiLast int, showCategories, showRegions bool, channel chan int) {
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
             filename := fmt.Sprintf("%s/zones/%d/%d/%d", outPrefix, depth, xi, yi)
-            GenerateLabelZone(graph, scale, width, height, depth, xi, yi, showCategories, filename)
+            GenerateLabelZone(graph, scale, width, height, depth, xi, yi, showCategories, showRegions, filename)
         }
     }
     channel <- 1 // signal that this set of tiles is done
@@ -1080,18 +1124,18 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
 
     // tile divisions, scale divisions
     depthSet := []struct {
-        tdivs, sdivs uint  
-        showCats bool
+        tdivs, sdivs uint
+        showCats, showRegs bool
     }{
-        {1,1,true},
-        {1,2,true},
-        {1,4,true},
-        {1,8,true},
-        {2,16,false},
-        {4,32,false},
-        {8,64,false},
-        {16,128,false},
-        {32,256,false},
+        {1,1,true,false},
+        {1,2,true,false},
+        {1,4,false,true},
+        {1,8,false,true},
+        {2,16,false,false},
+        {4,32,false,false},
+        {8,64,false,false},
+        {16,128,false,false},
+        {32,256,false,false},
     }
 
     first := true
@@ -1127,7 +1171,11 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
                 if xiLast > int(labelDepth.tdivs) {
                     xiLast = int(labelDepth.tdivs)
                 }
-                go ParallelGenerateLabelZone(graph, outPrefix, depth, scale, tile_width, tile_height, xi, xiLast, 1, int(labelDepth.tdivs),labelDepth.showCats, channel)
+                go ParallelGenerateLabelZone(
+                    graph, outPrefix,
+                    depth, scale, tile_width, tile_height, xi, xiLast, 1, int(labelDepth.tdivs),
+                    labelDepth.showCats, labelDepth.showRegs,
+                    channel)
                 numRoutines += 1
                 xi = xiLast + 1
             }
