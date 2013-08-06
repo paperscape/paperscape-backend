@@ -1,9 +1,9 @@
 [
-{"x": 6060, "y": -17143, "radius": 4000, "label": "dark matter,,,"},
-{"x": 3254, "y": -20974, "radius": 4000, "label": "neutrinos,,,"}
-{"x": 8164, "y": -6016, "radius": 4000, "label": "inflation,,,"}
-{"x": 13161, "y": -2852, "radius": 4000, "label": "dark energy,,,"}
-{"x": -12263, "y": -22929, "radius": 4000, "label": "B physics,,,"}
-{"x": -3935, "y": -17756, "radius": 4000, "label": "phenomenology,,,"}
-{"x": 18158, "y": 5389, "radius": 4000, "label": "black holes,,,"}
+    {"x": 6060, "y": -17143, "radius": 6000, "label": "dark matter,,,"},
+    {"x": 3254, "y": -20974, "radius": 6000, "label": "neutrinos,,,"},
+    {"x": 8164, "y": -6016, "radius": 6000, "label": "inflation,,,"},
+    {"x": 13161, "y": -2852, "radius": 6000, "label": "dark energy,,,"},
+    {"x": -12263, "y": -22929, "radius": 6000, "label": "B physics,,,"},
+    {"x": -3935, "y": -17756, "radius": 6000, "label": "phenomenology,,,"},
+    {"x": 18158, "y": 5389, "radius": 6000, "label": "black holes,,,"}
 ]
