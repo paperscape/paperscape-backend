@@ -8,5 +8,9 @@
     {"x": -18034, "y": -17327, "radius": 10000, "label": "parton distributions,,,"},
     {"x": -9720, "y": -18548, "radius": 6000, "label": "event generation,,,"},
     {"x": -11169, "y": -4506, "radius": 6000, "label": "amplitudes,,,"},
-    {"x": 18158, "y": 5389, "radius": 6000, "label": "black holes,,,"}
+    {"x": 18158, "y": 5389, "radius": 6000, "label": "black holes,,,"},
+    {"x": -18054, "y": 36331, "radius": 6000, "label": "superconductivity,,,"},
+    {"x": -8908, "y": 29589, "radius": 6000, "label": "graphene,,,"},
+    {"x": 23949, "y": -3993, "radius": 6000, "label": "gamma-ray bursts,,,"},
+    {"x": 13816, "y": -8577, "radius": 6000, "label": "cosmic microwave background,,,"}
 ]
