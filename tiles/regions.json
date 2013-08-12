@@ -13,13 +13,13 @@
     {"x": -8908, "y": 29589, "radius": 6000, "label": "graphene,,,"},
     {"x": 23949, "y": -3993, "radius": 6000, "label": "gamma-ray bursts,,,"},
     {"x": 13816, "y": -8577, "radius": 6000, "label": "cosmic microwave background,,,"},
-    {"x": -2625, "y": -14886, "radius": 8000, "labels": "supersymmetry,,,"},
-    {"x": -1759, "y": -9846, "radius": 8000, "labels": "extra dimensions,,,"},
-    {"x": 1560, "y": -4188, "radius": 8000, "labels": "extra dimensions,,,"},
-    {"x": -3990, "y": -3803, "radius": 8000, "labels": "string phenomenology,,,"},
-    {"x": 17410, "y": -12995, "radius": 8000, "labels": "cosmology,,,"},
-    {"x": 19823, "y": -17394, "radius": 8000, "labels": "dark matter,,,"},
-    {"x": 27076, "y": -16060, "radius": 8000, "labels": "astrophysics,,,"},
-    {"x": 40134, "y": -7767, "radius": 8000, "labels": "dwarf stars,,,"},
-    {"x": 40467, "y": -3766, "radius": 8000, "labels": "extrasolar planets,,,"}
+    {"x": -2625, "y": -14886, "radius": 8000, "label": "supersymmetry,,,"},
+    {"x": -1759, "y": -9846, "radius": 8000, "label": "extra dimensions,,,"},
+    {"x": 1560, "y": -4188, "radius": 8000, "label": "extra dimensions,,,"},
+    {"x": -3990, "y": -3803, "radius": 8000, "label": "string phenomenology,,,"},
+    {"x": 17410, "y": -12995, "radius": 8000, "label": "cosmology,,,"},
+    {"x": 19823, "y": -17394, "radius": 8000, "label": "dark matter,,,"},
+    {"x": 27076, "y": -16060, "radius": 8000, "label": "astrophysics,,,"},
+    {"x": 40134, "y": -7767, "radius": 8000, "label": "dwarf stars,,,"},
+    {"x": 40467, "y": -3766, "radius": 8000, "label": "extrasolar planets,,,"}
 ]
