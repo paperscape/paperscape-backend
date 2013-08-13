@@ -445,12 +445,29 @@ func (graph *Graph) QueryCategories(db *mysql.Client) {
         var ok bool
         var id uint64
         var maincat string
+        //var allcats string
         if id, ok = row[0].(uint64); !ok { continue }
         if maincat, ok = row[1].(string); !ok { continue }
+        //allcats, ok = row[2].(string)
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
             paper.maincat = maincat
+            /* code for if we want to distinguish sub-cats
+            if strings.HasPrefix(allcats, "astro-ph.CO") {
+                paper.maincat = "astro-ph.CO"
+            } else if strings.HasPrefix(allcats, "astro-ph.EP") {
+                paper.maincat = "astro-ph.EP"
+            } else if strings.HasPrefix(allcats, "astro-ph.GA") {
+                paper.maincat = "astro-ph.GA"
+            } else if strings.HasPrefix(allcats, "astro-ph.HE") {
+                paper.maincat = "astro-ph.HE"
+            } else if strings.HasPrefix(allcats, "astro-ph.IM") {
+                paper.maincat = "astro-ph.IM"
+            } else if strings.HasPrefix(allcats, "astro-ph.SR") {
+                paper.maincat = "astro-ph.SR"
+            }
+            */
         }
     }
 
