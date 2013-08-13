@@ -6,7 +6,7 @@
     {"x": -4600, "y": -18541, "radius": 10000, "label": "beyond standard model,,,"},
     {"x": -11112, "y": -22203, "radius": 10000, "label": "flavour physics,,,"},
     {"x": -18034, "y": -17327, "radius": 10000, "label": "parton distributions,,,"},
-    {"x": -9720, "y": -18548, "radius": 6000, "label": "event generation,,,"},
+    {"x": -9720, "y": -18048, "radius": 6000, "label": "event generation,,,"},
     {"x": -11169, "y": -4506, "radius": 6000, "label": "amplitudes,,,"},
     {"x": 18158, "y": 5389, "radius": 8000, "label": "black holes,,,"},
     {"x": -18054, "y": 36331, "radius": 6000, "label": "superconductivity,,,"},
@@ -15,7 +15,7 @@
     {"x": 13816, "y": -8577, "radius": 6000, "label": "cosmic microwave background,,,"},
     {"x": -2625, "y": -14886, "radius": 8000, "label": "supersymmetry,,,"},
     {"x": -1759, "y": -9846, "radius": 8000, "label": "extra dimensions,,,"},
-    {"x": 1560, "y": -4188, "radius": 6000, "label": "extra dimensions,,,"},
+    {"x": 1660, "y": -4288, "radius": 6000, "label": "extra dimensions,,,"},
     {"x": -3990, "y": -3803, "radius": 8000, "label": "string phenomenology,,,"},
     {"x": 17410, "y": -12995, "radius": 8000, "label": "cosmology,,,"},
     {"x": 19823, "y": -17394, "radius": 8000, "label": "dark matter,,,"},
@@ -26,6 +26,7 @@
     {"x": -16753, "y": -7267, "radius": 8000, "label": "quantum chromodynamics,,,"},
     {"x": 5170, "y": 10536, "radius": 8000, "label": "quantum gravity,,,"},
     {"x": 3412, "y": 28615, "radius": 8000, "label": "quantum mechanics,,,"},
-    {"x": -28787, "y": 27948, "radius": 4000, "label": "networks,,,"}
-    {"x": -22287, "y": 26461, "radius": 4000, "label": "spin glass,,,"}
+    {"x": -28787, "y": 27948, "radius": 4000, "label": "networks,,,"},
+    {"x": -22287, "y": 26461, "radius": 4000, "label": "spin glass,,,"},
+    {"x": -17653, "y": -12557, "radius": 6000, "label": "lattice gauge theory,,,"}
 ]
