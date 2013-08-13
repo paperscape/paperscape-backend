@@ -25,5 +25,7 @@
     {"x": -21547, "y": -5391, "radius": 8000, "label": "heavy ions,,,"},
     {"x": -16753, "y": -7267, "radius": 8000, "label": "quantum chromodynamics,,,"},
     {"x": 5170, "y": 10536, "radius": 8000, "label": "quantum gravity,,,"},
-    {"x": 3412, "y": 28615, "radius": 8000, "label": "quantum mechanics,,,"}
+    {"x": 3412, "y": 28615, "radius": 8000, "label": "quantum mechanics,,,"},
+    {"x": -28787, "y": 27948, "radius": 4000, "label": "networks,,,"}
+    {"x": -22287, "y": 26461, "radius": 4000, "label": "spin glass,,,"}
 ]
