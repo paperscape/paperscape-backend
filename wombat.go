@@ -19,6 +19,7 @@ import (
     "bytes"
     "time"
     "strings"
+    "math"
     "math/rand"
     "crypto/sha1"
     "crypto/sha256"
@@ -1041,10 +1042,16 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             h.MapLocationFromPaperId(ids,rw)
         } else if req.Form["ml2p[]"] != nil {
             // map: location to paper id
-            logDescription = fmt.Sprintf("Paper id from map location")
-            x, _ := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
-            y, _ := strconv.ParseFloat(req.Form["ml2p[]"][1], 0)
-            h.MapPaperIdAtLocation(x,y,rw)
+            x, erx := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
+            y, ery := strconv.ParseFloat(req.Form["ml2p[]"][1], 0)
+            if erx != nil || ery != nil || math.IsNaN(x) || math.IsNaN(y) || math.IsInf(x, 0) || math.IsInf(y, 0) {
+                // error parsing x and/or y
+                logDescription = fmt.Sprintf("Paper id from map location, invalid location (%s, %s)", req.Form["ml2p[]"][0], req.Form["ml2p[]"][1])
+            } else {
+                // parsed coordinates ok, do request
+                logDescription = fmt.Sprintf("Paper id from map location (%.2f, %.2f)", x, y)
+                h.MapPaperIdAtLocation(x, y, rw)
+            }
         } else if req.Form["pchal"] != nil {
             // profile-challenge: authenticate request (send user a new "challenge")
             giveSalt := false
@@ -1162,12 +1169,12 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // search-category: search papers between given id range, in given category
             // x = include cross lists, f = from, t = to
             h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", req.Form["f"][0], req.Form["t"][0], rw)
-            logDescription = fmt.Sprintf("sca \"%s\" (%d,%d)",req.Form["sca"][0],req.Form["f"][0],req.Form["t"][0])
+            logDescription = fmt.Sprintf("sca \"%s\" (%s,%s)", req.Form["sca"][0], req.Form["f"][0], req.Form["t"][0])
         } else if req.Form["snp"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
             // search-new-papers: search papers between given id range
             // f = from, t = to
             h.SearchNewPapers(req.Form["f"][0], req.Form["t"][0], rw)
-            logDescription = fmt.Sprintf("snp (%d,%d)",req.Form["f"][0],req.Form["t"][0])
+            logDescription = fmt.Sprintf("snp (%s,%s)", req.Form["f"][0], req.Form["t"][0])
         } else if req.Form["str[]"] != nil {
             // search-trending: search papers that are "trending"
             h.SearchTrending(req.Form["str[]"], rw)
@@ -2081,8 +2088,6 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
     // Current implentation is slow (order n)
     // use quad tree: order log n
     // OR try using MySQL spatial extensions
-
-    fmt.Printf("%f %f\n",x,y)
 
     sql := "SELECT id,x,y,r FROM map_data WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
 
