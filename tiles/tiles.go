@@ -22,13 +22,17 @@ import (
 var GRAPH_PADDING = 100 // what to pad graph by on each side
 var TILE_PIXEL_LEN = 512
 
+var COLOUR_NORMAL    = 0
+var COLOUR_HEATMAP   = 1
+var COLOUR_GRAYSCALE = 2
+
 var flagDB         = flag.String("db", "", "MySQL database to connect to")
-var flagGrayScale  = flag.Bool("gs", false, "Make grayscale tiles")
-var flagHeatMap    = flag.Bool("hm", false, "Make heatmap tiles")
+var flagGrayScale  = flag.Bool("gs", false, "Also make grayscale tiles")
+var flagHeatMap    = flag.Bool("hm", false, "Also make heatmap tiles")
 var flagDoSingle   = flag.Bool("single-tile", false, "Only generate a large single tile, no labels or world index information")
 var flagRegionFile = flag.String("region-file", "regions.json", "JSON file with region labels")
 
-var flagSkipTiles  = flag.Bool("skip-tiles", false, "Do not generate tiles (still generates index information)")
+var flagSkipNormalTiles  = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
 var flagSkipLabels = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
 
 var flagMaxCores = flag.Int("cores",-1,"Max number of system cores to use, default is all of them")
@@ -58,7 +62,7 @@ func main() {
     runtime.GC()
 
     if *flagDoSingle {
-        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, outPrefix)
+        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, outPrefix,COLOUR_NORMAL)
     } else {
         // Create index file
         indexFile := outPrefix + "/world_index.json"
@@ -117,7 +121,7 @@ type Paper struct {
     radius      int
     age         float32
     heat        float32
-    col         CairoColor
+    //col         CairoColor
     maincat     string
     label       string
 }
@@ -659,10 +663,10 @@ func (paper *Paper) DetermineLabel(authors, keywords string) {
     paper.label = cleanJsonString(kwStr + "," + auStr)
 }
 
-func (paper *Paper) SetColour() {
+//func (paper *Paper) SetColour() {
+func (paper *Paper) GetColour(colourScheme int) CairoColor {
     // basic colour of paper
     var r, g, b float32
-
 
     if *flagHeatMap {
         
@@ -751,7 +755,8 @@ func (paper *Paper) SetColour() {
         }
     }
 
-    paper.col = CairoColor{r, g, b}
+    //paper.col = CairoColor{r, g, b}
+    return CairoColor{r, g, b}
 }
 
 func ReadGraph(db *mysql.Client) *Graph {
@@ -798,9 +803,9 @@ func ReadGraph(db *mysql.Client) *Graph {
 
     graph.LatestId = graph.papers[len(graph.papers)-1].id
 
-    for _, paper := range graph.papers {
-        paper.SetColour()
-    }
+    //for _, paper := range graph.papers {
+    //    paper.SetColour()
+    //}
 
     fmt.Printf("graph has %v papers; min=(%v,%v), max=(%v,%v)\n", len(graph.papers), graph.MinX, graph.MinY, graph.MaxX, graph.MaxY)
 
@@ -939,7 +944,7 @@ func (qt *QuadTree) ApplyIfWithin(x, y, rx, ry int, f func(paper *Paper)) {
     qt.Root.ApplyIfWithin(qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, x, y, rx, ry, f)
 }
 
-func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeight int, filename string) {
+func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeight int, filename string, colourScheme int) {
 
     surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidth, surfHeight)
     surf.SetSourceRGBA(0, 0, 0, 0)
@@ -976,7 +981,9 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
         } else {
             surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         }
-        surf.SetSourceRGB(float64(paper.col.r), float64(paper.col.g), float64(paper.col.b))
+        col := paper.GetColour(colourScheme)
+        //surf.SetSourceRGB(float64(paper.col.r), float64(paper.col.g), float64(paper.col.b))
+        surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
         surf.Fill()
     })
 
@@ -1057,17 +1064,24 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, sh
 }
 
 func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
-    suffix := ""
-    if *flagGrayScale {
-        suffix = "-bw"
-    }
-    if *flagHeatMap {
-        suffix = "-hm"
-    }
+    var filename string
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
-            filename := fmt.Sprintf("%s/tiles%s/%d/%d/%d", outPrefix, suffix, depth, xi, yi)
-            DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename)
+            // Draw normal tile
+            if !*flagSkipNormalTiles {
+                filename = fmt.Sprintf("%s/tiles/%d/%d/%d", outPrefix, depth, xi, yi)
+                DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_NORMAL)
+            }
+            // Draw heatmap tile
+            if *flagHeatMap {
+                filename = fmt.Sprintf("%s/tiles-hm/%d/%d/%d", outPrefix, depth, xi, yi)
+                DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_HEATMAP)
+            }
+            // Draw grayscale tile
+            if *flagHeatMap {
+                filename = fmt.Sprintf("%s/tiles-hm/%d/%d/%d", outPrefix, depth, xi, yi)
+                DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_GRAYSCALE)
+            }
         }
     }
     channel <- 1 // signal that this set of tiles is done
@@ -1109,34 +1123,32 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
         first = false
         fmt.Fprintf(w,"{\"z\":%d,\"tw\":%d,\"th\":%d,\"nx\":%d,\"ny\":%d}",depth, worldDim, worldDim, divs,divs)
 
-        if !*flagSkipTiles {
-            fmt.Printf("Generating tiles at depth %d\n",divs)
-            // TODO if graph far from from square, shorten tile directions accordingly
+        fmt.Printf("Generating tiles at depth %d\n",divs)
+        // TODO if graph far from from square, shorten tile directions accordingly
 
-            // parallelise the drawing of tiles, using as many cpus as we have available to us
-            maxCpu := runtime.NumCPU()
-            if *flagMaxCores > 0 && *flagMaxCores < maxCpu {
-                maxCpu = *flagMaxCores
-            }
-            runtime.GOMAXPROCS(maxCpu)
-            channel := make(chan int, maxCpu)
-            numRoutines := 0
-            xiPerCpu := (divs + maxCpu - 1) / maxCpu
-            for xi := 1; xi <= divs; {
-                xiLast := xi + xiPerCpu - 1
-                if xiLast > divs {
-                    xiLast = divs
-                }
-                go ParallelDrawTile(graph, outPrefix, depth, worldDim, xi, xiLast, 1, divs, channel)
-                numRoutines += 1
-                xi = xiLast + 1
-            }
-            // drain the channel
-            for i := 0; i < numRoutines; i++ {
-                <-channel // wait for one task to complete
-            }
-            // all tasks are finished
+        // parallelise the drawing of tiles, using as many cpus as we have available to us
+        maxCpu := runtime.NumCPU()
+        if *flagMaxCores > 0 && *flagMaxCores < maxCpu {
+            maxCpu = *flagMaxCores
         }
+        runtime.GOMAXPROCS(maxCpu)
+        channel := make(chan int, maxCpu)
+        numRoutines := 0
+        xiPerCpu := (divs + maxCpu - 1) / maxCpu
+        for xi := 1; xi <= divs; {
+            xiLast := xi + xiPerCpu - 1
+            if xiLast > divs {
+                xiLast = divs
+            }
+            go ParallelDrawTile(graph, outPrefix, depth, worldDim, xi, xiLast, 1, divs, channel)
+            numRoutines += 1
+            xi = xiLast + 1
+        }
+        // drain the channel
+        for i := 0; i < numRoutines; i++ {
+            <-channel // wait for one task to complete
+        }
+        // all tasks are finished
     }
     fmt.Fprintf(w,"]")
 }
