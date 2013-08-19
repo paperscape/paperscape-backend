@@ -387,15 +387,19 @@ func (graph *Graph) QueryHeat(db *mysql.Client) {
 
         var heat float32
 
-        lifetime := float64(365.)
+        //lifetime := float64(365.)
+        sigma := float64(365.)
+        //sqrtTwoPi := float32(math.Sqrt(6.283185))
 
         for _, citeId := range(citeIds) {
-            citeHeat := float32(math.Exp(-float64(idToDaysAgo(citeId))/lifetime))
+            // exponential decay
+            //citeHeat := float32(math.Exp(-float64(idToDaysAgo(citeId))/lifetime))
+            // gaussian
+            citeHeat := float32(math.Exp(-math.Pow(float64(idToDaysAgo(citeId))/sigma,2)/2.))
             heat += citeHeat
             //fmt.Printf("%d,%f,%f,%f\n",citeId,float64(idToDaysAgo(citeId)),citeHeat,heat)
         }
 
-        if heat > maxHeat { maxHeat = heat }
 
         //heat = math.Pow(float64(numRecentCites)/float64(numCites),1/4)
         //heat = float64(numRecentCites)
@@ -405,14 +409,16 @@ func (graph *Graph) QueryHeat(db *mysql.Client) {
         paper := graph.GetPaperById(uint(id))
         if paper != nil && numCites > 0 {
             paper.heat = heat/float32(numCites)
+            if paper.heat > maxHeat { maxHeat = paper.heat }
         }
+    
     }
 
     // normalize heat
     for _, paper := range (graph.papers) {
         paper.heat /= maxHeat
     }
-    //fmt.Printf("max %f\n",maxHeat)
+    fmt.Printf("max %f\n",maxHeat)
 
     db.FreeResult()
 
@@ -661,10 +667,11 @@ func (paper *Paper) SetColour() {
     if *flagHeatMap {
         
         // Try pure heatmap instead
-        var coldR, coldG, coldB, hotR, hotG, hotB float32
-
-        coldR, coldG, coldB = 0, 0, 1
-        hotR, hotG, hotB = 1, 0, 0
+        var coldR, coldG, coldB, hotR, hotG, hotB, dim float32
+        
+        dim = 0.10
+        coldR, coldG, coldB = dim, dim, dim 
+        hotR, hotG, hotB = 1, dim, dim
         r = (hotR - coldR)*paper.heat + coldR
         g = (hotG - coldG)*paper.heat + coldG
         b = (hotB - coldB)*paper.heat + coldB
@@ -1055,9 +1062,7 @@ func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, 
         suffix = "-bw"
     }
     if *flagHeatMap {
-        // TODO put back and implement on boa
-        //suffix = "-hm"
-        suffix = ""
+        suffix = "-hm"
     }
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
@@ -1085,6 +1090,7 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
     //divisionSet := [...]int{4,8,24}
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24,72,216}
+    //divisionSet := [...]int{4,8,16,32}
     //divisionSet := [...]int{4,8,16,32,64}
     //divisionSet := [...]int{4,8,16,32,64,128}
     divisionSet := [...]int{4,8,16,32,64,128,256}
