@@ -664,11 +664,11 @@ func (paper *Paper) DetermineLabel(authors, keywords string) {
 }
 
 //func (paper *Paper) SetColour() {
-func (paper *Paper) GetColour(colourScheme int) CairoColor {
+func (paper *Paper) GetColour(colourScheme int) *CairoColor {
     // basic colour of paper
-    var r, g, b float32
+    col := new(CairoColor)
 
-    if *flagHeatMap {
+    if colourScheme == COLOUR_HEATMAP {
         
         // Try pure heatmap instead
         var coldR, coldG, coldB, hotR, hotG, hotB, dim float32
@@ -676,36 +676,36 @@ func (paper *Paper) GetColour(colourScheme int) CairoColor {
         dim = 0.10
         coldR, coldG, coldB = dim, dim, dim 
         hotR, hotG, hotB = 1, dim, dim
-        r = (hotR - coldR)*paper.heat + coldR
-        g = (hotG - coldG)*paper.heat + coldG
-        b = (hotB - coldB)*paper.heat + coldB
+        col.r = (hotR - coldR)*paper.heat + coldR
+        col.g = (hotG - coldG)*paper.heat + coldG
+        col.b = (hotB - coldB)*paper.heat + coldB
     
     } else {
 
         if paper.maincat == "hep-th" {
-            r, g, b = 0, 0, 1 // blue
+            col.r, col.g, col.b = 0, 0, 1 // blue
         } else if paper.maincat == "hep-ph" {
-            r, g, b = 0, 1, 0 // green
+            col.r, col.g, col.b = 0, 1, 0 // green
         } else if paper.maincat == "hep-ex" {
-            r, g, b = 1, 1, 0 // yellow
+            col.r, col.g, col.b = 1, 1, 0 // yellow
         } else if paper.maincat == "gr-qc" {
-            r, g, b = 0, 1, 1 // cyan
+            col.r, col.g, col.b = 0, 1, 1 // cyan
         } else if paper.maincat == "hep-lat" {
-            r, g, b = 0.7, 0.36, 0.2 // tan brown
+            col.r, col.g, col.b = 0.7, 0.36, 0.2 // tan brown
         } else if paper.maincat == "astro-ph" {
-            r, g, b = 0.89, 0.53, 0.6 // skin pink
+            col.r, col.g, col.b = 0.89, 0.53, 0.6 // skin pink
         } else if paper.maincat == "cond-mat" {
-            r, g, b = 0.7, 0.5, 0.4
+            col.r, col.g, col.b = 0.7, 0.5, 0.4
         } else if paper.maincat == "quant-ph" {
-            r, g, b = 0.4, 0.7, 0.7
+            col.r, col.g, col.b = 0.4, 0.7, 0.7
         } else if paper.maincat == "physics" {
-            r, g, b = 1, 0, 0 // red
+            col.r, col.g, col.b = 1, 0, 0 // red
         } else if paper.maincat == "math" {
-            r, g, b = 0.62, 0.86, 0.24 // lime green
+            col.r, col.g, col.b = 0.62, 0.86, 0.24 // lime green
         } else if paper.maincat == "cs" {
-            r, g, b = 0.7, 0.3, 0.6 // purple
+            col.r, col.g, col.b = 0.7, 0.3, 0.6 // purple
         } else {
-            r, g, b = 0.7, 1, 0.3
+            col.r, col.g, col.b = 0.7, 1, 0.3
         }
 
         // brighten papers in categories that are mostly tiny dots
@@ -717,16 +717,16 @@ func (paper *Paper) GetColour(colourScheme int) CairoColor {
         if (false) {
             // older papers are saturated, newer papers are coloured
             var saturation float32 = 0.3 + 0.4 * (1 - age)
-            r = saturation + (r) * (1 - saturation)
-            g = saturation + (g) * (1 - saturation)
-            b = saturation + (b) * (1 - saturation)
+            col.r = saturation + (col.r) * (1 - saturation)
+            col.g = saturation + (col.g) * (1 - saturation)
+            col.b = saturation + (col.b) * (1 - saturation)
         } else if (false) {
             // older papers are saturated, newer papers are coloured and tend towards a full red component
             var saturation float32 = 0.4 * (1 - age)
             age = age * age
-            r = saturation + (r * (1 - age) + age) * (1 - saturation)
-            g = saturation + (g * (1 - age)      ) * (1 - saturation)
-            b = saturation + (b * (1 - age)      ) * (1 - saturation)
+            col.r = saturation + (col.r * (1 - age) + age) * (1 - saturation)
+            col.g = saturation + (col.g * (1 - age)      ) * (1 - saturation)
+            col.b = saturation + (col.b * (1 - age)      ) * (1 - saturation)
         } else if (true) {
             // older papers are saturated and dark, newer papers are coloured and bright
             var saturation float32 = 0.1 + 0.3 * (1 - age)
@@ -741,22 +741,22 @@ func (paper *Paper) GetColour(colourScheme int) CairoColor {
             if dim_factor > 1 {
                 dim_factor = 1
             }
-            r = dim_factor * (saturation + r * (1 - saturation))
-            g = dim_factor * (saturation + g * (1 - saturation))
-            b = dim_factor * (saturation + b * (1 - saturation))
+            col.r = dim_factor * (saturation + col.r * (1 - saturation))
+            col.g = dim_factor * (saturation + col.g * (1 - saturation))
+            col.b = dim_factor * (saturation + col.b * (1 - saturation))
         }
 
-        if *flagGrayScale {
+        if colourScheme == COLOUR_GRAYSCALE {
             //lum := 0.21 * r + 0.72 * g + 0.07 * b 
-            lum := 0.289 * r + 0.587 * g + 0.114 * b
-            r = lum
-            g = lum
-            b = lum
+            lum := 0.289 * col.r + 0.587 * col.g + 0.114 * col.b
+            col.r = lum
+            col.g = lum
+            col.b = lum
         }
     }
 
     //paper.col = CairoColor{r, g, b}
-    return CairoColor{r, g, b}
+    return col
 }
 
 func ReadGraph(db *mysql.Client) *Graph {
