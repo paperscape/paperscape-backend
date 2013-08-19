@@ -2,25 +2,6 @@ First, just get physics part of arXiv working.  It's already 625k papers, and ot
 categories don't work so well because we have poor references for them (so no links
 and all being small dots means no structure in the map).
 
-Major areas of work follow.
-
-To do:
-    --> Barnes-Hutt needs tuning at end stage to eliminate artifacts
-        --> how long would an N^2 iteration take?
-        --> continual rotation during iterations to reduce effects of quadtree borders
-    --> can we somehow pull the really far away papers more towards the centre?
-        --> try weaker spring and 1/r^2 for distant anti-gravity
-        --> works well!  just need to tune the 2 parameters, link strings and 1/r^2 transition
-    --> auto rotate of the graph to align certain categaries on the horizontal
-    --> for the daily update:
-        --> load DB
-        --> make single layout (most refined)
-        --> load JSON file and apply to layout
-        --> work out which are new papers
-        --> run force iter just for new papers (build quad tree, run top down QT force for each new paper, spring for each new paper, no close rep)
-        --> run full force iter for a bit (with close rep)
-        --> save JSON
-
 --------------------------------------------------------------------------------
 --  Connecting the disconnected pieces
 --------------------------------------------------------------------------------
@@ -198,3 +179,20 @@ Try 0.5 + 0.5 * exp(-(id1-id2)**2/x) for age weakening.
         improve much on the standard case.  Mostly, a paper will reference papers
         that are close in time anyway, so the "time information" is actually
         there.
+
+Done:
+    --> Barnes-Hutt needs tuning at end stage to eliminate artifacts
+        --> how long would an N^2 iteration take?  way too long!
+        --> continual rotation during iterations to reduce effects of quadtree borders
+    --> can we somehow pull the really far away papers more towards the centre?
+        --> try weaker spring and 1/r^2 for distant anti-gravity
+        --> works well!  just need to tune the 2 parameters, link strings and 1/r^2 transition
+    --> auto rotate of the graph to align certain categaries on the horizontal
+    --> for the daily update:
+        --> load DB
+        --> make single layout (most refined)
+        --> load JSON file and apply to layout
+        --> work out which are new papers
+        --> run force iter just for new papers (build quad tree, run top down QT force for each new paper, spring for each new paper, no close rep)
+        --> run full force iter for a bit (with close rep)
+        --> save JSON
