@@ -1078,8 +1078,8 @@ func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, 
                 DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_HEATMAP)
             }
             // Draw grayscale tile
-            if *flagHeatMap {
-                filename = fmt.Sprintf("%s/tiles-hm/%d/%d/%d", outPrefix, depth, xi, yi)
+            if *flagGrayScale {
+                filename = fmt.Sprintf("%s/tiles-bw/%d/%d/%d", outPrefix, depth, xi, yi)
                 DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_GRAYSCALE)
             }
         }
