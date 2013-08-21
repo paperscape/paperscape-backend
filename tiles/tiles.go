@@ -676,9 +676,20 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
         dim = 0.10
         coldR, coldG, coldB = dim, dim, dim 
         hotR, hotG, hotB = 1, dim, dim
-        col.r = (hotR - coldR)*paper.heat + coldR
-        col.g = (hotG - coldG)*paper.heat + coldG
-        col.b = (hotB - coldB)*paper.heat + coldB
+        //col.r = (hotR - coldR)*paper.heat + coldR
+        //col.g = (hotG - coldG)*paper.heat + coldG
+        //col.b = (hotB - coldB)*paper.heat + coldB
+
+        //heat := float32(math.Exp(-math.Pow(float64(idToDaysAgo(paper.id))/730.,2)/2.))
+        // voigt distro
+        gamma := float64(0.0001)
+        sigma := float64(365*4)
+        t := float64(idToDaysAgo(paper.id))
+        heat := float32(math.Exp(-math.Pow(t/sigma,2)/2. - gamma*t))
+
+        col.r = (hotR - coldR)*heat + coldR
+        col.g = (hotG - coldG)*heat + coldG
+        col.b = (hotB - coldB)*heat + coldB
     
     } else {
 
@@ -711,32 +722,31 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
         // brighten papers in categories that are mostly tiny dots
         brighten := paper.maincat == "math" || paper.maincat == "cs"
 
-        var age float32 = paper.age
 
         // foreground colour; select one by making its if condition true
         if (false) {
             // older papers are saturated, newer papers are coloured
-            var saturation float32 = 0.3 + 0.4 * (1 - age)
+            var saturation float32 = 0.3 + 0.4 * (1 - paper.age)
             col.r = saturation + (col.r) * (1 - saturation)
             col.g = saturation + (col.g) * (1 - saturation)
             col.b = saturation + (col.b) * (1 - saturation)
         } else if (false) {
             // older papers are saturated, newer papers are coloured and tend towards a full red component
-            var saturation float32 = 0.4 * (1 - age)
-            age = age * age
-            col.r = saturation + (col.r * (1 - age) + age) * (1 - saturation)
-            col.g = saturation + (col.g * (1 - age)      ) * (1 - saturation)
-            col.b = saturation + (col.b * (1 - age)      ) * (1 - saturation)
+            var saturation float32 = 0.4 * (1 - paper.age)
+            age2 := paper.age * paper.age
+            col.r = saturation + (col.r * (1 - age2) + age2) * (1 - saturation)
+            col.g = saturation + (col.g * (1 - age2)      ) * (1 - saturation)
+            col.b = saturation + (col.b * (1 - age2)      ) * (1 - saturation)
         } else if (true) {
             // older papers are saturated and dark, newer papers are coloured and bright
-            var saturation float32 = 0.1 + 0.3 * (1 - age)
+            var saturation float32 = 0.1 + 0.3 * (1 - paper.age)
             //var saturation float32 = 0.0
             //var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*age*age)))
             var dim_factor float32
             if brighten {
-                dim_factor = 0.8 + 0.20 * float32(math.Exp(float64(-4*(1-age)*(1-age))))
+                dim_factor = 0.8 + 0.20 * float32(math.Exp(float64(-4*(1-paper.age)*(1-paper.age))))
             } else {
-                dim_factor = 0.55 + 0.48 * float32(math.Exp(float64(-4*(1-age)*(1-age))))
+                dim_factor = 0.55 + 0.48 * float32(math.Exp(float64(-4*(1-paper.age)*(1-paper.age))))
             }
             if dim_factor > 1 {
                 dim_factor = 1
@@ -782,9 +792,10 @@ func ReadGraph(db *mysql.Client) *Graph {
     //    paper.DetermineLabel()
     //}
 
-    if *flagHeatMap {
-        graph.QueryHeat(db)
-    }
+    // Only if using heat calc
+    //if *flagHeatMap {
+    //    graph.QueryHeat(db)
+    //}
 
     for _, paper := range graph.papers {
         if paper.x - paper.radius < graph.MinX { graph.MinX = paper.x - paper.radius }
@@ -1105,9 +1116,9 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24,72,216}
     //divisionSet := [...]int{4,8,16,32}
-    //divisionSet := [...]int{4,8,16,32,64}
+    divisionSet := [...]int{4,8,16,32,64}
     //divisionSet := [...]int{4,8,16,32,64,128}
-    divisionSet := [...]int{4,8,16,32,64,128,256}
+    //divisionSet := [...]int{4,8,16,32,64,128,256}
 
     //depths := *flagTileDepth
     first := true
