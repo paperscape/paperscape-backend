@@ -41,7 +41,7 @@ var VERSION = "0.14"
 // Any client "boa" instances that don't match this will
 // be prompted to do a hard reload of the latest version
 // Boa equivalent is set in main.coffee
-var VERSION_MAPS = "0.1"
+var VERSION_MAPS = "0.2"
 
 // Max number of ids we will convert from human to internal form at a time
 // We need some sane limit to stop mysql being spammed! If profile bigger than this,
