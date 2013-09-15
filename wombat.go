@@ -189,6 +189,11 @@ type SavedUserSettings struct {
     Nda     *uint    `json:"nda"`
 }
 
+type Location struct {
+    x,y            int
+    r              uint
+}
+
 type Link struct {
     pastId         uint     // id of the earlier paper
     futureId       uint     // id of the later paper
@@ -198,6 +203,7 @@ type Link struct {
     refFreq        uint     // number of in-text references made by future to past
     pastCited      uint      // number of times past paper cited
     futureCited    uint      // number of times future paper cited
+    location       *Location // pointer to location, can be nil
 }
 
 type Paper struct {
@@ -214,6 +220,7 @@ type Paper struct {
     numCites   uint     // number of times cited
     dNumCites1 uint     // change in numCites in past day
     dNumCites5 uint     // change in numCites in past 5 days
+    location   *Location // pointer to location, can be nil
 }
 
 // first is one with smallest id
@@ -780,10 +787,10 @@ func ParseRefsCitesString(paper *Paper, blob []byte, isRefStr bool) bool {
         numCites := getLE16(blob, i + 8)
         // make link and add to list in paper
         if isRefStr {
-            link := &Link{uint(refId), paper.id, nil, paper, uint(refOrder), uint(refFreq), uint(numCites), paper.numCites}
+            link := &Link{uint(refId), paper.id, nil, paper, uint(refOrder), uint(refFreq), uint(numCites), paper.numCites, nil}
             paper.refs = append(paper.refs, link)
         } else {
-            link := &Link{paper.id, uint(refId), paper, nil, uint(refOrder), uint(refFreq), paper.numCites, uint(numCites)}
+            link := &Link{paper.id, uint(refId), paper, nil, uint(refOrder), uint(refFreq), paper.numCites, uint(numCites), nil}
             paper.cites = append(paper.cites, link)
         }
     }
@@ -850,6 +857,92 @@ func (papers *PapersEnv) QueryCites(paper *Paper, queryCitesMeta bool) {
             }
         }
     }
+}
+
+// Query locations for everything we already have available
+// e.g also refs/cites if we have them
+func (papers *PapersEnv) QueryLocations(paper *Paper) {
+    if paper == nil { return }
+   
+    // build list of ids
+    var ids []uint 
+
+    ids = append(ids, uint(paper.id))
+    if paper.refs != nil {
+        for _, ref := range paper.refs {
+            ids = append(ids, uint(ref.pastId))
+        }
+    }
+    if paper.cites != nil {
+        for _, cite := range paper.cites {
+            ids = append(ids, uint(cite.futureId))
+        }
+    }
+
+    var x,y int 
+    var resId, r uint
+
+    // create sql statement dynamically based on number of IDs
+    var args bytes.Buffer
+    args.WriteString("(")
+    for i, _ := range ids {
+        if i > 0 { 
+            args.WriteString(",")
+        }
+        args.WriteString("?")
+    }
+    args.WriteString(")")
+
+    sql := fmt.Sprintf("SELECT id,x,y,r FROM map_data WHERE id IN %s LIMIT %d",args.String(),len(ids))
+
+    // create interface of arguments for statement
+    hIdsInt := make([]interface{},len(ids))
+    for i, id := range ids {
+        hIdsInt[i] = interface{}(id)
+    }
+    
+    // Execute statement
+    stmt := papers.StatementBegin(sql,hIdsInt...)
+    if stmt != nil {
+        stmt.BindResult(&resId,&x,&y,&r)
+        for {
+            eof, err := stmt.Fetch()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+                break
+            } else if eof { break }
+            // attach location to correct reference
+            foundIt := false
+            if paper.id == resId {
+                paper.location = &Location{x,y,r}
+                foundIt = true
+            }
+            if !foundIt && paper.refs != nil {
+                for _, ref := range paper.refs {
+                    if ref.pastId == resId {
+                        ref.location = &Location{x,y,r} 
+                        foundIt = true
+                        break
+                    }
+                }
+            }
+            if !foundIt && paper.cites != nil {
+                for _, cite := range paper.cites {
+                    if cite.futureId == resId {
+                        cite.location = &Location{x,y,r} 
+                        foundIt = true
+                        break
+                    }
+                }
+            }
+            //fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",resId, x, y,r)
+        }
+        err := stmt.FreeResult()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
+        }
+    }
+    papers.StatementEnd(stmt) 
 }
 
 /****************************************************************/
@@ -1367,11 +1460,19 @@ func PrintJSONRelevantRefs(w io.Writer, paper *Paper, paperList []*Paper) {
 }
 
 func PrintJSONLinkPastInfo(w io.Writer, link *Link) {
-    fmt.Fprintf(w, "{\"id\":%d,\"o\":%d,\"f\":%d,\"nc\":%d}", link.pastId, link.refOrder, link.refFreq, link.pastCited)
+    fmt.Fprintf(w, "{\"id\":%d,\"o\":%d,\"f\":%d,\"nc\":%d", link.pastId, link.refOrder, link.refFreq, link.pastCited)
+    if link.location != nil {
+        fmt.Fprintf(w, ",\"x\":%d,\"y\":%d,\"r\":%d", link.location.x, link.location.y, link.location.r)
+    }
+    fmt.Fprintf(w, "}")
 }
 
 func PrintJSONLinkFutureInfo(w io.Writer, link *Link) {
-    fmt.Fprintf(w, "{\"id\":%d,\"o\":%d,\"f\":%d,\"nc\":%d}", link.futureId, link.refOrder, link.refFreq, link.futureCited)
+    fmt.Fprintf(w, "{\"id\":%d,\"o\":%d,\"f\":%d,\"nc\":%d", link.futureId, link.refOrder, link.refFreq, link.futureCited)
+    if link.location != nil {
+        fmt.Fprintf(w, ",\"x\":%d,\"y\":%d,\"r\":%d", link.location.x, link.location.y, link.location.r)
+    }
+    fmt.Fprintf(w, "}")
 }
 
 func PrintJSONAllRefs(w io.Writer, paper *Paper) {
@@ -2119,6 +2220,7 @@ func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.Res
     // query the paper and its refs and cites
     paper := h.papers.QueryPaper(0, arxivString)
     h.papers.QueryRefs(paper, false)
+    h.papers.QueryLocations(paper)
     //h.papers.QueryCites(paper, false)
 
     // check the paper exists
@@ -2128,6 +2230,9 @@ func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.Res
 
     // print the json output
     fmt.Fprintf(rw, "{\"papr\":[{\"id\":%d,", paper.id)
+    if paper.location != nil {
+        fmt.Fprintf(rw, "\"x\":%d,\"y\":%d,\"r\":%d,", paper.location.x,paper.location.y,paper.location.r)
+    }
     PrintJSONAllRefs(rw, paper)
     //fmt.Fprintf(rw, ",")
     //PrintJSONAllCites(rw, paper, 0)
