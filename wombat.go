@@ -1040,6 +1040,14 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             logDescription = fmt.Sprintf("Paper ids to map locations for")
             h.MapLocationFromPaperId(ids,rw)
+        } else if req.Form["mr2l"] != nil {
+            // mr2l: arxiv id to references (incl locations) 
+            logDescription = fmt.Sprintf("mr2l \"%s\"",req.Form["mr2l"][0])
+            h.MapReferencesFromArxivId(req.Form["mr2l"][0],rw)
+        } else if req.Form["mc2l"] != nil {
+            // mc2l: arxiv id to citations (incl locations) 
+            logDescription = fmt.Sprintf("m2cl \"%s\"",req.Form["mc2l"][0])
+            h.MapCitationsFromArxivId(req.Form["mc2l"][0],rw)
         } else if req.Form["ml2p[]"] != nil {
             // map: location to paper id
             x, erx := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
@@ -2099,6 +2107,36 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
     fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id,resx,resy,resr)
 }
 
+func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.ResponseWriter) {
+    // check for valid characters in arxiv string
+    for _, r := range arxivString {
+        if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
+            // invalid character
+            return
+        }
+    }
+
+    // query the paper and its refs and cites
+    paper := h.papers.QueryPaper(0, arxivString)
+    h.papers.QueryRefs(paper, false)
+    //h.papers.QueryCites(paper, false)
+
+    // check the paper exists
+    if paper == nil {
+        return
+    }
+
+    // print the json output
+    fmt.Fprintf(rw, "{\"papr\":[{\"id\":%d,", paper.id)
+    PrintJSONAllRefs(rw, paper)
+    //fmt.Fprintf(rw, ",")
+    //PrintJSONAllCites(rw, paper, 0)
+    fmt.Fprintf(rw, "}]}")
+}
+
+func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivId string, rw http.ResponseWriter) {
+
+}
 
 func (h *MyHTTPHandler) GetDateMapsVersion(rw http.ResponseWriter) (success bool) {
     
