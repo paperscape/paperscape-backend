@@ -2221,7 +2221,6 @@ func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.Res
     paper := h.papers.QueryPaper(0, arxivString)
     h.papers.QueryRefs(paper, false)
     h.papers.QueryLocations(paper)
-    //h.papers.QueryCites(paper, false)
 
     // check the paper exists
     if paper == nil {
@@ -2234,12 +2233,35 @@ func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.Res
         fmt.Fprintf(rw, "\"x\":%d,\"y\":%d,\"r\":%d,", paper.location.x,paper.location.y,paper.location.r)
     }
     PrintJSONAllRefs(rw, paper)
-    //fmt.Fprintf(rw, ",")
-    //PrintJSONAllCites(rw, paper, 0)
     fmt.Fprintf(rw, "}]}")
 }
 
-func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivId string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivString string, rw http.ResponseWriter) {
+    // check for valid characters in arxiv string
+    for _, r := range arxivString {
+        if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
+            // invalid character
+            return
+        }
+    }
+
+    // query the paper and its refs and cites
+    paper := h.papers.QueryPaper(0, arxivString)
+    h.papers.QueryCites(paper, false)
+    h.papers.QueryLocations(paper)
+
+    // check the paper exists
+    if paper == nil {
+        return
+    }
+
+    // print the json output
+    fmt.Fprintf(rw, "{\"papr\":[{\"id\":%d,", paper.id)
+    if paper.location != nil {
+        fmt.Fprintf(rw, "\"x\":%d,\"y\":%d,\"r\":%d,", paper.location.x,paper.location.y,paper.location.r)
+    }
+    PrintJSONAllCites(rw, paper, 0)
+    fmt.Fprintf(rw, "}]}")
 
 }
 
