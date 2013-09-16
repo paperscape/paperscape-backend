@@ -1475,36 +1475,42 @@ func PrintJSONLinkFutureInfo(w io.Writer, link *Link) {
     fmt.Fprintf(w, "}")
 }
 
-func PrintJSONAllRefs(w io.Writer, paper *Paper) {
+func PrintJSONAllRefs(w io.Writer, paper *Paper, ignoreUnmappedIds bool) {
     fmt.Fprintf(w, "\"allr\":true,\"ref\":[")
     // output the refs (future -> past)
-    for i, link := range paper.refs {
-        if i > 0 {
-            fmt.Fprintf(w, ",")
+    first := true
+    for _, link := range paper.refs {
+        if !ignoreUnmappedIds || link.location != nil {
+            if !first {
+                fmt.Fprintf(w, ",")
+            }
+            PrintJSONLinkPastInfo(w, link)
+            first = false
         }
-        PrintJSONLinkPastInfo(w, link)
     }
     fmt.Fprintf(w, "]")
 }
 
-func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint) {
+func PrintJSONAllCites(w io.Writer, paper *Paper, dateBoundary uint, ignoreUnmappedIds bool) {
     fmt.Fprintf(w, "\"allc\":true,\"cite\":[")
     first := true
     for _, link := range paper.cites {
         if link.futureId < dateBoundary  {
             continue
         }
-        if !first {
-            fmt.Fprintf(w, ",")
+        if !ignoreUnmappedIds || link.location != nil{
+            if !first {
+                fmt.Fprintf(w, ",")
+            }
+            PrintJSONLinkFutureInfo(w, link)
+            first = false
         }
-        PrintJSONLinkFutureInfo(w, link)
-        first = false
     }
 
     fmt.Fprintf(w, "]")
 }
 
-func PrintJSONNewCites(w io.Writer, paper *Paper, dateBoundary uint) {
+func PrintJSONNewCites(w io.Writer, paper *Paper, dateBoundary uint, ignoreUnmappedIds bool) {
     fmt.Fprintf(w, "\"allnc\":true,\"cite\":[")
 
     // output the cites (past -> future)
@@ -1513,11 +1519,13 @@ func PrintJSONNewCites(w io.Writer, paper *Paper, dateBoundary uint) {
         if link.futureId < dateBoundary  {
             continue
         }
-        if !first {
-            fmt.Fprintf(w, ",")
+        if !ignoreUnmappedIds || link.location != nil  {
+            if !first {
+                fmt.Fprintf(w, ",")
+            }
+            PrintJSONLinkFutureInfo(w, link)
+            first = false
         }
-        PrintJSONLinkFutureInfo(w, link)
-        first = false
     }
 
     fmt.Fprintf(w, "]")
@@ -2232,7 +2240,8 @@ func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.Res
     if paper.location != nil {
         fmt.Fprintf(rw, "\"x\":%d,\"y\":%d,\"r\":%d,", paper.location.x,paper.location.y,paper.location.r)
     }
-    PrintJSONAllRefs(rw, paper)
+    // print all references that have a location
+    PrintJSONAllRefs(rw, paper,true)
     fmt.Fprintf(rw, "}]}")
 }
 
@@ -2260,7 +2269,8 @@ func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivString string, rw http.Resp
     if paper.location != nil {
         fmt.Fprintf(rw, "\"x\":%d,\"y\":%d,\"r\":%d,", paper.location.x,paper.location.y,paper.location.r)
     }
-    PrintJSONAllCites(rw, paper, 0)
+    // print all cites that have a location
+    PrintJSONAllCites(rw, paper, 0,true)
     fmt.Fprintf(rw, "}]}")
 
 }
@@ -2416,22 +2426,22 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
             // All refs 
             h.papers.QueryRefs(paper, false)
             fmt.Fprintf(rw, ",")
-            PrintJSONAllRefs(rw, paper)
+            PrintJSONAllRefs(rw, paper,false)
         }
         if flag & 0x08 != 0 {
             // All cites
             h.papers.QueryCites(paper, false)
             fmt.Fprintf(rw, ",")
-            PrintJSONAllCites(rw, paper, 0)
+            PrintJSONAllCites(rw, paper, 0,false)
         } else if flag & 0x10 != 0 {
             // New cites
             h.papers.QueryCites(paper, false)
             if len(paper.cites) < 26 {
                 fmt.Fprintf(rw, ",")
-                PrintJSONAllCites(rw, paper, 0)
+                PrintJSONAllCites(rw, paper, 0,false)
             } else {
                 fmt.Fprintf(rw, ",")
-                PrintJSONNewCites(rw, paper, uint(db))
+                PrintJSONNewCites(rw, paper, uint(db),false)
             }
         }
         if flag & 0x20 != 0 {
@@ -2648,9 +2658,9 @@ func (h *MyHTTPHandler) SearchArxiv(arxivString string, rw http.ResponseWriter) 
     fmt.Fprintf(rw, "{\"papr\":[{\"id\":%d,", paper.id)
     PrintJSONMetaInfo(rw, paper)
     fmt.Fprintf(rw, ",")
-    PrintJSONAllRefs(rw, paper)
+    PrintJSONAllRefs(rw, paper,false)
     fmt.Fprintf(rw, ",")
-    PrintJSONAllCites(rw, paper, 0)
+    PrintJSONAllCites(rw, paper, 0,false)
     fmt.Fprintf(rw, "}]}")
 }
 
