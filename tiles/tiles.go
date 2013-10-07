@@ -64,6 +64,7 @@ func main() {
     if *flagDoSingle {
         // A0 at 300 dpi: 9933 x 14043
         // A0 at 72 dpi: 2348 x 3370 
+        //resy := 9933; resx := 14043
         resy := 2348; resx := 3370
         DrawEntireGraph(graph, resx, resy, outPrefix, COLOUR_NORMAL)
     } else {
@@ -107,7 +108,7 @@ type CairoColor struct {
 }
 
 type CategoryLabel struct {
-    x,y,radius int
+    X,Y,Radius int
     label string
 }
 
@@ -228,9 +229,9 @@ func (graph *Graph) CalculateCategoryLabels() {
             label := new(CategoryLabel)
             label.label = category.label
 
-            label.x = int(sumMassX/sumMass)
-            label.y = int(sumMassY/sumMass)
-            label.radius = int(math.Sqrt(math.Pow(float64(maxX-minX),2) + math.Pow(float64(maxY-minY),2))/2)
+            label.X = int(sumMassX/sumMass)
+            label.Y = int(sumMassY/sumMass)
+            label.Radius = int(math.Sqrt(math.Pow(float64(maxX-minX),2) + math.Pow(float64(maxY-minY),2))/2)
 
             graph.catLabels = append(graph.catLabels,label)
         }
@@ -1049,13 +1050,13 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, sh
 
     if showCategories {
         for _, catLabel := range(graph.catLabels) {
-            if catLabel.x > x-rx && catLabel.x < x+rx && catLabel.y > y-ry && catLabel.y < y+ry {
+            if catLabel.X > x-rx && catLabel.X < x+rx && catLabel.Y > y-ry && catLabel.Y < y+ry {
                 if first {
                     first = false
                 } else {
                     fmt.Fprintf(w,",")
                 }
-                fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",catLabel.x,catLabel.y,catLabel.radius,catLabel.label)
+                fmt.Fprintf(w,"{\"x\":%d,\"y\":%d,\"r\":%d,\"lbl\":\"%s\"}",catLabel.X,catLabel.Y,catLabel.Radius,catLabel.label)
             }
         }
     }
@@ -1251,18 +1252,18 @@ func DrawEntireGraph(graph *Graph, surfWidth, surfHeight int, filename string, c
     surf.Paint()
 
     // bands at top and bottom
-    surf.IdentityMatrix()
-    surf.Scale(float64(surf.GetWidth()), float64(surf.GetHeight()))
-    surf.SetSourceRGBA(0.26667, 0.33333, 0.4, 1) // #445566
-    surf.Rectangle(0, 0, 1, 0.1)
-    surf.Fill()
-    surf.Rectangle(0, 0.9, 1, 0.1)
-    surf.Fill()
+    //surf.IdentityMatrix()
+    //surf.Scale(float64(surf.GetWidth()), float64(surf.GetHeight()))
+    //surf.SetSourceRGBA(0.26667, 0.33333, 0.4, 1) // #445566
+    //surf.Rectangle(0, 0, 1, 0.1)
+    //surf.Fill()
+    //surf.Rectangle(0, 0.9, 1, 0.1)
+    //surf.Fill()
 
     // load and paint our logo
-    surfLogo := cairo.NewSurfaceFromPNG("../../boa/img/app/paperscapeCol.png")
+    surfLogo := cairo.NewSurfaceFromPNG("../../boa/img/app/paperscapeTransparent.png")
     surf.IdentityMatrix()
-    logoScale := 0.3 * float64(surfWidth) / float64(surfLogo.GetWidth())
+    logoScale := 0.2 * float64(surfWidth) / float64(surfLogo.GetWidth())
     surf.Scale(logoScale, logoScale)
     surf.SetSourceSurface(surfLogo, 0, 0)
     surf.Paint()
@@ -1298,7 +1299,7 @@ func DrawEntireGraph(graph *Graph, surfWidth, surfHeight int, filename string, c
     for _, catLabel := range graph.catLabels {
         pieces := strings.Split(catLabel.label, ",")
         for i, piece := range pieces {
-            surf.MoveTo(float64(catLabel.x), float64(catLabel.y + i * 800))
+            surf.MoveTo(float64(catLabel.X), float64(catLabel.Y + i * 800))
             surf.ShowText(piece)
         }
     }
