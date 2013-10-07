@@ -64,7 +64,7 @@ func main() {
     if *flagDoSingle {
         // A0 at 300 dpi: 9933 x 14043
         // A0 at 72 dpi: 2348 x 3370 
-        resx := 2348; resy := 3370
+        resy := 2348; resx := 3370
         DrawEntireGraph(graph, resx, resy, outPrefix, COLOUR_NORMAL)
     } else {
         // Create index file
@@ -1296,8 +1296,11 @@ func DrawEntireGraph(graph *Graph, surfWidth, surfHeight int, filename string, c
     surf.SetFontSize(800)
     surf.SetSourceRGBA(1, 1, 1, 1)
     for _, catLabel := range graph.catLabels {
-        surf.MoveTo(float64(catLabel.x), float64(catLabel.y))
-        surf.ShowText(catLabel.label)
+        pieces := strings.Split(catLabel.label, ",")
+        for i, piece := range pieces {
+            surf.MoveTo(float64(catLabel.x), float64(catLabel.y + i * 800))
+            surf.ShowText(piece)
+        }
     }
 
     // region labels
@@ -1306,7 +1309,7 @@ func DrawEntireGraph(graph *Graph, surfWidth, surfHeight int, filename string, c
     surf.SetSourceRGBA(1, 1, 1, 1)
     for _, regLabel := range graph.regLabels {
         surf.MoveTo(float64(regLabel.X), float64(regLabel.Y))
-        surf.ShowText(regLabel.Label)
+        surf.ShowText(strings.TrimRight(regLabel.Label, ","))
     }
 
     if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
