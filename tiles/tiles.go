@@ -62,7 +62,10 @@ func main() {
     runtime.GC()
 
     if *flagDoSingle {
-        DrawTile(graph, graph.BoundsX, graph.BoundsY, 1, 1, 18000, 18000, outPrefix,COLOUR_NORMAL)
+        // A0 at 300 dpi: 9933 x 14043
+        // A0 at 72 dpi: 2348 x 3370 
+        resx := 2348; resy := 3370
+        DrawEntireGraph(graph, resx, resy, outPrefix, COLOUR_NORMAL)
     } else {
         // Create index file
         indexFile := outPrefix + "/world_index.json"
@@ -1233,4 +1236,86 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
         }
     }
     fmt.Fprintf(w,"]")
+}
+
+func DrawEntireGraph(graph *Graph, surfWidth, surfHeight int, filename string, colourScheme int) {
+
+    // work out scaling so that the entire graph fits on the surface
+    scale := 1.6 * math.Min(float64(surfWidth) / float64(graph.BoundsX), float64(surfHeight) / float64(graph.BoundsY));
+
+    // create surface to draw on
+    surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidth, surfHeight)
+
+    // a black background
+    surf.SetSourceRGBA(0, 0, 0, 1)
+    surf.Paint()
+
+    // bands at top and bottom
+    surf.IdentityMatrix()
+    surf.Scale(float64(surf.GetWidth()), float64(surf.GetHeight()))
+    surf.SetSourceRGBA(0.26667, 0.33333, 0.4, 1) // #445566
+    surf.Rectangle(0, 0, 1, 0.1)
+    surf.Fill()
+    surf.Rectangle(0, 0.9, 1, 0.1)
+    surf.Fill()
+
+    // load and paint our logo
+    surfLogo := cairo.NewSurfaceFromPNG("../../boa/img/app/paperscapeCol.png")
+    surf.IdentityMatrix()
+    logoScale := 0.3 * float64(surfWidth) / float64(surfLogo.GetWidth())
+    surf.Scale(logoScale, logoScale)
+    surf.SetSourceSurface(surfLogo, 0, 0)
+    surf.Paint()
+
+    // make the transformation matrix for the papers
+    matrix := new(cairo.Matrix)
+    matrix.Xx = scale
+    matrix.Yy = scale
+    matrix.X0 = 0.5 * float64(surf.GetWidth())
+    matrix.Y0 = 0.4 * float64(surf.GetHeight())
+    matrixInv := *matrix
+    matrixInv.Invert()
+    surf.SetMatrix(*matrix)
+
+    // the papers
+    for _, paper := range graph.papers {
+        pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
+        if pixelRadius < 0.09 {
+            newRadius, _ := matrixInv.TransformDistance(0.09, 0.09)
+            surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
+        } else {
+            surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+        }
+        col := paper.GetColour(colourScheme)
+        surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
+        surf.Fill()
+    }
+
+    // category labels
+    surf.SelectFontFace("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    surf.SetFontSize(800)
+    surf.SetSourceRGBA(1, 1, 1, 1)
+    for _, catLabel := range graph.catLabels {
+        surf.MoveTo(float64(catLabel.x), float64(catLabel.y))
+        surf.ShowText(catLabel.label)
+    }
+
+    // region labels
+    surf.SelectFontFace("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    surf.SetFontSize(500)
+    surf.SetSourceRGBA(1, 1, 1, 1)
+    for _, regLabel := range graph.regLabels {
+        surf.MoveTo(float64(regLabel.X), float64(regLabel.Y))
+        surf.ShowText(regLabel.Label)
+    }
+
+    if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    // save with full colours
+    surf.WriteToPNG(filename + ".png")
+
+    surf.Finish()
 }
