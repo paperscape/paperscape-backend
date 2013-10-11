@@ -1,0 +1,2 @@
+pdflatex postertext.tex
+pdftocairo -png -singlefile -r 300 -W 1900 -H 2000 -gray -transp postertext.pdf

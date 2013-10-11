@@ -1239,13 +1239,14 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
     fmt.Fprintf(w,"]")
 }
 
-func DrawEntireGraph(graph *Graph, surfWidth, surfHeight int, filename string, colourScheme int) {
+func DrawEntireGraph(graph *Graph, surfWidthInt, surfHeightInt int, filename string, colourScheme int) {
 
-    // work out scaling so that the entire graph fits on the surface
-    scale := 1.6 * math.Min(float64(surfWidth) / float64(graph.BoundsX), float64(surfHeight) / float64(graph.BoundsY));
+    // convert width & height to floats for convenience
+    surfWidth := float64(surfWidthInt)
+    surfHeight := float64(surfHeightInt)
 
     // create surface to draw on
-    surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidth, surfHeight)
+    surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidthInt, surfHeightInt)
 
     // a black background
     surf.SetSourceRGBA(0, 0, 0, 1)
@@ -1263,10 +1264,24 @@ func DrawEntireGraph(graph *Graph, surfWidth, surfHeight int, filename string, c
     // load and paint our logo
     surfLogo := cairo.NewSurfaceFromPNG("../../boa/img/app/paperscapeTransparent.png")
     surf.IdentityMatrix()
-    logoScale := 0.2 * float64(surfWidth) / float64(surfLogo.GetWidth())
-    surf.Scale(logoScale, logoScale)
-    surf.SetSourceSurface(surfLogo, 0, 0)
+    scale := 0.2 * surfWidth / float64(surfLogo.GetWidth())
+    surf.Scale(scale, scale)
+    surf.SetSourceSurface(surfLogo, 0.01 * surfWidth / scale, 0.01 * surfHeight / scale)
     surf.Paint()
+
+    // load and draw the text
+    surfText := cairo.NewSurfaceFromPNG("postertext.png")
+    surfText.SetOperator(cairo.OPERATOR_IN)
+    surfText.SetSourceRGBA(1, 1, 1, 1) // text colour
+    surfText.Paint() // colour the text
+    surf.IdentityMatrix()
+    scale = 0.2 * surfWidth / float64(surfText.GetWidth())
+    surf.Scale(scale, scale)
+    surf.SetSourceSurface(surfText, 0.79 * surfWidth / scale, 0.67 * surfHeight / scale)
+    surf.Paint() // draw the text to the main surface
+
+    // work out scaling so that the entire graph fits on the surface
+    scale = 1.6 * math.Min(surfWidth / float64(graph.BoundsX), surfHeight / float64(graph.BoundsY));
 
     // make the transformation matrix for the papers
     matrix := new(cairo.Matrix)
