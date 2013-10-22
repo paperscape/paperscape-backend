@@ -1314,7 +1314,9 @@ func DrawEntireGraph(graph *Graph, surfWidthInt, surfHeightInt int, filename str
     for _, catLabel := range graph.catLabels {
         pieces := strings.Split(catLabel.label, ",")
         for i, piece := range pieces {
-            surf.MoveTo(float64(catLabel.X), float64(catLabel.Y + i * 800))
+            foo := surf.TextExtents(piece)
+            fmt.Printf("%f %s\n",foo.Width,piece)
+            surf.MoveTo(float64(catLabel.X), float64(catLabel.Y-400 + i * 800))
             surf.ShowText(piece)
         }
     }
