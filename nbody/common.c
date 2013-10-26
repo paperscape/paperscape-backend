@@ -187,6 +187,36 @@ category_t category_strn_to_enum(const char *str, size_t n) {
     return CAT_UNKNOWN;
 }
 
+// compute the citations from the references
+// allocates memory for paper->cites and fills it with pointers to citing papers
+bool build_citation_links(int num_papers, paper_t *papers) {
+    printf("building citation links\n");
+
+    // allocate memory for cites for each paper
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *paper = &papers[i];
+        if (paper->num_cites > 0) {
+            paper->cites = m_new(paper_t*, paper->num_cites);
+            if (paper->cites == NULL) {
+                return false;
+            }
+        }
+        // use num cites to count which entry in the array we are up to when inserting cite links
+        paper->num_cites = 0;
+    }
+
+    // link the cites
+    for (int i = 0; i < num_papers; i++) {
+        paper_t *paper = &papers[i];
+        for (int j = 0; j < paper->num_refs; j++) {
+            paper_t *ref_paper = paper->refs[j];
+            ref_paper->cites[ref_paper->num_cites++] = paper;
+        }
+    }
+
+    return true;
+}
+
 // compute the num_included_cites field in the paper_t objects
 // only includes papers that have their "included" flag set
 void recompute_num_included_cites(int num_papers, paper_t *papers) {

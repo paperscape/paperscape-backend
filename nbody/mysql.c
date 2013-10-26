@@ -315,34 +315,6 @@ static bool env_load_refs(env_t *env) {
     return true;
 }
 
-static bool env_build_cites(env_t *env) {
-    printf("building citation links\n");
-
-    // allocate memory for cites for each paper
-    for (int i = 0; i < env->num_papers; i++) {
-        paper_t *paper = &env->papers[i];
-        if (paper->num_cites > 0) {
-            paper->cites = m_new(paper_t*, paper->num_cites);
-            if (paper->cites == NULL) {
-                return false;
-            }
-        }
-        // use num cites to count which entry in the array we are up to when inserting cite links
-        paper->num_cites = 0;
-    }
-
-    // link the cites
-    for (int i = 0; i < env->num_papers; i++) {
-        paper_t *paper = &env->papers[i];
-        for (int j = 0; j < paper->num_refs; j++) {
-            paper_t *ref_paper = paper->refs[j];
-            ref_paper->cites[ref_paper->num_cites++] = paper;
-        }
-    }
-
-    return true;
-}
-
 static bool env_load_keywords(env_t *env) {
     MYSQL_RES *result;
     MYSQL_ROW row;
@@ -439,7 +411,7 @@ bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, i
     if (!env_load_keywords(&env)) {
         return false;
     }
-    if (!env_build_cites(&env)) {
+    if (!build_citation_links(env.num_papers, env.papers)) {
         return false;
     }
 
