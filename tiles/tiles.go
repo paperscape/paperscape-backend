@@ -1314,9 +1314,8 @@ func DrawEntireGraph(graph *Graph, surfWidthInt, surfHeightInt int, filename str
     for _, catLabel := range graph.catLabels {
         pieces := strings.Split(catLabel.label, ",")
         for i, piece := range pieces {
-            foo := surf.TextExtents(piece)
-            fmt.Printf("%f %s\n",foo.Width,piece)
-            surf.MoveTo(float64(catLabel.X), float64(catLabel.Y-400 + i * 800))
+            extent := surf.TextExtents(piece)
+            surf.MoveTo(float64(catLabel.X)-extent.Width/2, float64(catLabel.Y + i * 800)-extent.Height/2)
             surf.ShowText(piece)
         }
     }
@@ -1326,8 +1325,10 @@ func DrawEntireGraph(graph *Graph, surfWidthInt, surfHeightInt int, filename str
     surf.SetFontSize(500)
     surf.SetSourceRGBA(1, 1, 1, 1)
     for _, regLabel := range graph.regLabels {
-        surf.MoveTo(float64(regLabel.X), float64(regLabel.Y))
-        surf.ShowText(strings.TrimRight(regLabel.Label, ","))
+        text := strings.TrimRight(regLabel.Label, ",")
+        extent := surf.TextExtents(text)
+        surf.MoveTo(float64(regLabel.X)-extent.Width/2, float64(regLabel.Y)-extent.Height/2)
+        surf.ShowText(text)
     }
 
     if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
