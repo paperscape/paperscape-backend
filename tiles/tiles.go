@@ -1272,8 +1272,8 @@ func DrawEntireGraph(graph *Graph, surfWidthInt, surfHeightInt int, filename str
     // load and draw the text
     surfText := cairo.NewSurfaceFromPNG("postertext.png")
     surfText.SetOperator(cairo.OPERATOR_IN)
-    surfText.SetSourceRGBA(1, 1, 1, 1) // text colour
-    surfText.Paint() // colour the text
+    //surfText.SetSourceRGBA(1, 1, 1, 1) // text colour
+    //surfText.Paint() // colour the text
     surf.IdentityMatrix()
     scale = 0.2 * surfWidth / float64(surfText.GetWidth())
     surf.Scale(scale, scale)
@@ -1309,7 +1309,7 @@ func DrawEntireGraph(graph *Graph, surfWidthInt, surfHeightInt int, filename str
 
     // category labels
     surf.SelectFontFace("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-    surf.SetFontSize(800)
+    surf.SetFontSize(650)
     surf.SetSourceRGBA(1, 1, 1, 1)
     for _, catLabel := range graph.catLabels {
         pieces := strings.Split(catLabel.label, ",")

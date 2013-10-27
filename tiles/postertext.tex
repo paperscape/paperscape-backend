@@ -2,6 +2,7 @@
 
 % this gives a nice font
 \usepackage{charter}
+\usepackage[usenames,dvipsnames]{color}
 
 % remove space from top of page
 \setlength{\voffset}{-0.9in}
@@ -18,6 +19,8 @@
 % set paragraph style
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.6cm plus4mm minus3mm}
+
+\color{white}
 
 \begin{document}
 
@@ -54,7 +57,21 @@ Looking within a continent reveals substructures representing more specific fiel
 
 References (and citation counting) are extracted by processing the TeX/LaTeX and PDF source obtained from the arXiv. 
 %This is done automatically each morning, and the map is finished updating about 3 or 4 hours after the arXiv’s new listing is announced. 
-Some categories (noticeably hep-th and hep-ph) have better reference extraction than others and so the map for these areas has more variation in paper size and more structure. 
-We are working on improving the reference extraction.
+Currently some categories (noticeably hep-th and hep-ph) have better reference extraction than others and so the map for these areas has more variation in paper size and more structure. 
+%We are working on improving the reference extraction.
+
+{\bf Colour coding:}\\
+{\bf\color[RGB]{0,0,100} High Energy Theory [hep-th]};
+{\bf\color[RGB]{0,100,0} High Energy Phenomenology [hep-ph]}; 
+{\bf\color[RGB]{100,100,0} High Energy Experiment [hep-ex]};
+{\bf\color[RGB]{0,100,100} General Relativity/Quantum Cosmology [gr-qc]};
+{\bf\color[RGB]{70,36,20} High Energy Lattice [hep-lat]};
+{\bf\color[RGB]{89,53,60} Astrophysics [astro-ph]};
+{\bf\color[RGB]{70,50,40} Condensed Matter [cond-mat]};
+{\bf\color[RGB]{40,70,70} Quantum Physics [quant-ph]};
+{\bf\color[RGB]{100,0,0} Physics [physics]};
+{\bf\color[RGB]{62,86,24} Mathematics [math]};
+{\bf\color[RGB]{70,30,60} Computer Science [cs]};
+{\bf\color[RGB]{70,10,30} Other}
 
 \end{document}
