@@ -14,7 +14,7 @@
 
 void map_env_layout_load_from_db(map_env_t *map_env) {
     // make a single layout
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
 
     // print info about the layout

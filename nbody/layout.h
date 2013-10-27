@@ -41,7 +41,7 @@ typedef struct _layout_t {
 
 struct _paper_t;
 
-layout_t *build_layout_from_papers(int num_papers, struct _paper_t **papers, bool age_weaken);
+layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_weight);
 layout_t *build_reduced_layout_from_layout(layout_t *layout);
 void layout_propagate_positions_to_children(layout_t *layout);
 void layout_print(layout_t *layout);

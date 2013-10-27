@@ -931,9 +931,9 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     printf("after making fake links, have %d papers not connected\n", total_not_connected);
 }
 
-void map_env_layout_new(map_env_t *map_env, int num_coarsenings) {
+void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_weight) {
     // make the layouts, each one coarser than the previous
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_freq, factor_other_weight);
     for (int i = 0; i < num_coarsenings && l->num_links > 1; i++) {
         l = build_reduced_layout_from_layout(l);
     }
@@ -984,7 +984,7 @@ void map_env_layout_finish_placing_new_papers(map_env_t *map_env) {
 
 void map_env_layout_load_from_json(map_env_t *map_env, const char *json_filename) {
     // make a single layout
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
 
     // initialise random positions, in case we can't/don't load a position for a given paper

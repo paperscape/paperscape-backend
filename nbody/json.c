@@ -9,17 +9,9 @@
 #include "common.h"
 #include "layout.h"
 
-#define VSTR_0 (0)
-#define VSTR_1 (1)
-#define VSTR_2 (2)
-#define VSTR_MAX (3)
-
 #define JS_TOK_MAX (4000) // need lots for papers with lots of references
 
 typedef struct _env_t {
-    // vstr's
-    vstr_t *vstr[VSTR_MAX];
-
     // for JSON parsing
     FILE *fp;
     vstr_t *js_buf;
@@ -38,34 +30,17 @@ static bool have_error(env_t *env, const char *msg) {
 }
 
 static bool env_set_up(env_t* env, const char *filename) {
-    for (int i = 0; i < VSTR_MAX; i++) {
-        env->vstr[i] = vstr_new();
-    }
-
     env->fp = NULL;
     env->js_buf = vstr_new();
-    jsmn_init(&env->js_parser);
 
     env->num_papers = 0;
     env->papers = NULL;
     env->keyword_set = keyword_set_new();
 
-    // open the JSON file
-    env->fp = fopen(filename, "r");
-    if (env->fp == NULL) {
-        return have_error(env, "can't open JSON file for reading");
-    }
-
-    printf("opened JSON file '%s'\n", filename);
-
     return true;
 }
 
 static void env_finish(env_t* env, bool free_keyword_set) {
-    for (int i = 0; i < VSTR_MAX; i++) {
-        vstr_free(env->vstr[i]);
-    }
-
     if (env->fp != NULL) {
         fclose(env->fp);
     }
@@ -74,6 +49,23 @@ static void env_finish(env_t* env, bool free_keyword_set) {
         keyword_set_free(env->keyword_set);
         env->keyword_set = NULL;
     }
+}
+
+static bool env_open_json_file(env_t* env, const char *filename) {
+    if (env->fp != NULL) {
+        fclose(env->fp);
+    }
+
+    // open the JSON file
+    env->fp = fopen(filename, "r");
+    if (env->fp == NULL) {
+        printf("can't open JSON file '%s' for reading\n", filename);
+        return false;
+    }
+
+    printf("opened JSON file '%s'\n", filename);
+
+    return true;
 }
 
 // returns next non-whitespace character, or EOF
@@ -100,7 +92,7 @@ static bool js_reset(env_t *env, bool *more_objects) {
     }
 
     // check if empty array or not
-    int c =js_next_char(env);
+    int c = js_next_char(env);
     if (c == ']') {
         *more_objects = false;
     } else {
@@ -229,7 +221,7 @@ static void jsmn_get_token_value(env_t *env, jsmntok_t *tok, jsmn_token_value_t 
                     val->kind = JSMN_VALUE_UINT;
                 }
                 // parse integer part
-                for (; str < top; str++) {
+                for (; str < top && '0' <= *str && *str <= '9'; str++) {
                     val->uint = val->uint * 10 + *str - '0';
                     val->sint = val->sint * 10 + *str - '0';
                     val->real = val->real * 10 + *str - '0';
@@ -239,7 +231,7 @@ static void jsmn_get_token_value(env_t *env, jsmntok_t *tok, jsmn_token_value_t 
                     str++;
                     val->kind = JSMN_VALUE_REAL;
                     double frac = 0.1;
-                    for (; str < top; str++) {
+                    for (; str < top && '0' <= *str && *str <= '9'; str++) {
                         val->real = val->real + frac * (*str - '0');
                         frac *= 0.1;
                     }
@@ -256,7 +248,7 @@ static void jsmn_get_token_value(env_t *env, jsmntok_t *tok, jsmn_token_value_t 
                         neg = true;
                     }
                     int expo = 0;
-                    for (; str < top; str++) {
+                    for (; str < top && '0' <= *str && *str <= '9'; str++) {
                         expo = expo * 10 + *str - '0';
                     }
                     if (neg) {
@@ -493,7 +485,7 @@ static paper_t *env_get_paper_by_id(env_t *env, int id) {
 }
 
 static bool env_load_refs(env_t *env) {
-    printf("reading pcite\n");
+    printf("reading refs from JSON file\n");
 
     // start the JSON stream
     bool more_objects;
@@ -695,7 +687,10 @@ bool json_load_papers(const char *filename, int *num_papers_out, paper_t **paper
         return false;
     }
 
-    // load the DB
+    // load our data
+    if (!env_open_json_file(&env, filename)) {
+        return false;
+    }
     if (!env_load_ids(&env)) {
         return false;
     }
@@ -713,6 +708,173 @@ bool json_load_papers(const char *filename, int *num_papers_out, paper_t **paper
     *num_papers_out = env.num_papers;
     *papers_out = env.papers;
     *keyword_set_out = env.keyword_set;
+
+    return true;
+}
+
+static bool env_load_other_links_helper(env_t *env) {
+    printf("reading other links from JSON file\n");
+
+    // start the JSON stream
+    bool more_objects;
+    if (!js_reset(env, &more_objects)) {
+        return false;
+    }
+
+    // iterate through the JSON stream
+    int total_links = 0;
+    int total_new_links = 0;
+    while (more_objects) {
+        if (!js_next_object(env, &more_objects)) {
+            return false;
+        }
+
+        // look for the id member
+        jsmn_token_value_t id_val;
+        if (!jsmn_get_object_member(env, env->js_tok, "id", NULL, &id_val)) {
+            return false;
+        }
+
+        // check the id is an integer
+        if (id_val.kind != JSMN_VALUE_UINT) {
+            return have_error(env, "expecting an unsigned integer");
+        }
+
+        // lookup the paper object with this id
+        paper_t *paper = env_get_paper_by_id(env, id_val.uint);
+
+        // if paper found, parse its links
+        if (paper != NULL) {
+            // look for the links member
+            jsmntok_t *links_tok;
+            if (!jsmn_get_object_member(env, env->js_tok, "refs", &links_tok, NULL)) {
+                return false;
+            }
+
+            // check the links is an array
+            if (links_tok->type != JSMN_ARRAY) {
+                return have_error(env, "expecting an array");
+            }
+
+            if (links_tok->size == 0) {
+                // no links to parse
+
+            } else {
+                // some links to parse
+
+                // reallocate memory to add links to refs
+                int n_alloc = paper->num_refs + links_tok->size;
+                paper->refs = m_renew(paper_t*, paper->refs, n_alloc);
+                paper->refs_ref_freq = m_renew(byte, paper->refs_ref_freq, n_alloc);
+                paper->refs_other_weight = m_new(float, n_alloc);
+                if (paper->refs == NULL || paper->refs_ref_freq == NULL || paper->refs_other_weight == NULL) {
+                    return false;
+                }
+
+                // zero the new weights to begin with
+                for (int i = 0; i < paper->num_refs; i++) {
+                    paper->refs_other_weight[i] = 0;
+                }
+
+                // parse the links
+                for (int i = 0; i < links_tok->size; i++) {
+                    // get current element
+                    jsmntok_t *elem_tok;
+                    if (!jsmn_get_array_member(env, links_tok, i, &elem_tok, NULL)) {
+                        return false;
+                    }
+
+                    // check the element is an array of size 2
+                    if (elem_tok->type != JSMN_ARRAY || elem_tok->size != 2) {
+                        return have_error(env, "expecting an array of size 2");
+                    }
+
+                    // get the 2 values
+                    jsmn_token_value_t link_id_val;
+                    jsmn_token_value_t link_weight_val;
+                    if (!jsmn_get_array_member(env, elem_tok, 0, NULL, &link_id_val)) {
+                        return false;
+                    }
+                    if (!jsmn_get_array_member(env, elem_tok, 1, NULL, &link_weight_val)) {
+                        return false;
+                    }
+                    if (link_id_val.kind != JSMN_VALUE_UINT) {
+                        return have_error(env, "expecting an unsigned integer for link_id");
+                    }
+                    if (link_weight_val.kind != JSMN_VALUE_UINT && link_weight_val.kind != JSMN_VALUE_SINT && link_weight_val.kind != JSMN_VALUE_REAL) {
+                        return have_error(env, "expecting a number link_weight");
+                    }
+
+                    // get linked-to paper
+                    paper_t *paper2 = env_get_paper_by_id(env, link_id_val.uint);
+
+                    if (paper2 != NULL && paper2 != paper) {
+                        // search for existing link
+                        bool found = false;
+                        for (int i = 0; i < paper->num_refs; i++) {
+                            if (paper->refs[i] == paper2) {
+                                // found existing link; set its weight
+                                paper->refs_other_weight[i] = link_weight_val.real;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            // a new link; add it with ref_freq 0 (since it's not a real reference)
+                            paper->refs[paper->num_refs] = paper2;
+                            paper->refs_ref_freq[paper->num_refs] = 0;
+                            paper->refs_other_weight[paper->num_refs] = link_weight_val.real;
+                            paper->num_refs++;
+                            paper2->num_cites += 1; // TODO a bit of a hack at the moment
+                            total_new_links += 1;
+                        }
+                        total_links += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    printf("read %d total links, %d of those were additional ones\n", total_links, total_new_links);
+
+    return true;
+}
+
+bool json_load_other_links(const char *filename, int num_papers, paper_t *papers) {
+    // set up environment
+    env_t env;
+    if (!env_set_up(&env, filename)) {
+        env_finish(&env, true);
+        return false;
+    }
+
+    // set papers
+    env.num_papers = num_papers;
+    env.papers = papers;
+
+    // load other data
+    if (!env_open_json_file(&env, filename)) {
+        return false;
+    }
+    if (!env_load_other_links_helper(&env)) {
+        return false;
+    }
+
+    // TODO this is a hack
+    // we need to rebuild cites so that graph colouring etc works
+    // but then the number of citations a paper has is wrong, since
+    // the count includes these new links
+    for (int i = 0; i < env.num_papers; i++) {
+        if (env.papers[i].num_cites > 0) {
+            m_free(env.papers[i].cites);
+        }
+    }
+    if (!build_citation_links(env.num_papers, env.papers)) {
+        return false;
+    }
+
+    // pull down the environment (doesn't free the papers)
+    env_finish(&env, true);
 
     return true;
 }

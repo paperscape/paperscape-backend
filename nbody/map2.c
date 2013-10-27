@@ -25,11 +25,10 @@ bool map_env_do_iterations(map_env_t *map_env, int num_iterations, bool boost_st
 }
 
 void map_env_do_complete_layout(map_env_t *map_env) {
-    // create a new layout with 10 levels of coarsening
-    map_env_layout_new(map_env, 10);
-    map_env_set_do_close_repulsion(map_env, false);
 
     printf("iterating from the start to build entire graph\n");
+
+    map_env_set_do_close_repulsion(map_env, false);
 
     bool boost_step_size = false;
     bool refining_stage = true;

@@ -71,6 +71,10 @@ int main(int argc, char *argv[]) {
     }
 
     if (arg_start_afresh) {
+        // create a new layout with 10 levels of coarsening, using only ref_freq as weight
+        map_env_layout_new(map_env, 10, 1, 0);
+
+        // do the layout
         map_env_do_complete_layout(map_env);
 
     } else {

@@ -18,8 +18,9 @@ typedef struct _paper_t {
     byte allcats[PAPER_MAX_CATS]; // store fixed number of categories; more efficient than having a tiny, dynamic array; unused entries are CAT_UNKNOWN
     short num_refs;
     short num_cites;
-    struct _paper_t **refs;
-    byte *refs_ref_freq;
+    struct _paper_t **refs;     // array of referenced/linked papers
+    byte *refs_ref_freq;        // ref_freq weight of corresponding ref
+    float *refs_other_weight;   // other weight (eg ScienceWise data) of corresponding ref
     struct _paper_t **cites;
     int index;
     const char *authors;
