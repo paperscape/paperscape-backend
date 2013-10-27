@@ -1,5 +1,6 @@
 *.o
 nbody-headless
+nbody-headlessjson
 nbody-gui
 *.json
 *.png

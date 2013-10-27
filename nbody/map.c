@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <assert.h>
 #include <string.h>
 #include <math.h>
 
@@ -14,7 +13,6 @@
 #include "quadtree.h"
 #include "map.h"
 #include "mapprivate.h"
-#include "mysql.h"
 
 map_env_t *map_env_new() {
     map_env_t *map_env = m_new(map_env_t, 1);
@@ -984,30 +982,6 @@ void map_env_layout_finish_placing_new_papers(map_env_t *map_env) {
     }
 }
 
-void map_env_layout_load_from_db(map_env_t *map_env) {
-    // make a single layout
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
-    map_env->layout = l;
-
-    // print info about the layout
-    layout_print(l);
-
-    // initialise random positions, in case we can't/don't load a position for a given paper
-    for (int i = 0; i < l->num_nodes; i++) {
-        l->nodes[i].x = 100.0 * random() / RAND_MAX;
-        l->nodes[i].y = 100.0 * random() / RAND_MAX;
-    }
-
-    // load the layout using MySQL
-    mysql_load_paper_positions(l);
-
-    // set do_close_repulsion, since we are loading a layout that was saved this way
-    map_env->force_params.do_close_repulsion = true;
-
-    // small step size for the next force iteration
-    map_env->step_size = 0.1;
-}
-
 void map_env_layout_load_from_json(map_env_t *map_env, const char *json_filename) {
     // make a single layout
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false);
@@ -1083,17 +1057,6 @@ void vstr_add_json_str(vstr_t *vstr, const char *s) {
     vstr_add_byte(vstr, '"');
 }
 */
-
-void map_env_layout_save_to_db(map_env_t *map_env) {
-    // get the finest layout, corresponding to one layout_node per paper
-    layout_t *l = map_env->layout;
-    while (l->child_layout != NULL) {
-        l = l->child_layout;
-    }
-
-    // save the layout using MySQL
-    mysql_save_paper_positions(l);
-}
 
 void map_env_layout_save_to_json(map_env_t *map_env, const char *file) {
     // write the papers as JSON to a vstr
