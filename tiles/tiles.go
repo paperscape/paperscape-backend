@@ -29,13 +29,15 @@ var COLOUR_GRAYSCALE = 2
 var flagDB         = flag.String("db", "", "MySQL database to connect to")
 var flagGrayScale  = flag.Bool("gs", false, "Also make grayscale tiles")
 var flagHeatMap    = flag.Bool("hm", false, "Also make heatmap tiles")
-var flagDoSingle   = flag.Bool("single-tile", false, "Only generate a large single tile, no labels or world index information")
+var flagDoSingle   = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
+var flagDoPoster   = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
 var flagRegionFile = flag.String("region-file", "regions.json", "JSON file with region labels")
 
 var flagSkipNormalTiles  = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
 var flagSkipLabels = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
+var flagJSONLayoutFile = flag.String("json-layout", "", "Read paper layout from JSON file instead of DB")
 
-var flagMaxCores = flag.Int("cores",-1,"Max number of system cores to use, default is all of them")
+var flagMaxCores = flag.Int("cores", -1, "Max number of system cores to use, default is all of them")
 
 func main() {
     // parse command line options
@@ -54,19 +56,28 @@ func main() {
     defer db.Close()
 
     // read in the graph
-    graph := ReadGraph(db)
+    graph := ReadGraph(db, *flagJSONLayoutFile)
 
     // build the quad tree
     graph.BuildQuadTree()
 
     runtime.GC()
 
-    if *flagDoSingle {
+    if len(*flagDoSingle) != 0 {
+        geom := strings.Split(*flagDoSingle, "x")
+        if len(geom) != 3 {
+            log.Fatal("parameters for single-image must be of form WxHxZoom, eg 100x100x2.5")
+        }
+        resx, _ := strconv.ParseUint(geom[0], 10, 32)
+        resy, _ := strconv.ParseUint(geom[1], 10, 32)
+        zoomFactor, _ := strconv.ParseFloat(geom[2], 64)
+        DrawSingleImage(graph, int(resx), int(resy), zoomFactor, outPrefix, COLOUR_NORMAL)
+    } else if *flagDoPoster {
         // A0 at 300 dpi: 9933 x 14043
         // A0 at 72 dpi: 2348 x 3370 
         //resy := 9933; resx := 14043
         resy := 2348; resx := 3370
-        DrawEntireGraph(graph, resx, resy, outPrefix, COLOUR_NORMAL)
+        DrawPoster(graph, resx, resy, outPrefix, COLOUR_NORMAL)
     } else {
         // Create index file
         indexFile := outPrefix + "/world_index.json"
@@ -236,6 +247,48 @@ func (graph *Graph) CalculateCategoryLabels() {
             graph.catLabels = append(graph.catLabels,label)
         }
     }
+}
+
+// read layout in form [[id,x,y,r],...] from JSON file
+func ReadPaperLayoutFromJSON(filename string) []*Paper {
+    fmt.Printf("reading paper layout from JSON file %v\n", filename)
+
+    // open JSON file
+    file, err := os.Open(filename)
+    if err != nil {
+        log.Println(err)
+        return nil
+    }
+
+    // decode JSON
+    dec := json.NewDecoder(file)
+    var layout [][]int
+    if err := dec.Decode(&layout); err != nil {
+        log.Println(err)
+        return nil
+    }
+
+    // close file
+    file.Close()
+
+    // build paper array
+    papers := make([]*Paper, 0)
+    for _, item := range layout {
+        papers = append(papers, MakePaper(uint(item[0]), item[1], item[2], item[3]))
+    }
+
+    // make sure papers are sorted!
+    sort.Sort(PaperSortId(papers))
+
+    // calculate age
+    for index, paper := range(papers) {
+        paper.age = float32(index) / float32(len(papers))
+    }
+
+    // print info
+    fmt.Printf("read %v paper positions\n", len(layout))
+
+    return papers
 }
 
 func (graph *Graph) ReadRegionLabels(filename string) {
@@ -773,15 +826,23 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
     return col
 }
 
-func ReadGraph(db *mysql.Client) *Graph {
+func ReadGraph(db *mysql.Client, jsonLayoutFile string) *Graph {
     graph := new(Graph)
 
-    // load positions from the data base
-    graph.papers = QueryPapers(db)
-    if graph.papers == nil {
-        log.Fatal("could not read papers from db")
+    if len(jsonLayoutFile) == 0 {
+        // load positions from the data base
+        graph.papers = QueryPapers(db)
+        if graph.papers == nil {
+            log.Fatal("could not read papers from db")
+        }
+        fmt.Printf("read %v papers from db\n", len(graph.papers))
+    } else {
+        // load positions from JSON file
+        graph.papers = ReadPaperLayoutFromJSON(jsonLayoutFile)
+        if graph.papers == nil {
+            log.Fatal("could not read papers from JSON file")
+        }
     }
-    fmt.Printf("read %v papers from db\n", len(graph.papers))
 
     graph.QueryCategories(db)
 
@@ -1239,7 +1300,59 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
     fmt.Fprintf(w,"]")
 }
 
-func DrawEntireGraph(graph *Graph, surfWidthInt, surfHeightInt int, filename string, colourScheme int) {
+func DrawSingleImage(graph *Graph, surfWidthInt, surfHeightInt int, zoomFactor float64, filename string, colourScheme int) {
+
+    // convert width & height to floats for convenience
+    surfWidth := float64(surfWidthInt)
+    surfHeight := float64(surfHeightInt)
+
+    // create surface to draw on
+    surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidthInt, surfHeightInt)
+
+    // a black background
+    surf.SetSourceRGBA(0, 0, 0, 1)
+    surf.Paint()
+
+    // work out scaling so that the entire graph fits on the surface
+    // multiple by zoom factor if the caller wants to zoom in (larger number is more zoomed in)
+    scale := zoomFactor * math.Min(surfWidth / float64(graph.BoundsX), surfHeight / float64(graph.BoundsY));
+
+    // make the transformation matrix for the papers
+    matrix := new(cairo.Matrix)
+    matrix.Xx = scale
+    matrix.Yy = scale
+    matrix.X0 = 0.5 * float64(surf.GetWidth())
+    matrix.Y0 = 0.4 * float64(surf.GetHeight())
+    matrixInv := *matrix
+    matrixInv.Invert()
+    surf.SetMatrix(*matrix)
+
+    // the papers
+    for _, paper := range graph.papers {
+        pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
+        if pixelRadius < 0.09 {
+            newRadius, _ := matrixInv.TransformDistance(0.09, 0.09)
+            surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
+        } else {
+            surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+        }
+        col := paper.GetColour(colourScheme)
+        surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
+        surf.Fill()
+    }
+
+    if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    // save with full colours
+    surf.WriteToPNG(filename + ".png")
+
+    surf.Finish()
+}
+
+func DrawPoster(graph *Graph, surfWidthInt, surfHeightInt int, filename string, colourScheme int) {
 
     // convert width & height to floats for convenience
     surfWidth := float64(surfWidthInt)
