@@ -34,7 +34,8 @@ void map_env_coarsen_layout(map_env_t *map_env);
 void map_env_refine_layout(map_env_t *map_env);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
-void map_env_orient(map_env_t *map_env, category_t wanted_cat, double wanted_angle);
+void map_env_orient_using_category(map_env_t *map_env, category_t wanted_cat, double wanted_angle);
+void map_env_orient_using_paper(map_env_t *map_env, paper_t *wanted_paper, double wanted_angle);
 void map_env_flip_x(map_env_t *map_env);
 
 bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
@@ -43,10 +44,11 @@ void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max);
 void map_env_inc_num_papers(map_env_t *map_env, int amt);
 void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
 
-void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_weight);
+void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link);
 int map_env_layout_place_new_papers(map_env_t *map_env);
 void map_env_layout_finish_placing_new_papers(map_env_t *map_env);
-void map_env_layout_load_from_db(map_env_t *map_env);
-void map_env_layout_load_from_json(map_env_t *map_env, const char *json_filename);
-void map_env_layout_save_to_db(map_env_t *map_env);
-void map_env_layout_save_to_json(map_env_t *map_env, const char *file);
+void map_env_layout_pos_load_from_db(map_env_t *map_env);
+void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_filename);
+void map_env_layout_pos_save_to_db(map_env_t *map_env);
+void map_env_layout_pos_save_to_json(map_env_t *map_env, const char *file);
+void map_env_layout_link_save_to_json(map_env_t *map_env, const char *file);

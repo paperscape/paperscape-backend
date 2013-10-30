@@ -296,7 +296,7 @@ void map_env_rotate_all(map_env_t *map_env, double angle) {
     layout_rotate_all(map_env->layout, angle);
 }
 
-void map_env_orient(map_env_t *map_env, category_t wanted_cat, double wanted_angle) {
+void map_env_orient_using_category(map_env_t *map_env, category_t wanted_cat, double wanted_angle) {
     // must be finest layout and must have at least 1 node
     if (map_env->layout->child_layout != NULL || map_env->layout->num_nodes == 0) {
         return;
@@ -325,6 +325,18 @@ void map_env_orient(map_env_t *map_env, category_t wanted_cat, double wanted_ang
         layout_rotate_all(map_env->layout, angle);
         printf("rotated graph by %.2f rad to orient %s at %.2f rad\n", angle, category_enum_to_str(wanted_cat), wanted_angle);
     }
+}
+
+void map_env_orient_using_paper(map_env_t *map_env, paper_t *wanted_paper, double wanted_angle) {
+    // must be finest layout and must have at least 1 node
+    if (map_env->layout->child_layout != NULL || map_env->layout->num_nodes == 0) {
+        return;
+    }
+
+    // orient papers
+    double angle = wanted_angle - atan2(wanted_paper->layout_node->y, wanted_paper->layout_node->x);
+    layout_rotate_all(map_env->layout, angle);
+    printf("rotated graph by %.2f rad to orient paper %u at %.2f rad\n", angle, wanted_paper->id, wanted_angle);
 }
 
 void map_env_flip_x(map_env_t *map_env) {
@@ -931,9 +943,9 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     printf("after making fake links, have %d papers not connected\n", total_not_connected);
 }
 
-void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_weight) {
+void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link) {
     // make the layouts, each one coarser than the previous
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_freq, factor_other_weight);
+    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_freq, factor_other_link);
     for (int i = 0; i < num_coarsenings && l->num_links > 1; i++) {
         l = build_reduced_layout_from_layout(l);
     }
@@ -982,7 +994,7 @@ void map_env_layout_finish_placing_new_papers(map_env_t *map_env) {
     }
 }
 
-void map_env_layout_load_from_json(map_env_t *map_env, const char *json_filename) {
+void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_filename) {
     // make a single layout
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
@@ -1058,20 +1070,22 @@ void vstr_add_json_str(vstr_t *vstr, const char *s) {
 }
 */
 
-void map_env_layout_save_to_json(map_env_t *map_env, const char *file) {
-    // write the papers as JSON to a vstr
+void map_env_layout_pos_save_to_json(map_env_t *map_env, const char *file) {
+    // write the positions as JSON to a vstr
     vstr_t *vstr = vstr_new();
-    vstr_printf(vstr, "[");
+    vstr_printf(vstr, "[\n");
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
-        if (i > 0) {
-            vstr_printf(vstr, ",");
-        }
         int x, y, r;
         layout_node_export_quantities(p->layout_node, &x, &y, &r);
         vstr_printf(vstr, "[%d,%d,%d,%d]", p->id, x, y, r);
+        if (i + 1 < map_env->num_papers) {
+            vstr_printf(vstr, ",\n");
+        } else {
+            vstr_printf(vstr, "\n");
+        }
     }
-    vstr_printf(vstr, "]");
+    vstr_printf(vstr, "]\n");
 
     // write the vstr to a file
     int fd = open(file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
@@ -1079,5 +1093,36 @@ void map_env_layout_save_to_json(map_env_t *map_env, const char *file) {
     close(fd);
     vstr_free(vstr);
 
-    printf("wrote %d papers to JSON file %s\n", map_env->num_papers, file);
+    printf("wrote positions for %d papers to JSON file %s\n", map_env->num_papers, file);
+}
+
+void map_env_layout_link_save_to_json(map_env_t *map_env, const char *file) {
+    // write the links as JSON to a vstr
+    vstr_t *vstr = vstr_new();
+    vstr_printf(vstr, "[\n");
+    for (int i = 0; i < map_env->num_papers; i++) {
+        paper_t *p = map_env->papers[i];
+        vstr_printf(vstr, "[%d,[", p->id);
+        layout_node_t *ln = p->layout_node;
+        for (int j = 0; j < ln->num_links; j++) {
+            if (j > 0) {
+                vstr_printf(vstr, ",");
+            }
+            vstr_printf(vstr, "[%d,%.6g]", ln->links[j].node->paper->id, ln->links[j].weight);
+        }
+        if (i + 1 < map_env->num_papers) {
+            vstr_printf(vstr, "]],\n");
+        } else {
+            vstr_printf(vstr, "]]\n");
+        }
+    }
+    vstr_printf(vstr, "]\n");
+
+    // write the vstr to a file
+    int fd = open(file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    write(fd, vstr_str(vstr), vstr_len(vstr));
+    close(fd);
+    vstr_free(vstr);
+
+    printf("wrote links for %d papers to JSON file %s\n", map_env->num_papers, file);
 }

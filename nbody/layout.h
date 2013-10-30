@@ -3,6 +3,8 @@
 #define LAYOUT_NODE_POS_VALID   (0x0002)
 #define LAYOUT_NODE_HOLD_STILL  (0x0004)
 
+struct _paper_t;
+
 typedef struct _layout_node_t {
     unsigned int flags;
     struct _layout_node_t *parent;
@@ -39,9 +41,7 @@ typedef struct _layout_t {
     layout_link_t *links;
 } layout_t;
 
-struct _paper_t;
-
-layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_weight);
+layout_t *build_layout_from_papers(int num_papers, struct _paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link);
 layout_t *build_reduced_layout_from_layout(layout_t *layout);
 void layout_propagate_positions_to_children(layout_t *layout);
 void layout_print(layout_t *layout);

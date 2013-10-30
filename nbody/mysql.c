@@ -273,6 +273,7 @@ static bool env_load_refs(env_t *env) {
                 paper->num_refs = 0;
                 paper->refs = NULL;
                 paper->refs_ref_freq = NULL;
+                paper->refs_other_weight = NULL;
             } else {
                 if (len % 10 != 0) {
                     printf("length of refs blob should be a multiple of 10; got %lu\n", len);
@@ -281,6 +282,7 @@ static bool env_load_refs(env_t *env) {
                 }
                 paper->refs = m_new(paper_t*, len / 10);
                 paper->refs_ref_freq = m_new(byte, len / 10);
+                paper->refs_other_weight = NULL;
                 if (paper->refs == NULL || paper->refs_ref_freq == NULL) {
                     mysql_free_result(result);
                     return false;

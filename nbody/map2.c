@@ -24,7 +24,7 @@ bool map_env_do_iterations(map_env_t *map_env, int num_iterations, bool boost_st
     return converged;
 }
 
-void map_env_do_complete_layout(map_env_t *map_env) {
+void map_env_do_complete_layout(map_env_t *map_env, int num_iterations_close_repulsion, int num_iterations_finest_layout) {
 
     printf("iterating from the start to build entire graph\n");
 
@@ -44,7 +44,7 @@ void map_env_do_complete_layout(map_env_t *map_env) {
                 map_env_refine_layout(map_env);
                 boost_step_size = true;
                 refining_stage = false;
-                iterate_counter_wait_until = iterate_counter + 6000;
+                iterate_counter_wait_until = iterate_counter + num_iterations_finest_layout;
             } else if (converged) {
                 int num_finer = map_env_number_of_finer_layouts(map_env);
                 if (num_finer > 1) {
@@ -55,7 +55,7 @@ void map_env_do_complete_layout(map_env_t *map_env) {
                     printf("doing close repulsion\n");
                     map_env_set_do_close_repulsion(map_env, true);
                     boost_step_size = true;
-                    iterate_counter_wait_until = iterate_counter + 2000;
+                    iterate_counter_wait_until = iterate_counter + num_iterations_close_repulsion;
                 }
             }
         } else {

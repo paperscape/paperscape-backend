@@ -75,11 +75,11 @@ int main(int argc, char *argv[]) {
         map_env_layout_new(map_env, 10, 1, 0);
 
         // do the layout
-        map_env_do_complete_layout(map_env);
+        map_env_do_complete_layout(map_env, 2000, 6000);
 
     } else {
         // load existing positions from DB
-        map_env_layout_load_from_db(map_env);
+        map_env_layout_pos_load_from_db(map_env);
 
         // rotate the entire map by a random amount, to reduce quad-tree-force artifacts
         struct timeval tp;
@@ -110,11 +110,11 @@ int main(int argc, char *argv[]) {
     }
 
     // align the map in a fixed direction
-    map_env_orient(map_env, CAT_hep_ph, 4.2);
+    map_env_orient_using_category(map_env, CAT_hep_ph, 4.2);
 
     // write the new positions to the DB
     if (arg_write_db) {
-        map_env_layout_save_to_db(map_env);
+        map_env_layout_pos_save_to_db(map_env);
     }
 
     // write map to JSON
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
         vstr_t *vstr = vstr_new();
         vstr_reset(vstr);
         vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
-        map_env_layout_save_to_json(map_env, vstr_str(vstr));
+        map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
     }
 
     return 0;

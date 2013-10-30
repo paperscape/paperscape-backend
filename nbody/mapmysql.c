@@ -12,7 +12,7 @@
 #include "mapprivate.h"
 #include "mysql.h"
 
-void map_env_layout_load_from_db(map_env_t *map_env) {
+void map_env_layout_pos_load_from_db(map_env_t *map_env) {
     // make a single layout
     layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
@@ -36,7 +36,7 @@ void map_env_layout_load_from_db(map_env_t *map_env) {
     map_env->step_size = 0.1;
 }
 
-void map_env_layout_save_to_db(map_env_t *map_env) {
+void map_env_layout_pos_save_to_db(map_env_t *map_env) {
     // get the finest layout, corresponding to one layout_node per paper
     layout_t *l = map_env->layout;
     while (l->child_layout != NULL) {

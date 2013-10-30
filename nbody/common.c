@@ -219,6 +219,7 @@ bool build_citation_links(int num_papers, paper_t *papers) {
 
 // compute the num_included_cites field in the paper_t objects
 // only includes papers that have their "included" flag set
+// only counts references that have non-zero ref_freq
 void recompute_num_included_cites(int num_papers, paper_t *papers) {
     // reset citation count
     for (int i = 0; i < num_papers; i++) {
@@ -231,9 +232,11 @@ void recompute_num_included_cites(int num_papers, paper_t *papers) {
         paper_t *p = &papers[i];
         if (p->included) {
             for (int j = 0; j < p->num_refs; j++) {
-                paper_t *p2 = p->refs[j];
-                if (p2->included) {
-                    p2->num_included_cites += 1;
+                if (p->refs_ref_freq[j] > 0) {
+                    paper_t *p2 = p->refs[j];
+                    if (p2->included) {
+                        p2->num_included_cites += 1;
+                    }
                 }
             }
         }

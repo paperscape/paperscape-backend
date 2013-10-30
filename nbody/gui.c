@@ -212,7 +212,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         // write map to JSON
         vstr_reset(vstr);
         vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
-        map_env_layout_save_to_json(map_env, vstr_str(vstr));
+        map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
 
     } else if (event->keyval == GDK_KEY_j) {
         map_env_jolt(map_env, 0.5);
