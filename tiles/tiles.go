@@ -26,16 +26,20 @@ var COLOUR_NORMAL    = 0
 var COLOUR_HEATMAP   = 1
 var COLOUR_GRAYSCALE = 2
 
-var flagDB         = flag.String("db", "", "MySQL database to connect to")
+var flagDB           = flag.String("db", "", "MySQL database to connect to")
+var flagDBLocSuffix  = flag.String("db-suffix", "", "Suffix of location table in MySQL database: map_data_{suffix}")
+var flagJSONLocFile  = flag.String("json-layout", "", "Read paper locations from JSON file instead of DB")
+
 var flagGrayScale  = flag.Bool("gs", false, "Also make grayscale tiles")
 var flagHeatMap    = flag.Bool("hm", false, "Also make heatmap tiles")
+
 var flagDoSingle   = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
 var flagDoPoster   = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
+
 var flagRegionFile = flag.String("region-file", "regions.json", "JSON file with region labels")
 
 var flagSkipNormalTiles  = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
 var flagSkipLabels = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
-var flagJSONLayoutFile = flag.String("json-layout", "", "Read paper layout from JSON file instead of DB")
 
 var flagMaxCores = flag.Int("cores", -1, "Max number of system cores to use, default is all of them")
 
@@ -56,7 +60,7 @@ func main() {
     defer db.Close()
 
     // read in the graph
-    graph := ReadGraph(db, *flagJSONLayoutFile)
+    graph := ReadGraph(db, *flagJSONLocFile)
 
     // build the quad tree
     graph.BuildQuadTree()
@@ -92,7 +96,7 @@ func main() {
 
         num_papers := len(graph.papers)
 
-        fmt.Fprintf(w,"world_index({\"latestid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",graph.LatestId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
+        fmt.Fprintf(w,"world_index({\"dbsuffix\":\"%s\",\"latestid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",*flagDBLocSuffix,graph.LatestId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
         graph.QueryNewPapersId(db)
         if graph.NewPapersId != 0 {
@@ -250,7 +254,7 @@ func (graph *Graph) CalculateCategoryLabels() {
 }
 
 // read layout in form [[id,x,y,r],...] from JSON file
-func ReadPaperLayoutFromJSON(filename string) []*Paper {
+func ReadPaperLocationFromJSON(filename string) []*Paper {
     fmt.Printf("reading paper layout from JSON file %v\n", filename)
 
     // open JSON file
@@ -590,8 +594,14 @@ func (graph *Graph) QueryLabels(db *mysql.Client) {
 }
 
 func QueryPapers(db *mysql.Client) []*Paper {
+    
+    loc_table := "map_data"
+    if *flagDBLocSuffix != "" {
+        loc_table += "_" + *flagDBLocSuffix
+    }
+
     // count number of papers
-    err := db.Query("SELECT count(id) FROM map_data")
+    err := db.Query("SELECT count(id) FROM " + loc_table)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return nil
@@ -624,7 +634,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
 
     // execute the query
     //err = db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
-    err = db.Query("SELECT id,x,y,r FROM map_data")
+    err = db.Query("SELECT id,x,y,r FROM " + loc_table)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return nil
@@ -666,7 +676,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
     }
 
     if len(papers) != int(numPapers) {
-        fmt.Println("could not read all papers from map_data; wanted", numPapers, "got", len(papers))
+        fmt.Println("could not read all papers from",loc_table,"; wanted", numPapers, "got", len(papers))
         return nil
     }
 
@@ -826,10 +836,10 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
     return col
 }
 
-func ReadGraph(db *mysql.Client, jsonLayoutFile string) *Graph {
+func ReadGraph(db *mysql.Client, jsonLocationFile string) *Graph {
     graph := new(Graph)
 
-    if len(jsonLayoutFile) == 0 {
+    if len(jsonLocationFile) == 0 {
         // load positions from the data base
         graph.papers = QueryPapers(db)
         if graph.papers == nil {
@@ -838,7 +848,7 @@ func ReadGraph(db *mysql.Client, jsonLayoutFile string) *Graph {
         fmt.Printf("read %v papers from db\n", len(graph.papers))
     } else {
         // load positions from JSON file
-        graph.papers = ReadPaperLayoutFromJSON(jsonLayoutFile)
+        graph.papers = ReadPaperLocationFromJSON(jsonLocationFile)
         if graph.papers == nil {
             log.Fatal("could not read papers from JSON file")
         }
@@ -849,7 +859,10 @@ func ReadGraph(db *mysql.Client, jsonLayoutFile string) *Graph {
     if !*flagSkipLabels {
         graph.QueryLabels(db)
         graph.CalculateCategoryLabels()
-        graph.ReadRegionLabels(*flagRegionFile)
+        if *flagDBLocSuffix == "" {
+            // Region labels are specific to default map only
+            graph.ReadRegionLabels(*flagRegionFile)
+        }
     }
 
     // determine labels to use for each paper
@@ -1181,9 +1194,9 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24,72,216}
     //divisionSet := [...]int{4,8,16,32}
-    //divisionSet := [...]int{4,8,16,32,64}
+    divisionSet := [...]int{4,8,16,32,64}
     //divisionSet := [...]int{4,8,16,32,64,128}
-    divisionSet := [...]int{4,8,16,32,64,128,256}
+    //divisionSet := [...]int{4,8,16,32,64,128,256}
 
     //depths := *flagTileDepth
     first := true
