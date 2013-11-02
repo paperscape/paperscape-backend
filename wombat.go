@@ -861,7 +861,7 @@ func (papers *PapersEnv) QueryCites(paper *Paper, queryCitesMeta bool) {
 
 // Query locations for everything we already have available
 // e.g also refs/cites if we have them
-func (papers *PapersEnv) QueryLocations(paper *Paper) {
+func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
     if paper == nil { return }
    
     // build list of ids
@@ -893,7 +893,12 @@ func (papers *PapersEnv) QueryLocations(paper *Paper) {
     }
     args.WriteString(")")
 
-    sql := fmt.Sprintf("SELECT id,x,y,r FROM map_data WHERE id IN %s LIMIT %d",args.String(),len(ids))
+    loc_table := "map_data"
+    if tableSuffix != "" {
+        loc_table += "_" + tableSuffix
+    }
+
+    sql := fmt.Sprintf("SELECT id,x,y,r FROM " + loc_table + " WHERE id IN %s LIMIT %d",args.String(),len(ids))
 
     // create interface of arguments for statement
     hIdsInt := make([]interface{},len(ids))
@@ -1117,10 +1122,6 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 
         if req.Form["test"] != nil {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
-        //} else if req.Form["mload"] != nil {
-        //    // map: load world dims and latest id
-        //    logDescription = fmt.Sprintf("Load world map")
-        //    h.MapLoadWorld(rw) 
         } else if req.Form["mp2l[]"] != nil {
             // map: paper ids to locations
             var ids []uint
@@ -1132,15 +1133,15 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             logDescription = fmt.Sprintf("Paper ids to map locations for")
-            h.MapLocationFromPaperIds(ids,rw)
+            h.MapLocationFromPaperIds(ids,req.Form["tbl"][0],rw)
         } else if req.Form["mr2l"] != nil {
             // mr2l: arxiv id to references (incl locations) 
             logDescription = fmt.Sprintf("mr2l \"%s\"",req.Form["mr2l"][0])
-            h.MapReferencesFromArxivId(req.Form["mr2l"][0],rw)
+            h.MapReferencesFromArxivId(req.Form["mr2l"][0],req.Form["tbl"][0],rw)
         } else if req.Form["mc2l"] != nil {
             // mc2l: arxiv id to citations (incl locations) 
             logDescription = fmt.Sprintf("m2cl \"%s\"",req.Form["mc2l"][0])
-            h.MapCitationsFromArxivId(req.Form["mc2l"][0],rw)
+            h.MapCitationsFromArxivId(req.Form["mc2l"][0],req.Form["tbl"][0],rw)
         } else if req.Form["ml2p[]"] != nil {
             // map: location to paper id
             x, erx := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
@@ -1151,7 +1152,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             } else {
                 // parsed coordinates ok, do request
                 logDescription = fmt.Sprintf("Paper id from map location (%.2f, %.2f)", x, y)
-                h.MapPaperIdAtLocation(x, y, rw)
+                h.MapPaperIdAtLocation(x, y, req.Form["tbl"][0], rw)
             }
         } else if req.Form["pchal"] != nil {
             // profile-challenge: authenticate request (send user a new "challenge")
@@ -1371,7 +1372,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             logDescription = fmt.Sprintf("Paper ids to map locations for")
-            h.MapLocationFromPaperIds(ids,rw)
+            h.MapLocationFromPaperIds(ids,req.Form["tbl"][0],rw)
         } else {
             // unknown ajax request
             logDescription = fmt.Sprintf("unknown")
@@ -2140,7 +2141,7 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "{\"txmin\":%d,\"tymin\":%d,\"txmax\":%d,\"tymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s,\"lxmin\":%d,\"lymin\":%d,\"lxmax\":%d,\"lymax\":%d,\"label\":%s}",txmin, tymin,txmax,tymax,idmax,idnew,tpixw,tpixh,tilings,lxmin,lymin,lxmax,lymax,labelings)
 }*/
 
-func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, tableSuffix string, rw http.ResponseWriter) {
     
     var x,y int 
     var resId, r uint
@@ -2164,7 +2165,12 @@ func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, rw http.ResponseWrit
     }
     args.WriteString(")")
 
-    sql := fmt.Sprintf("SELECT id,x,y,r FROM map_data WHERE id IN %s LIMIT %d",args.String(),len(ids))
+    loc_table := "map_data"
+    if tableSuffix != "" {
+        loc_table += "_" + tableSuffix
+    }
+
+    sql := fmt.Sprintf("SELECT id,x,y,r FROM " + loc_table + " WHERE id IN %s LIMIT %d",args.String(),len(ids))
 
     // create interface of arguments for statement
     hIdsInt := make([]interface{},len(ids))
@@ -2196,17 +2202,22 @@ func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, rw http.ResponseWrit
     fmt.Fprintf(rw, "]")
 }
 
-func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, tableSuffix string, rw http.ResponseWriter) {
     
     var id, resr uint
     var resx, resy int 
+
+    loc_table := "map_data"
+    if tableSuffix != "" {
+        loc_table += "_" + tableSuffix
+    }
 
     // TODO
     // Current implentation is slow (order n)
     // use quad tree: order log n
     // OR try using MySQL spatial extensions
 
-    sql := "SELECT id,x,y,r FROM map_data WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
+    sql := "SELECT id,x,y,r FROM " + loc_table + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
 
     stmt := h.papers.StatementBegin(sql,x,y)
     if !h.papers.StatementBindSingleRow(stmt,&id,&resx,&resy,&resr) {
@@ -2216,7 +2227,7 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, rw http.ResponseWrite
     fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id,resx,resy,resr)
 }
 
-func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, tableSuffix string, rw http.ResponseWriter) {
     // check for valid characters in arxiv string
     for _, r := range arxivString {
         if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
@@ -2228,7 +2239,7 @@ func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.Res
     // query the paper and its refs and cites
     paper := h.papers.QueryPaper(0, arxivString)
     h.papers.QueryRefs(paper, false)
-    h.papers.QueryLocations(paper)
+    h.papers.QueryLocations(paper,tableSuffix)
 
     // check the paper exists
     if paper == nil {
@@ -2245,7 +2256,7 @@ func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, rw http.Res
     fmt.Fprintf(rw, "}]}")
 }
 
-func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivString string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivString string, tableSuffix string, rw http.ResponseWriter) {
     // check for valid characters in arxiv string
     for _, r := range arxivString {
         if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
@@ -2257,7 +2268,7 @@ func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivString string, rw http.Resp
     // query the paper and its refs and cites
     paper := h.papers.QueryPaper(0, arxivString)
     h.papers.QueryCites(paper, false)
-    h.papers.QueryLocations(paper)
+    h.papers.QueryLocations(paper,tableSuffix)
 
     // check the paper exists
     if paper == nil {
