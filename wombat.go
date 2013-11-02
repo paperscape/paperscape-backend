@@ -1132,7 +1132,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             logDescription = fmt.Sprintf("Paper ids to map locations for")
-            h.MapLocationFromPaperId(ids,rw)
+            h.MapLocationFromPaperIds(ids,rw)
         } else if req.Form["mr2l"] != nil {
             // mr2l: arxiv id to references (incl locations) 
             logDescription = fmt.Sprintf("mr2l \"%s\"",req.Form["mr2l"][0])
@@ -1371,7 +1371,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
                 }
             }
             logDescription = fmt.Sprintf("Paper ids to map locations for")
-            h.MapLocationFromPaperId(ids,rw)
+            h.MapLocationFromPaperIds(ids,rw)
         } else {
             // unknown ajax request
             logDescription = fmt.Sprintf("unknown")
@@ -2140,7 +2140,7 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "{\"txmin\":%d,\"tymin\":%d,\"txmax\":%d,\"tymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s,\"lxmin\":%d,\"lymin\":%d,\"lxmax\":%d,\"lymax\":%d,\"label\":%s}",txmin, tymin,txmax,tymax,idmax,idnew,tpixw,tpixh,tilings,lxmin,lymin,lxmax,lymax,labelings)
 }*/
 
-func (h *MyHTTPHandler) MapLocationFromPaperId(ids []uint, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, rw http.ResponseWriter) {
     
     var x,y int 
     var resId, r uint
