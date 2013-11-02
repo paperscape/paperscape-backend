@@ -32,6 +32,7 @@ var flagJSONLocFile  = flag.String("json-layout", "", "Read paper locations from
 
 var flagGrayScale  = flag.Bool("gs", false, "Also make grayscale tiles")
 var flagHeatMap    = flag.Bool("hm", false, "Also make heatmap tiles")
+var flagSubCats    = flag.Bool("sub-cats", false, "Distinguish sub category papers (currently works only for astro-ph)")
 
 var flagDoSingle   = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
 var flagDoPoster   = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
@@ -493,7 +494,8 @@ func (graph *Graph) QueryHeat(db *mysql.Client) {
 func (graph *Graph) QueryCategories(db *mysql.Client) {
 
     // execute the query
-    err := db.Query("SELECT id,maincat FROM meta_data")
+    //err := db.Query("SELECT id,maincat FROM meta_data")
+    err := db.Query("SELECT id,maincat,allcats FROM meta_data")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
@@ -516,29 +518,30 @@ func (graph *Graph) QueryCategories(db *mysql.Client) {
         var ok bool
         var id uint64
         var maincat string
-        //var allcats string
+        var allcats string
         if id, ok = row[0].(uint64); !ok { continue }
         if maincat, ok = row[1].(string); !ok { continue }
-        //allcats, ok = row[2].(string)
+        allcats, ok = row[2].(string)
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
             paper.maincat = maincat
-            /* code for if we want to distinguish sub-cats
-            if strings.HasPrefix(allcats, "astro-ph.CO") {
-                paper.maincat = "astro-ph.CO"
-            } else if strings.HasPrefix(allcats, "astro-ph.EP") {
-                paper.maincat = "astro-ph.EP"
-            } else if strings.HasPrefix(allcats, "astro-ph.GA") {
-                paper.maincat = "astro-ph.GA"
-            } else if strings.HasPrefix(allcats, "astro-ph.HE") {
-                paper.maincat = "astro-ph.HE"
-            } else if strings.HasPrefix(allcats, "astro-ph.IM") {
-                paper.maincat = "astro-ph.IM"
-            } else if strings.HasPrefix(allcats, "astro-ph.SR") {
-                paper.maincat = "astro-ph.SR"
+            // code for if we want to distinguish sub-cats
+            if *flagSubCats {
+                if strings.HasPrefix(allcats, "astro-ph.CO") {
+                    paper.maincat = "astro-ph.CO"
+                } else if strings.HasPrefix(allcats, "astro-ph.EP") {
+                    paper.maincat = "astro-ph.EP"
+                } else if strings.HasPrefix(allcats, "astro-ph.GA") {
+                    paper.maincat = "astro-ph.GA"
+                } else if strings.HasPrefix(allcats, "astro-ph.HE") {
+                    paper.maincat = "astro-ph.HE"
+                } else if strings.HasPrefix(allcats, "astro-ph.IM") {
+                    paper.maincat = "astro-ph.IM"
+                } else if strings.HasPrefix(allcats, "astro-ph.SR") {
+                    paper.maincat = "astro-ph.SR"
+                }
             }
-            */
         }
     }
 
@@ -784,22 +787,25 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
         } else {
             col.r, col.g, col.b = 0.7, 1, 0.3
         }
-
-        //if paper.maincat == "astro-ph.CO" {
-        //    col.r, col.g, col.b = 0.3, 0.3, 1 // blue
-        //} else if paper.maincat == "astro-ph.EP" {
-        //    col.r, col.g, col.b = 0.3, 1, 0.3 // green
-        //} else if paper.maincat == "astro-ph.GA" {
-        //    col.r, col.g, col.b = 1, 1, 0.3 // yellow
-        //} else if paper.maincat == "astro-ph.HE" {
-        //    col.r, col.g, col.b = 0.3, 1, 1 // cyan
-        //} else if paper.maincat == "astro-ph.IM" {
-        //    col.r, col.g, col.b = 0.7, 0.36, 0.2 // tan brown
-        //} else if paper.maincat == "astro-ph.SR" {
-        //    col.r, col.g, col.b = 1, 0.3, 0.3 // red
-        //} else {
-        //    col.r, col.g, col.b = 1, 1, 1 // white
-        //}
+       
+        // bit of hack at the moment
+        if *flagSubCats {
+            if paper.maincat == "astro-ph.CO" {
+                col.r, col.g, col.b = 0.3, 0.3, 1 // blue
+            } else if paper.maincat == "astro-ph.EP" {
+                col.r, col.g, col.b = 0.3, 1, 0.3 // green
+            } else if paper.maincat == "astro-ph.GA" {
+                col.r, col.g, col.b = 1, 1, 0.3 // yellow
+            } else if paper.maincat == "astro-ph.HE" {
+                col.r, col.g, col.b = 0.3, 1, 1 // cyan
+            } else if paper.maincat == "astro-ph.IM" {
+                col.r, col.g, col.b = 0.7, 0.36, 0.2 // tan brown
+            } else if paper.maincat == "astro-ph.SR" {
+                col.r, col.g, col.b = 1, 0.3, 0.3 // red
+            } else if paper.maincat == "astro-ph" {
+                col.r, col.g, col.b = 1, 1, 1 // white
+            }
+        }
 
         // brighten papers in categories that are mostly tiny dots
         brighten := paper.maincat == "math" || paper.maincat == "cs"
