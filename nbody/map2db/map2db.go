@@ -2,6 +2,7 @@ package main
 
 import (
     "flag"
+    "fmt"
     "os"
     "encoding/json"
     "log"
@@ -42,8 +43,20 @@ func main() {
 
     db.Reconnect = true
     db.Lock()
-    sql := "REPLACE INTO " + *flagMapTable + " (id,x,y,r) VALUES (?,?,?,?)"
-    stmt, _ := db.Prepare(sql)
+
+    // Create map table if it doesn't exist
+    sql := "CREATE TABLE " + *flagMapTable + " (id INT UNSIGNED PRIMARY KEY, x INT, y INT, r INT) ENGINE = MyISAM;"
+    err = db.Query(sql)
+    if err != nil {
+        fmt.Println("MySQL statement error;", err)
+    }
+
+    // Insert new values into table
+    sql = "REPLACE INTO " + *flagMapTable + " (id,x,y,r) VALUES (?,?,?,?)"
+    stmt, err := db.Prepare(sql)
+    if err != nil {
+        fmt.Println("MySQL statement error;", err)
+    }
     db.Unlock()
 
     for _, paper := range papers {
