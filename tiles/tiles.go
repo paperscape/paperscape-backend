@@ -730,7 +730,6 @@ func (paper *Paper) DetermineLabel(authors, keywords string) {
     paper.label = cleanJsonString(kwStr + "," + auStr)
 }
 
-//func (paper *Paper) SetColour() {
 func (paper *Paper) GetColour(colourScheme int) *CairoColor {
     // basic colour of paper
     col := new(CairoColor)
@@ -785,6 +784,22 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
         } else {
             col.r, col.g, col.b = 0.7, 1, 0.3
         }
+
+        //if paper.maincat == "astro-ph.CO" {
+        //    col.r, col.g, col.b = 0.3, 0.3, 1 // blue
+        //} else if paper.maincat == "astro-ph.EP" {
+        //    col.r, col.g, col.b = 0.3, 1, 0.3 // green
+        //} else if paper.maincat == "astro-ph.GA" {
+        //    col.r, col.g, col.b = 1, 1, 0.3 // yellow
+        //} else if paper.maincat == "astro-ph.HE" {
+        //    col.r, col.g, col.b = 0.3, 1, 1 // cyan
+        //} else if paper.maincat == "astro-ph.IM" {
+        //    col.r, col.g, col.b = 0.7, 0.36, 0.2 // tan brown
+        //} else if paper.maincat == "astro-ph.SR" {
+        //    col.r, col.g, col.b = 1, 0.3, 0.3 // red
+        //} else {
+        //    col.r, col.g, col.b = 1, 1, 1 // white
+        //}
 
         // brighten papers in categories that are mostly tiny dots
         brighten := paper.maincat == "math" || paper.maincat == "cs"
