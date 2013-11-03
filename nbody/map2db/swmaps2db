@@ -1,0 +1,20 @@
+DB=susi
+SW_POS_DIR=sw-positions
+
+./map2db --db $DB --suffix r0001c0001 $SW_POS_DIR/pos.r.0001.c.0001
+./map2db --db $DB --suffix r0001c0032 $SW_POS_DIR/pos.r.0001.c.0032
+./map2db --db $DB --suffix r0001c0256 $SW_POS_DIR/pos.r.0001.c.0256
+./map2db --db $DB --suffix r0001c1024 $SW_POS_DIR/pos.r.0001.c.1024
+./map2db --db $DB --suffix r0032c0001 $SW_POS_DIR/pos.r.0032.c.0001
+./map2db --db $DB --suffix r0032c0032 $SW_POS_DIR/pos.r.0032.c.0032
+./map2db --db $DB --suffix r0032c0256 $SW_POS_DIR/pos.r.0032.c.0256
+./map2db --db $DB --suffix r0032c1024 $SW_POS_DIR/pos.r.0032.c.1024
+./map2db --db $DB --suffix r0256c0001 $SW_POS_DIR/pos.r.0256.c.0001
+./map2db --db $DB --suffix r0256c0032 $SW_POS_DIR/pos.r.0256.c.0032
+./map2db --db $DB --suffix r0256c0256 $SW_POS_DIR/pos.r.0256.c.0256
+./map2db --db $DB --suffix r0256c1024 $SW_POS_DIR/pos.r.0256.c.1024
+./map2db --db $DB --suffix r1024c0001 $SW_POS_DIR/pos.r.1024.c.0001
+./map2db --db $DB --suffix r1024c0032 $SW_POS_DIR/pos.r.1024.c.0032
+./map2db --db $DB --suffix r1024c0256 $SW_POS_DIR/pos.r.1024.c.0256
+./map2db --db $DB --suffix r1024c1024 $SW_POS_DIR/pos.r.1024.c.1024
+
