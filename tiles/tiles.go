@@ -75,8 +75,10 @@ func main() {
     } else if *flagDoPoster {
         // A0 at 300 dpi: 9933 x 14043
         // A0 at 72 dpi: 2348 x 3370 
+        // A3 at 300 dpi: 3508 x 4961
+        // A3 at 72 dpi: 842 x 1191 
         //resy := 9933; resx := 14043
-        resy := 2348; resx := 3370
+        resy := 3508; resx := 4961
         DrawPoster(graph, resx, resy, outPrefix, COLOUR_NORMAL)
     } else {
         // Create index file
