@@ -827,7 +827,7 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
             col.r = saturation + (col.r * (1 - age2) + age2) * (1 - saturation)
             col.g = saturation + (col.g * (1 - age2)      ) * (1 - saturation)
             col.b = saturation + (col.b * (1 - age2)      ) * (1 - saturation)
-        } else if (true) {
+        } else if (!*flagSubCats) {
             // older papers are saturated and dark, newer papers are coloured and bright
             var saturation float32 = 0.1 + 0.3 * (1 - paper.age)
             //var saturation float32 = 0.0
