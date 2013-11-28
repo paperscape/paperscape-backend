@@ -335,7 +335,7 @@ void map_env_orient_using_category(map_env_t *map_env, category_t wanted_cat, do
 
 void map_env_orient_using_paper(map_env_t *map_env, paper_t *wanted_paper, double wanted_angle) {
     // must be finest layout and must have at least 1 node
-    if (map_env->layout->child_layout != NULL || map_env->layout->num_nodes == 0) {
+    if (map_env->layout->child_layout != NULL || map_env->layout->num_nodes == 0 || !wanted_paper->included || !wanted_paper->connected) {
         return;
     }
 
