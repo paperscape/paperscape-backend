@@ -14,6 +14,8 @@ struct _map_env_t {
 
     quad_tree_t *quad_tree;
 
+    bool make_fake_links;
+
     force_params_t force_params;
 
     bool do_tred;
