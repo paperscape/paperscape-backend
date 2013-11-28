@@ -931,18 +931,25 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
 
     // check what couldn't be connected
     int total_not_connected = 0;
-    for (int i = 0; i < map_env->num_papers; i++) {
+    //for (int i = 0; i < map_env->num_papers; i++) {
+    for (int i = map_env->num_papers-1; i >= 0; i--) {
         paper_t *p = map_env->papers[i];
         if (p->included && !p->connected) {
-            printf("WARNING: could not connect paper %d with fake links; allcats[0]=%s, keywords=", p->id, category_enum_to_str(p->allcats[0]));
-            for (int j = 0; j < p->num_keywords; j++) {
-                printf("%s,", p->keywords[j]->keyword);
+            if (map_env->make_fake_links) {
+                printf("WARNING: could not connect paper %d with fake links; allcats[0]=%s, keywords=", p->id, category_enum_to_str(p->allcats[0]));
+                for (int j = 0; j < p->num_keywords; j++) {
+                    printf("%s,", p->keywords[j]->keyword);
+                }
+                printf("\n");
             }
-            printf("\n");
             total_not_connected += 1;
 
             // remove this paper from the list
-            memmove(&map_env->papers[i], &map_env->papers[i + 1], (map_env->num_papers - i - 1) * sizeof(paper_t*));
+            //memmove(&map_env->papers[i], &map_env->papers[i + 1], (map_env->num_papers - i - 1) * sizeof(paper_t*));
+            //map_env->num_papers -= 1;
+            if (i+1 < map_env->num_papers) {
+                memmove(&map_env->papers[i], &map_env->papers[i + 1], (map_env->num_papers - i - 1) * sizeof(paper_t*));
+            }
             map_env->num_papers -= 1;
         }
     }
