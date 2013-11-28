@@ -22,6 +22,8 @@ map_env_t *map_env_new() {
     map_env->papers = NULL;
     map_env->quad_tree = quad_tree_new();
 
+    map_env->make_fake_links = true;
+
     map_env->force_params.do_close_repulsion = false;
     map_env->force_params.close_repulsion_a = 1e9;
     map_env->force_params.close_repulsion_b = 1e14;
@@ -183,6 +185,10 @@ void map_env_zoom(map_env_t *map_env, double screen_x, double screen_y, double a
 
 void map_env_set_do_close_repulsion(map_env_t *map_env, bool value) {
     map_env->force_params.do_close_repulsion = value;
+}
+
+void map_env_set_make_fake_links(map_env_t *map_env, bool value) {
+    map_env->make_fake_links = value;
 }
 
 void map_env_set_anti_gravity(map_env_t *map_env, double val) {
@@ -889,30 +895,32 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
     // for efficiency, do it on a per-category basis
     int total_fake_papers = 0;
     int total_fake_links = 0;
-    for (int cat = 0; cat < CAT_NUMBER_OF; cat++) {
-        // for each keyword, find the paper in this category that has the largest mass
-        keyword_set_clear_data(map_env->keyword_set);
-        for (int i = 0; i < map_env->num_papers; i++) {
-            paper_t *p = map_env->papers[i];
-            if (p->included && p->connected && p->allcats[0] == cat) {
-                for (int j = 0; j < p->num_keywords; j++) {
-                    if (p->keywords[j]->paper == NULL || p->mass > p->keywords[j]->paper->mass) {
-                        p->keywords[j]->paper = p;
+    if (map_env->make_fake_links) {
+        for (int cat = 0; cat < CAT_NUMBER_OF; cat++) {
+            // for each keyword, find the paper in this category that has the largest mass
+            keyword_set_clear_data(map_env->keyword_set);
+            for (int i = 0; i < map_env->num_papers; i++) {
+                paper_t *p = map_env->papers[i];
+                if (p->included && p->connected && p->allcats[0] == cat) {
+                    for (int j = 0; j < p->num_keywords; j++) {
+                        if (p->keywords[j]->paper == NULL || p->mass > p->keywords[j]->paper->mass) {
+                            p->keywords[j]->paper = p;
+                        }
                     }
                 }
             }
-        }
 
-        // for each disconnected paper, try to connect it
-        for (int i = 0; i < map_env->num_papers; i++) {
-            paper_t *p = map_env->papers[i];
-            if (!p->connected && p->allcats[0] == cat) {
-                // try to connect this paper to the big graph
-                make_fake_links_for_paper(map_env, p);
-                if (p->num_fake_links > 0) {
-                    total_fake_papers += 1;
-                    total_fake_links += p->num_fake_links;
-                    paper_propagate_connectivity(p);
+            // for each disconnected paper, try to connect it
+            for (int i = 0; i < map_env->num_papers; i++) {
+                paper_t *p = map_env->papers[i];
+                if (!p->connected && p->allcats[0] == cat) {
+                    // try to connect this paper to the big graph
+                    make_fake_links_for_paper(map_env, p);
+                    if (p->num_fake_links > 0) {
+                        total_fake_papers += 1;
+                        total_fake_links += p->num_fake_links;
+                        paper_propagate_connectivity(p);
+                    }
                 }
             }
         }
