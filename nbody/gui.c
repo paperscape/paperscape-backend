@@ -608,9 +608,9 @@ int main(int argc, char *argv[]) {
     }
 
     if (arg_layout_db) {
-        map_env_layout_load_from_db(map_env);
+        map_env_layout_pos_load_from_db(map_env);
     } else if (arg_layout_json != NULL) {
-        map_env_layout_load_from_json(map_env, arg_layout_json);
+        map_env_layout_pos_load_from_json(map_env, arg_layout_json);
     } else {
         map_env_layout_new(map_env, 10, 1, 0);
     }
