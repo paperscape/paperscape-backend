@@ -23,6 +23,7 @@ map_env_t *map_env_new() {
     map_env->quad_tree = quad_tree_new();
 
     map_env->make_fake_links = true;
+    map_env->other_links_veto = false;
 
     map_env->force_params.do_close_repulsion = false;
     map_env->force_params.close_repulsion_a = 1e9;
@@ -189,6 +190,10 @@ void map_env_set_do_close_repulsion(map_env_t *map_env, bool value) {
 
 void map_env_set_make_fake_links(map_env_t *map_env, bool value) {
     map_env->make_fake_links = value;
+}
+
+void map_env_set_other_links_veto(map_env_t *map_env, bool value) {
+    map_env->other_links_veto = value;
 }
 
 void map_env_set_anti_gravity(map_env_t *map_env, double val) {
@@ -852,19 +857,45 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
         p->age = 1.0 * (p->id - id_start) / (id_end - id_start);
     }
 
-    recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
+    // TODO Hack to disclude papers with only references
+    if (map_env->other_links_veto) {
+        for (int i = i_start; i <= i_end; i++) {
+            paper_t *p = &map_env->all_papers[i];
+            if (p->included) {
+                // keep only papers that have "other" links, as we intend to ignore normal links
+                bool valid_other_paper = false;
+                for (int j = 0; j < p->num_refs; j++) {
+                    if (p->refs_ref_freq[j] == 0 && p->refs_other_weight[j] > 0) {
+                        valid_other_paper = true;
+                        break;
+                    }
+                }
+                if (!valid_other_paper) {
+                    p->included = false;
+                }
+            }
+        }
+    }
+
+    // CALCULATE CONNECTED
+
+    // think this can be placed later, as may not include disconnected papers
+    //recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
+    
     recompute_colours(map_env->max_num_papers, map_env->all_papers, false);
 
 #ifdef ENABLE_TRED
     compute_tred(map_env->max_num_papers, map_env->all_papers);
 #endif
 
+    // think this can be placed later, as may not include disconnected papers
+    
     // recompute mass and radius based on num_included_cites
-    for (int i = 0; i < map_env->max_num_papers; i++) {
-        paper_t *p = &map_env->all_papers[i];
-        p->mass = 0.2 + 0.2 * p->num_included_cites;
-        p->radius = sqrt(p->mass / M_PI);
-    }
+    //for (int i = 0; i < map_env->max_num_papers; i++) {
+    //    paper_t *p = &map_env->all_papers[i];
+    //    p->mass = 0.2 + 0.2 * p->num_included_cites;
+    //    p->radius = sqrt(p->mass / M_PI);
+    //}
 
     // work out the colour of the graph with the most number of connected papers
     int biggest_col = 0;
@@ -942,6 +973,8 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
                 }
                 printf("\n");
             }
+            // also disclude from graph
+            p->included = false;
             total_not_connected += 1;
 
             // remove this paper from the list
@@ -956,6 +989,17 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
 
     // print some info
     printf("after making fake links, have %d papers not connected\n", total_not_connected);
+
+    // RECOMPUTE DIMENSIONS
+
+    recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
+
+    for (int i = 0; i < map_env->max_num_papers; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        p->mass = 0.2 + 0.2 * p->num_included_cites;
+        p->radius = sqrt(p->mass / M_PI);
+    }
+
 }
 
 void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link) {

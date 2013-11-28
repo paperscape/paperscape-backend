@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
     const char *arg_write_link = NULL;
     double arg_factor_ref_freq = 1;
     double arg_factor_other_link = 0;
+    bool other_links_veto = false;
     bool no_fake_links = false;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "--pscp-refs") || streq(argv[a], "--pr")) {
@@ -48,6 +49,8 @@ int main(int argc, char *argv[]) {
             arg_other_links = argv[a];
         } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "--nfl")) {
             no_fake_links = true;
+        } else if (streq(argv[a], "--other-links-veto") || streq(argv[a], "--olv")) {
+            other_links_veto = true;
         } else if (streq(argv[a], "--write-pos") || streq(argv[a], "--wp")) {
             if (++a >= argc) {
                 return usage(argv[0]);
@@ -94,6 +97,7 @@ int main(int argc, char *argv[]) {
 
     // whether to create fake links for disconnected papers
     map_env_set_make_fake_links(map_env,!no_fake_links);
+    map_env_set_other_links_veto(map_env,other_links_veto);
 
     // set the papers
     map_env_set_papers(map_env, num_papers, papers, keyword_set);
