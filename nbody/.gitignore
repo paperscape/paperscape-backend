@@ -4,3 +4,4 @@ nbody-headlessjson
 nbody-gui
 *.json
 *.png
+data/*
