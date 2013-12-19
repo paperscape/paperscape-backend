@@ -82,8 +82,10 @@ func main() {
         // A0 at 72 dpi: 2348 x 3370 
         // A3 at 300 dpi: 3508 x 4961
         // A3 at 72 dpi: 842 x 1191 
+        // A4 at 300 dpi: 2480 x 3508
+        // A4 at 72 dpi: 595 x 842 
         //resy := 9933; resx := 14043
-        resy := 3508; resx := 4961
+        resy := 2480; resx := 3508
         DrawPoster(graph, resx, resy, outPrefix, COLOUR_NORMAL)
     } else {
         // Create index file
@@ -805,7 +807,8 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
             } else if paper.maincat == "astro-ph.SR" {
                 col.r, col.g, col.b = 1, 0.3, 0.3 // red
             } else if paper.maincat == "astro-ph" {
-                col.r, col.g, col.b = 1, 1, 1 // white
+                col.r, col.g, col.b = 0.89, 0.53, 0.6 // skin pink
+                //col.r, col.g, col.b = 1, 1, 1 // white
             }
         }
 
@@ -827,6 +830,7 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
             col.r = saturation + (col.r * (1 - age2) + age2) * (1 - saturation)
             col.g = saturation + (col.g * (1 - age2)      ) * (1 - saturation)
             col.b = saturation + (col.b * (1 - age2)      ) * (1 - saturation)
+        //} else if (!*flagSubCats) {
         } else if (true) {
             // older papers are saturated and dark, newer papers are coloured and bright
             var saturation float32 = 0.1 + 0.3 * (1 - paper.age)
@@ -1217,8 +1221,9 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24,72,216}
     //divisionSet := [...]int{4,8,16,32}
-    divisionSet := [...]int{4,8,16,32,64}
-    //divisionSet := [...]int{4,8,16,32,64,128}
+
+    //divisionSet := [...]int{4,8,16,32,64}
+    divisionSet := [...]int{4,8,16,32,64,128}
     //divisionSet := [...]int{4,8,16,32,64,128,256}
 
     //depths := *flagTileDepth
