@@ -14,6 +14,7 @@ def do_work(db_cursor, from_year, to_year, category):
     from_id = (from_year - 1800) * 10000000
     to_id = (to_year - 1800) * 10000000
     hits = db_cursor.execute("SELECT meta_data.id,arxiv,allcats,refs FROM meta_data,pcite WHERE meta_data.id=pcite.id AND arxiv IS NOT NULL AND meta_data.id>=%s AND meta_data.id<=%s AND maincat=%s", (from_id, to_id, category))
+    #hits = db_cursor.execute("SELECT meta_data.id,arxiv,allcats,refs FROM meta_data,pcite WHERE meta_data.id=pcite.id AND arxiv IS NOT NULL AND meta_data.id>=%s AND meta_data.id<=%s AND (maincat='hep-ph' OR maincat='hep-th' OR maincat='hep-ex' OR maincat='hep-lat')", (from_id, to_id))
 
     success_refs = 0
     total_refs = 0

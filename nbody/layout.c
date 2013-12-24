@@ -74,17 +74,18 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
 
         // make layout links from the paper's refs
         for (int j = 0; j < paper->num_refs; j++) {
-
+            
             // compute the weight of the link
             int ref_freq = paper->refs_ref_freq[j];
             //double weight = ref_freq; // ref_freq standard
-            double weight = ref_freq * ref_freq; // ref_freq squared
+            double weight = factor_ref_freq * ref_freq * ref_freq; // ref_freq squared
             if (age_weaken) {
                 //weight *= 1.0 - 0.5 * fabs(paper->age - paper->refs[j]->age);
                 weight *= 0.4 + 0.6 * exp(-pow(1e-7 * paper->id - 1e-7 * paper->refs[j]->id, 2));
             }
             if (paper->refs_other_weight != NULL) {
-                weight = factor_ref_freq * weight + factor_other_link * paper->refs_other_weight[j];
+                //weight = factor_ref_freq * weight + factor_other_link * paper->refs_other_weight[j];
+                weight += factor_other_link * paper->refs_other_weight[j];
             }
 
             // set the weight and linked node
