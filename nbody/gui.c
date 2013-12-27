@@ -525,6 +525,7 @@ int main(int argc, char *argv[]) {
     double arg_anti_grav_rsq = -1;
     double arg_link_strength = -1;
     bool arg_layout_db = false;
+    bool no_fake_links = false;
     const char *arg_layout_json = NULL;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "--rsq")) {
@@ -547,6 +548,8 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_layout_json = argv[a];
+        } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "--nfl")) {
+            no_fake_links = true;
         } else {
             return usage(argv[0]);
         }
@@ -577,6 +580,9 @@ int main(int argc, char *argv[]) {
     // create the map object
     map_env_t *map_env = map_env_new();
 
+    // whether to create fake links for disconnected papers
+    map_env_set_make_fake_links(map_env,!no_fake_links);
+
     // set parameters
     if (arg_anti_grav_rsq > 0) {
         map_env_set_anti_gravity(map_env, arg_anti_grav_rsq);
@@ -605,7 +611,7 @@ int main(int argc, char *argv[]) {
         id_range_start = id_min; id_range_end = id_max; // full range
         id_range_start = id_min; id_range_end = id_max; // full range
 
-        id_range_end = id_max - 20000000; // minus 2 years
+        id_range_end = id_max - 120000000; // minus 2 years
 
         map_env_select_date_range(map_env, id_range_start, id_range_end);
     }
