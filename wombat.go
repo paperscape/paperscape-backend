@@ -29,6 +29,7 @@ import (
     "net/smtp"
     "log"
     "xiwi"
+    "bitbucket.org/kardianos/osext"
 )
 
 // Current version of paperscape.
@@ -1682,7 +1683,8 @@ func (h *MyHTTPHandler) ProfileRequestResetPassword(usermail string, rw http.Res
     dict := make(map[string]string)
     dict["@@USERMAIL@@"] = usermail
     dict["@@RESETCODE@@"] = resetcode
-    message, _ := ReadAndReplaceFromFile("pwd_reset_request.email",dict)
+    msgDir, _ := osext.ExecutableFolder()
+    message, _ := ReadAndReplaceFromFile(msgDir + "/pwd_reset_request.email",dict)
 
     SendPscpMail(message,usermail)
 
@@ -1713,7 +1715,8 @@ func (h *MyHTTPHandler) ProfileResetPassword(resetcode string, rw http.ResponseW
     dict := make(map[string]string)
     dict["@@USERMAIL@@"] = usermail
     dict["@@PASSWORD@@"] = password
-    message, _ := ReadAndReplaceFromFile("pwd_reset.email",dict)
+    msgDir, _ := osext.ExecutableFolder()
+    message, _ := ReadAndReplaceFromFile(msgDir + "/pwd_reset.email",dict)
 
     SendPscpMail(message,usermail)
 
@@ -1749,7 +1752,8 @@ func (h *MyHTTPHandler) ProfileRegister(usermail string, rw http.ResponseWriter)
     dict := make(map[string]string)
     dict["@@USERMAIL@@"] = usermail
     dict["@@PASSWORD@@"] = password
-    message, _ := ReadAndReplaceFromFile("user_registration.email",dict)
+    msgDir, _ := osext.ExecutableFolder()
+    message, _ := ReadAndReplaceFromFile(msgDir + "/user_registration.email",dict)
 
     SendPscpMail(message,usermail)
 
