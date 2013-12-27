@@ -515,6 +515,7 @@ static int usage(const char *progname) {
     printf("    --link <num>         link strength\n");
     printf("    --layout-db          load layout from DB\n");
     printf("    --layout-json <file> load layout from given JSON file\n");
+    printf("    --no-fake-links      don't create fake links\n");
     printf("\n");
     return 1;
 }

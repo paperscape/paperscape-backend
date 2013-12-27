@@ -184,6 +184,14 @@ void map_env_zoom(map_env_t *map_env, double screen_x, double screen_y, double a
     map_env->tr_y0 = map_env->tr_y0 * amt + screen_y * (1.0 - amt);
 }
 
+double map_env_get_step_size(map_env_t *map_env) {
+    return map_env->step_size;
+}
+
+void map_env_set_step_size(map_env_t *map_env, double value) {
+    map_env->step_size = value;
+}
+
 void map_env_set_do_close_repulsion(map_env_t *map_env, bool value) {
     map_env->force_params.do_close_repulsion = value;
 }
@@ -1114,7 +1122,8 @@ void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_file
     fclose(fp);
 
     // set do_close_repulsion, since we are loading a layout that was saved this way
-    map_env->force_params.do_close_repulsion = true;
+    //map_env->force_params.do_close_repulsion = true;
+    map_env_set_do_close_repulsion(map_env, true);
 
     // small step size for the next force iteration
     map_env->step_size = 0.1;

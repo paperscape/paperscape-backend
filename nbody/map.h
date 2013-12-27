@@ -16,6 +16,8 @@ void map_env_centre_view(map_env_t *map_env);
 void map_env_set_zoom_to_fit_n_standard_deviations(map_env_t *map_env, double n, double screen_w, double screen_h);
 void map_env_scroll(map_env_t *map_env, double dx, double dy);
 void map_env_zoom(map_env_t *map_env, double screen_x, double screen_y, double amt);
+double map_env_get_step_size(map_env_t *map_env);
+void map_env_set_step_size(map_env_t *map_env, double value);
 void map_env_set_do_close_repulsion(map_env_t *map_env, bool value);
 void map_env_set_make_fake_links(map_env_t *map_env, bool value);
 void map_env_set_other_links_veto(map_env_t *map_env, bool value);

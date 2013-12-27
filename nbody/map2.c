@@ -20,7 +20,7 @@ bool map_env_do_iterations(map_env_t *map_env, int num_iterations, bool boost_st
     }
     gettimeofday(&tp, NULL);
     int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-    printf("did %d iterations, %.2f seconds per iteration\n", num_iterations, (end_time - start_time) / 1000.0 / num_iterations);
+    printf("did %d iterations, %.2f seconds per iteration, %.2f step size\n", num_iterations, (end_time - start_time) / 1000.0 / num_iterations,map_env_get_step_size(map_env));
     return converged;
 }
 
@@ -51,7 +51,8 @@ void map_env_do_complete_layout(map_env_t *map_env, int num_iterations_close_rep
                     printf("refining layout; %d to go\n", num_finer - 1);
                     map_env_refine_layout(map_env);
                     boost_step_size = true;
-                } else if (num_finer == 1) {
+                //} else if (num_finer == 1) {
+                } else if (num_finer <= 1) {
                     printf("doing close repulsion\n");
                     map_env_set_do_close_repulsion(map_env, true);
                     boost_step_size = true;
