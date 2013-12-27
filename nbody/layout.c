@@ -46,8 +46,7 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
         papers[i]->layout_node = &nodes[i];
     }
 
-    // build the nodes, and count the number of links we need
-    int num_links = 0;
+    // build the nodes
     for (int i = 0; i < num_papers; i++) {
         paper_t *paper = papers[i];
         layout_node_t *node = &nodes[i];
@@ -60,21 +59,40 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
         node->y = 0;
         node->fx = 0;
         node->fy = 0;
-        num_links += paper->num_refs + paper->num_fake_links;
+        //num_total_links += paper->num_refs + paper->num_fake_links;
+    }
+
+    // count number of links we need, only include valid links
+    int num_total_links = 0;
+    for (int i = 0; i < num_nodes; i++) {
+        layout_node_t *node = &nodes[i];
+        node->num_links = 0;
+        for (int j = 0; j < node->paper->num_refs; j++) {
+            if (node->paper->refs[j]->layout_node != NULL) {
+                node->num_links++;
+            }
+        }
+        for (int j = 0; j < node->paper->num_fake_links; j++) {
+            if (node->paper->fake_links[j]->layout_node != NULL) {
+                node->num_links++;
+            }
+        }
+        num_total_links += node->num_links;
     }
 
     // build the links
-    layout_link_t *all_links = m_new(layout_link_t, num_links);
+    layout_link_t *all_links = m_new(layout_link_t, num_total_links);
     layout_link_t *links = all_links;
     for (int i = 0; i < num_papers; i++) {
         paper_t *paper = papers[i];
         layout_node_t *node = &nodes[i];
-        node->num_links = paper->num_refs + paper->num_fake_links;
         node->links = links;
 
         // make layout links from the paper's refs
+        int k = 0;
         for (int j = 0; j < paper->num_refs; j++) {
-            
+            if (node->paper->refs[j]->layout_node == NULL) continue;
+
             // compute the weight of the link
             int ref_freq = paper->refs_ref_freq[j];
             //double weight = ref_freq; // ref_freq standard
@@ -89,21 +107,32 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
             }
 
             // set the weight and linked node
-            node->links[j].weight = weight;
-            node->links[j].node = paper->refs[j]->layout_node;
-            assert(node->links[j].node != NULL);
+            //node->links[j].weight = weight;
+            //node->links[j].node = paper->refs[j]->layout_node;
+            //assert(node->links[j].node != NULL);
+            node->links[k].weight = weight;
+            node->links[k].node = paper->refs[j]->layout_node;
+            assert(node->links[k].node != NULL);
+            k++;
         }
 
         // make layout links from the fake links
         for (int j = 0; j < paper->num_fake_links; j++) {
-            node->links[paper->num_refs + j].weight = 0.25; // what to use for fake link weight??
-            node->links[paper->num_refs + j].node = paper->fake_links[j]->layout_node;
-            assert(node->links[paper->num_refs + j].node != NULL);
-        }
+            if (node->paper->fake_links[j]->layout_node == NULL) continue;
 
+            //node->links[paper->num_refs + j].weight = 0.25; // what to use for fake link weight??
+            //node->links[paper->num_refs + j].node = paper->fake_links[j]->layout_node;
+            //assert(node->links[paper->num_refs + j].node != NULL);
+            node->links[k].weight = 0.25; // what to use for fake link weight??
+            node->links[k].node = paper->fake_links[j]->layout_node;
+            assert(node->links[k].node != NULL);
+            k++;
+        }
+        
+        assert(node->num_links == k);
         links += node->num_links;
     }
-    assert(all_links + num_links == links);
+    assert(all_links + num_total_links == links);
 
     // make layout object
     layout_t *layout = m_new(layout_t, 1);
@@ -111,7 +140,7 @@ layout_t *build_layout_from_papers(int num_papers, paper_t **papers, bool age_we
     layout->child_layout = NULL;
     layout->num_nodes = num_nodes;
     layout->nodes = nodes;
-    layout->num_links = num_links;
+    layout->num_links = num_total_links;
     layout->links = all_links;
 
     // combine duplicate links
