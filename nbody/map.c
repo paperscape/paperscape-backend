@@ -1079,6 +1079,9 @@ void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_file
         printf("WARNING: malformed JSON file %s; reading first character, got %c\n", json_filename, c);
         return;
     }
+    if ((c = fgetc(fp)) != '\n') {
+        ungetc(c, fp);
+    }
     int entry_num = 0;
     for (;;) {
         if ((c = fgetc(fp)) != '[') {
@@ -1097,6 +1100,9 @@ void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_file
         }
         entry_num += 1;
         if ((c = fgetc(fp)) != ',') {
+            ungetc(c, fp);
+        }
+        if ((c = fgetc(fp)) != '\n') {
             ungetc(c, fp);
         }
     }

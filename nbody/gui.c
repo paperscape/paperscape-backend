@@ -603,6 +603,9 @@ int main(int argc, char *argv[]) {
         id_range_end = id_range_start + 20000000; // plus 2 years
         id_range_end = id_range_start +  3000000; // plus 0.5 year
         id_range_start = id_min; id_range_end = id_max; // full range
+        id_range_start = id_min; id_range_end = id_max; // full range
+
+        id_range_end = id_max - 20000000; // minus 2 years
 
         map_env_select_date_range(map_env, id_range_start, id_range_end);
     }
