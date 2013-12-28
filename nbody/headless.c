@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
     bool arg_write_db = false;
     bool arg_write_json = false;
-    int arg_yearsago = 0; // for timelapse
+    int arg_yearsago = -1; // for timelapse (-1 means no timelapse)
     const char *arg_layout_json = NULL;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "--start-afresh")) {
@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
         int id_max;
         map_env_get_max_id_range(map_env, &id_min, &id_max);
 
-        if (arg_yearsago != 0) {
+        if (arg_yearsago > 0) {
             id_max -= arg_yearsago * 10000000;
         }
 
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
         map_env_rotate_all(map_env, angle);
         printf("rotated graph by %.2f rad to eliminate quad-tree-force artifacts\n", angle);
 
-        if (arg_yearsago == 0) {
+        if (arg_yearsago < 0) {
             // assign positions to new papers
             int n_new = map_env_layout_place_new_papers(map_env);
             if (n_new > 0) {
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
     map_env_orient_using_category(map_env, CAT_hep_ph, 4.2);
 
     // write the new positions to the DB (never do this for timelapse)
-    if (arg_write_db && arg_yearsago == 0) {
+    if (arg_write_db && arg_yearsago < 0) {
         map_env_layout_pos_save_to_db(map_env);
     }
 
