@@ -36,7 +36,7 @@ static void layout_combine_duplicate_links(Layout_t *layout) {
     }
 }
 
-Layout_t *build_layout_from_papers(int num_papers, Common_paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link) {
+Layout_t *Layout_build_from_papers(int num_papers, Common_paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link) {
     // allocate memory for the nodes
     int num_nodes = num_papers;
     Layout_node_t *nodes = m_new(Layout_node_t, num_nodes);
@@ -201,7 +201,7 @@ static int node_weight_cmp(const void *nw1_in, const void *nw2_in) {
     }
 }
 
-Layout_t *build_reduced_layout_from_layout(Layout_t *layout) {
+Layout_t *Layout_build_reduced_from_layout(Layout_t *layout) {
     // clear the parents, and count number of links
     int num_nodes_with_links = 0;
     for (int i = 0; i < layout->num_nodes; i++) {
@@ -416,7 +416,7 @@ void Layout_print(Layout_t *l) {
     */
 }
 
-Layout_node_t *layout_get_node_by_id(Layout_t *layout, int id) {
+Layout_node_t *Layout_get_node_by_id(Layout_t *layout, int id) {
     assert(layout->child_layout == NULL);
     int lo = 0;
     int hi = layout->num_nodes - 1;
@@ -433,7 +433,7 @@ Layout_node_t *layout_get_node_by_id(Layout_t *layout, int id) {
     return NULL;
 }
 
-Layout_node_t *layout_get_node_at(Layout_t *layout, double x, double y) {
+Layout_node_t *Layout_get_node_at(Layout_t *layout, double x, double y) {
     for (int i = 0; i < layout->num_nodes; i++) {
         Layout_node_t *n = &layout->nodes[i];
         double dx = n->x - x;

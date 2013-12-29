@@ -73,7 +73,7 @@ int map_env_get_num_papers(map_env_t *map_env) {
 
 Layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, double screen_h, double x, double y) {
     map_env_screen_to_world(map_env, screen_w, screen_h, &x, &y);
-    return layout_get_node_at(map_env->layout, x, y);
+    return Layout_get_node_at(map_env->layout, x, y);
 }
 
 void map_env_set_papers(map_env_t *map_env, int num_papers, Common_paper_t *papers, Common_keyword_set_t *kws) {
@@ -1012,9 +1012,9 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
 
 void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link) {
     // make the layouts, each one coarser than the previous
-    Layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_freq, factor_other_link);
+    Layout_t *l = Layout_build_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_freq, factor_other_link);
     for (int i = 0; i < num_coarsenings && l->num_links > 1; i++) {
-        l = build_reduced_layout_from_layout(l);
+        l = Layout_build_reduced_from_layout(l);
     }
     map_env->layout = l;
 
@@ -1063,7 +1063,7 @@ void map_env_layout_finish_placing_new_papers(map_env_t *map_env) {
 
 void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_filename) {
     // make a single layout
-    Layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
+    Layout_t *l = Layout_build_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
 
     // initialise random positions, in case we can't/don't load a position for a given paper
@@ -1101,7 +1101,7 @@ void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_file
             printf("WARNING: malformed JSON file %s; reading entry %d\n", json_filename, entry_num);
             return;
         }
-        Layout_node_t *n = layout_get_node_by_id(l, id);
+        Layout_node_t *n = Layout_get_node_by_id(l, id);
         if (n != NULL) {
             Layout_node_import_quantities(n, x, y);
             n->flags |= LAYOUT_NODE_POS_VALID;

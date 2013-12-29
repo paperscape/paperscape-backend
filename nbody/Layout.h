@@ -1,6 +1,8 @@
 #ifndef _INCLUDED_LAYOUT_H
 #define _INCLUDED_LAYOUT_H
 
+#include "Common.h"
+
 // for Layout_node_t.flags (default state is unset)
 #define LAYOUT_NODE_IS_FINEST   (0x0001)
 #define LAYOUT_NODE_POS_VALID   (0x0002)
@@ -44,12 +46,13 @@ typedef struct _Layout_t {
     Layout_link_t *links;
 } Layout_t;
 
-Layout_t *build_layout_from_papers(int num_papers, struct _Common_paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link);
-Layout_t *build_reduced_layout_from_layout(Layout_t *layout);
+Layout_t *Layout_build_from_papers(int num_papers, struct _Common_paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link);
+Layout_t *Layout_build_reduced_from_layout(Layout_t *layout);
+
 void Layout_propagate_positions_to_children(Layout_t *layout);
 void Layout_print(Layout_t *layout);
-Layout_node_t *layout_get_node_by_id(Layout_t *layout, int id);
-Layout_node_t *layout_get_node_at(Layout_t *layout, double x, double y);
+Layout_node_t *Layout_get_node_by_id(Layout_t *layout, int id);
+Layout_node_t *Layout_get_node_at(Layout_t *layout, double x, double y);
 void Layout_node_compute_best_start_position(Layout_node_t *n);
 void Layout_rotate_all(Layout_t *layout, double angle);
 void Layout_node_export_quantities(Layout_node_t *l, int *x_out, int *y_out, int *r_out);

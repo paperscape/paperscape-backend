@@ -500,7 +500,7 @@ bool Mysql_load_paper_positions(Layout_t *layout) {
     int total_pos = 0;
     MYSQL_ROW row;
     while ((row = mysql_fetch_row(result))) {
-        Layout_node_t *n = layout_get_node_by_id(layout, atoi(row[0]));
+        Layout_node_t *n = Layout_get_node_by_id(layout, atoi(row[0]));
         if (n != NULL) {
             Layout_node_import_quantities(n, atoi(row[1]), atoi(row[2]));
             n->flags |= LAYOUT_NODE_POS_VALID;
