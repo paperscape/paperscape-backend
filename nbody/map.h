@@ -1,3 +1,6 @@
+#ifndef _INCLUDED_MAP_H
+#define _INCLUDED_MAP_H
+
 typedef struct _map_env_t map_env_t;
 
 map_env_t *map_env_new();
@@ -56,3 +59,5 @@ void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_file
 void map_env_layout_pos_save_to_db(map_env_t *map_env);
 void map_env_layout_pos_save_to_json(map_env_t *map_env, const char *file);
 void map_env_layout_link_save_to_json(map_env_t *map_env, const char *file);
+
+#endif // _INCLUDED_MAP_H

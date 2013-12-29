@@ -1,3 +1,6 @@
+#ifndef _INCLUDED_COMMON_H
+#define _INCLUDED_COMMON_H
+
 // uncomment this to enable tredding option
 //#define ENABLE_TRED (1)
 
@@ -82,3 +85,5 @@ bool build_citation_links(int num_papers, paper_t *papers);
 void recompute_num_included_cites(int num_papers, paper_t *papers);
 void recompute_colours(int num_papers, paper_t *papers, int verbose);
 void compute_tred(int num_papers, paper_t *papers);
+
+#endif // _INCLUDED_COMMON_H

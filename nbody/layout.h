@@ -1,3 +1,6 @@
+#ifndef _INCLUDED_LAYOUT_H
+#define _INCLUDED_LAYOUT_H
+
 // for layout_node_t.flags (default state is unset)
 #define LAYOUT_NODE_IS_FINEST   (0x0001)
 #define LAYOUT_NODE_POS_VALID   (0x0002)
@@ -51,3 +54,5 @@ void layout_node_compute_best_start_position(layout_node_t *n);
 void layout_rotate_all(layout_t *layout, double angle);
 void layout_node_export_quantities(layout_node_t *l, int *x_out, int *y_out, int *r_out);
 void layout_node_import_quantities(layout_node_t *l, int x_in, int y_in);
+
+#endif // _INCLUDED_LAYOUT_H

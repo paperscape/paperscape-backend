@@ -1,3 +1,6 @@
+#ifndef _INCLUDED_MAPPRIVATE_H
+#define _INCLUDED_MAPPRIVATE_H
+
 typedef struct _category_info_t {
     uint num;       // number of papers in this category
     float x, y;     // position of this category
@@ -45,3 +48,5 @@ struct _map_env_t {
     // info for each category
     category_info_t category_info[CAT_NUMBER_OF];
 };
+
+#endif // _INCLUDED_MAPPRIVATE_H
