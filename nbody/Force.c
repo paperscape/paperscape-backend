@@ -3,9 +3,62 @@
 #include <math.h>
 
 #include "xiwilib.h"
+#include "Common.h"
 #include "Layout.h"
+#include "Force.h"
 #include "quadtree.h"
-#include "force.h"
+
+void Force_compute_attractive_link_force(Force_params_t *param, bool do_tred, Layout_t *layout) {
+    for (int i = 0; i < layout->num_nodes; i++) {
+        Layout_node_t *n1 = &layout->nodes[i];
+        for (int j = 0; j < n1->num_links; j++) {
+            Layout_node_t *n2 = n1->links[j].node;
+            double weight = n1->links[j].weight;
+
+            double dx = n1->x - n2->x;
+            double dy = n1->y - n2->y;
+            double r = sqrt(dx*dx + dy*dy);
+            double rest_len = 1.5 * (n1->radius + n2->radius);
+
+            double fac = param->link_strength;
+
+            if (param->use_ref_freq) {
+                fac *= 0.65 * weight;
+            }
+
+            /*
+            // these things we can only do if the nodes are papers
+            if (layout->child_layout == NULL) {
+                if (do_tred) {
+                    //fac *= n1->paper->refs_tred_computed[j];
+                }
+
+                // loosen the force between papers in different categories
+                if (n1->paper->kind != n2->paper->kind) {
+                    fac *= 0.5;
+                }
+
+                // loosen the force between papers of different age
+                fac *= 1.01 - 0.5 * fabs(n1->paper->age - n2->paper->age); // trying out the 0.5* factor; not tested yet
+            }
+            */
+
+            // normalise refs so each paper has 1 unit for all references (doesn't really produce a good graph)
+            //fac /= n1->num_links;
+
+            if (r > 1e-2) {
+                fac *= (r - rest_len) / r;
+                double fx = dx * fac;
+                double fy = dy * fac;
+
+                n1->fx -= fx;
+                n1->fy -= fy;
+                n2->fx += fx;
+                n2->fy += fy;
+            }
+        }
+    }
+}
 
 // q1 is a leaf against which we check q2
 static void quad_tree_forces_leaf_vs_node(Force_params_t *param, quad_tree_node_t *q1, quad_tree_node_t *q2) {
@@ -147,7 +200,7 @@ static void *multi_do(void *env_in) {
 
 // descending then ascending is almost twice as fast (for large graphs) as
 // just naively iterating through all the leaves, possibly due to cache effects
-void quad_tree_forces(Force_params_t *param, quad_tree_t *qt) {
+void Force_quad_tree_forces(Force_params_t *param, quad_tree_t *qt) {
     if (qt->root != NULL) {
         if (qt->root->num_items == 1 || 0) {
             // without threading
@@ -178,7 +231,7 @@ void quad_tree_forces(Force_params_t *param, quad_tree_t *qt) {
     }
 }
 
-void quad_tree_force_apply_if(Force_params_t *param, quad_tree_t *qt, bool (*f)(Layout_node_t*)) {
+void Force_quad_tree_apply_if(Force_params_t *param, quad_tree_t *qt, bool (*f)(Layout_node_t*)) {
     if (qt->root != NULL) {
         for (quad_tree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
             for (int i = 0; i < qtp->num_nodes_used; i++) {

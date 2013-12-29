@@ -9,7 +9,7 @@
 #include "xiwilib.h"
 #include "Common.h"
 #include "Layout.h"
-#include "force.h"
+#include "Force.h"
 #include "quadtree.h"
 #include "map.h"
 #include "mapprivate.h"
@@ -368,7 +368,7 @@ void map_env_flip_x(map_env_t *map_env) {
 /* compute node-node forces using naive gravity/anti-gravity method
  * this method is of order N^2, and hence very slow (but accurate)
  */
-void compute_naive_node_node_force(force_params_t *force_params, Layout_t *layout) {
+void compute_naive_node_node_force(Force_params_t *force_params, Layout_t *layout) {
     for (int i = 0; i < layout->num_nodes; i++) {
         Layout_node_t *n1 = &layout->nodes[i];
         for (int j = i + 1; j < layout->num_nodes; j++) {
@@ -419,7 +419,7 @@ void attract_disconnected_to_centre_of_category(map_env_t *map_env) {
 }
 
 /* obsolete
-void compute_keyword_force(force_params_t *param, int num_papers, Common_paper_t **papers) {
+void compute_keyword_force(Force_params_t *param, int num_papers, Common_paper_t **papers) {
     // reset keyword locations
     for (int i = 0; i < num_papers; i++) {
         Common_paper_t *p = papers[i];
@@ -525,7 +525,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     map_env_rotate_all(map_env, 0.002);
 
     // compute node-link-node spring forces
-    compute_attractive_link_force(&map_env->force_params, map_env->do_tred, map_env->layout);
+    Force_compute_attractive_link_force(&map_env->force_params, map_env->do_tred, map_env->layout);
 
     // compute maximum force (purely for user display, to make sure it's not too huge)
     double max_fmag = 0;
@@ -538,9 +538,9 @@ static void map_env_compute_forces(map_env_t *map_env) {
     // compute node-node anti-gravity forces using quad tree
     quad_tree_build(map_env->layout, map_env->quad_tree);
     if (any_nodes_held) {
-        quad_tree_force_apply_if(&map_env->force_params, map_env->quad_tree, layout_node_is_not_held);
+        Force_quad_tree_apply_if(&map_env->force_params, map_env->quad_tree, layout_node_is_not_held);
     } else {
-        quad_tree_forces(&map_env->force_params, map_env->quad_tree);
+        Force_quad_tree_forces(&map_env->force_params, map_env->quad_tree);
     }
 
     //compute_keyword_force(&map_env->force_params, map_env->num_papers, map_env->papers);

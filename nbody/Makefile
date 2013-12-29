@@ -8,8 +8,7 @@ SRC_COMMON = \
 	Common.c \
 	Layout.c \
 	quadtree.c \
-	quadtreeforce.c \
-	force.c \
+	Force.c \
 	map.c \
 	map2.c \
 

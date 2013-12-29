@@ -2,8 +2,9 @@
 #define _INCLUDED_FORCE_H
 
 #include "Layout.h"
+#include "quadtree.h"
 
-typedef struct _force_params_t {
+typedef struct _Force_params_t {
     bool do_close_repulsion;
     double close_repulsion_a;
     double close_repulsion_b;
@@ -13,12 +14,12 @@ typedef struct _force_params_t {
     double anti_gravity_falloff_rsq;
     double anti_gravity_falloff_rsq_inv;
     double link_strength;
-} force_params_t;
+} Force_params_t;
 
 struct _quad_tree_t;
 
-void quad_tree_forces(force_params_t *param, struct _quad_tree_t *qt);
-void quad_tree_force_apply_if(force_params_t *param, struct _quad_tree_t *qt, bool (*f)(Layout_node_t*));
-void compute_attractive_link_force(force_params_t *param, bool do_tred, Layout_t *layout);
+void Force_quad_tree_forces(Force_params_t *param, struct _quad_tree_t *qt);
+void Force_quad_tree_apply_if(Force_params_t *param, struct _quad_tree_t *qt, bool (*f)(Layout_node_t*));
+void Force_compute_attractive_link_force(Force_params_t *param, bool do_tred, Layout_t *layout);
 
 #endif // _INCLUDED_FORCE_H

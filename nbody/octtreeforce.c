@@ -5,10 +5,10 @@
 #include "xiwilib.h"
 #include "Common.h"
 #include "octtree.h"
-#include "force.h"
+#include "Force.h"
 
 // o1 is a leaf against which we check o2
-static void oct_tree_node_forces2(force_params_t *param, oct_tree_node_t *o1, oct_tree_node_t *o2) {
+static void oct_tree_node_forces2(Force_params_t *param, oct_tree_node_t *o1, oct_tree_node_t *o2) {
     if (o2 == NULL) {
         // o2 is empty node
     } else {
@@ -78,7 +78,7 @@ static void oct_tree_node_forces2(force_params_t *param, oct_tree_node_t *o1, oc
     }
 }
 
-static void oct_tree_node_forces1(force_params_t *param, oct_tree_node_t *o) {
+static void oct_tree_node_forces1(Force_params_t *param, oct_tree_node_t *o) {
     assert(o->num_papers == 1); // must be a leaf node
     for (oct_tree_node_t *o2 = o; o2->parent != NULL; o2 = o2->parent) {
         oct_tree_node_t *parent = o2->parent;
@@ -89,7 +89,7 @@ static void oct_tree_node_forces1(force_params_t *param, oct_tree_node_t *o) {
     }
 }
 
-static void oct_tree_node_forces0(force_params_t *param, oct_tree_node_t *o) {
+static void oct_tree_node_forces0(Force_params_t *param, oct_tree_node_t *o) {
     if (o == NULL) {
     } else if (o->num_papers == 1) {
         oct_tree_node_forces1(param, o);
@@ -100,7 +100,7 @@ static void oct_tree_node_forces0(force_params_t *param, oct_tree_node_t *o) {
     }
 }
 
-static void oct_tree_node_forces_propagate(force_params_t *param, oct_tree_node_t *o, double fx, double fy, double fz) {
+static void oct_tree_node_forces_propagate(Force_params_t *param, oct_tree_node_t *o, double fx, double fy, double fz) {
     if (o == NULL) {
     } else {
         fx *= o->mass;
@@ -127,7 +127,7 @@ static void oct_tree_node_forces_propagate(force_params_t *param, oct_tree_node_
     }
 }
 
-void oct_tree_forces(force_params_t *param, oct_tree_t *ot) {
+void oct_tree_forces(Force_params_t *param, oct_tree_t *ot) {
     oct_tree_node_forces0(param, ot->root);
     oct_tree_node_forces_propagate(param, ot->root, 0, 0, 0);
 }

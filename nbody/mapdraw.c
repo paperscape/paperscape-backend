@@ -7,7 +7,7 @@
 #include "xiwilib.h"
 #include "Common.h"
 #include "Layout.h"
-#include "force.h"
+#include "Force.h"
 #include "quadtree.h"
 #include "map.h"
 #include "mapdraw.h"

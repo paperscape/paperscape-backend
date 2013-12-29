@@ -20,7 +20,7 @@ struct _map_env_t {
     bool make_fake_links;
     bool other_links_veto;
 
-    force_params_t force_params;
+    Force_params_t force_params;
 
     bool do_tred;
     bool draw_grid;
