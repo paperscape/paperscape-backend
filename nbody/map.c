@@ -10,7 +10,7 @@
 #include "Common.h"
 #include "Layout.h"
 #include "Force.h"
-#include "quadtree.h"
+#include "Quadtree.h"
 #include "map.h"
 #include "mapprivate.h"
 
@@ -20,7 +20,7 @@ map_env_t *map_env_new() {
     map_env->all_papers = NULL;
     map_env->num_papers = 0;
     map_env->papers = NULL;
-    map_env->quad_tree = quad_tree_new();
+    map_env->quad_tree = Quadtree_new();
 
     map_env->make_fake_links = true;
     map_env->other_links_veto = false;
@@ -536,7 +536,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     map_env->max_link_force_mag = sqrt(max_fmag);
 
     // compute node-node anti-gravity forces using quad tree
-    quad_tree_build(map_env->layout, map_env->quad_tree);
+    Quadtree_build(map_env->layout, map_env->quad_tree);
     if (any_nodes_held) {
         Force_quad_tree_apply_if(&map_env->force_params, map_env->quad_tree, layout_node_is_not_held);
     } else {

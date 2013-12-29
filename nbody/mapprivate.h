@@ -1,6 +1,11 @@
 #ifndef _INCLUDED_MAPPRIVATE_H
 #define _INCLUDED_MAPPRIVATE_H
 
+#include "Common.h"
+#include "Quadtree.h"
+#include "Layout.h"
+#include "Force.h"
+
 typedef struct _category_info_t {
     uint num;       // number of papers in this category
     float x, y;     // position of this category
@@ -15,7 +20,7 @@ struct _map_env_t {
     int num_papers;
     Common_paper_t **papers;
 
-    quad_tree_t *quad_tree;
+    Quadtree_t *quad_tree;
 
     bool make_fake_links;
     bool other_links_veto;

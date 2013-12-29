@@ -7,7 +7,7 @@
 #include "Common.h"
 #include "Layout.h"
 #include "Force.h"
-#include "quadtree.h"
+#include "Quadtree.h"
 #include "map.h"
 #include "mapprivate.h"
 #include "mysql.h"

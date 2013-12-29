@@ -7,7 +7,7 @@ LDFLAGS_GUI = $(shell pkg-config --libs gtk+-3.0)
 SRC_COMMON = \
 	Common.c \
 	Layout.c \
-	quadtree.c \
+	Quadtree.c \
 	Force.c \
 	map.c \
 	map2.c \

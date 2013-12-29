@@ -8,7 +8,7 @@
 #include "Common.h"
 #include "Layout.h"
 #include "Force.h"
-#include "quadtree.h"
+#include "Quadtree.h"
 #include "map.h"
 #include "mapdraw.h"
 #include "mapprivate.h"
@@ -147,7 +147,7 @@ static void draw_category_labels(cairo_t *cr, map_env_t *map_env) {
     }
 }
 
-static void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, double min_y, double max_x, double max_y) {
+static void quad_tree_draw_grid(cairo_t *cr, Quadtree_node_t *q, double min_x, double min_y, double max_x, double max_y) {
     if (q != NULL) {
         if (q->num_items == 1) {
             cairo_rectangle(cr, min_x, min_y, max_x - min_x, max_y - min_y);

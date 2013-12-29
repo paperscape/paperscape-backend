@@ -5,26 +5,26 @@
 
 #include "xiwilib.h"
 #include "Layout.h"
-#include "quadtree.h"
+#include "Quadtree.h"
 
-quad_tree_pool_t *quad_tree_pool_new(int alloc, quad_tree_pool_t *next) {
-    quad_tree_pool_t *qtp = m_new(quad_tree_pool_t, 1);
+static Quadtree_pool_t *quad_tree_pool_new(int alloc, Quadtree_pool_t *next) {
+    Quadtree_pool_t *qtp = m_new(Quadtree_pool_t, 1);
     qtp->num_nodes_alloc = alloc;
     qtp->num_nodes_used = 0;
-    qtp->nodes = m_new(quad_tree_node_t, qtp->num_nodes_alloc);
+    qtp->nodes = m_new(Quadtree_node_t, qtp->num_nodes_alloc);
     qtp->next = next;
     return qtp;
 }
 
-void quad_tree_pool_free_all(quad_tree_pool_t *qtp) {
+static void quad_tree_pool_free_all(Quadtree_pool_t *qtp) {
     for (; qtp != NULL; qtp = qtp->next) {
         qtp->num_nodes_used = 0;
     }
 }
 
-quad_tree_node_t *quad_tree_pool_alloc(quad_tree_t *qt) {
+static Quadtree_node_t *quad_tree_pool_alloc(Quadtree_t *qt) {
     // look for a free node
-    for (quad_tree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
+    for (Quadtree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
         if (qtp->num_nodes_used < qtp->num_nodes_alloc) {
             return &qtp->nodes[qtp->num_nodes_used++];
         }
@@ -34,7 +34,7 @@ quad_tree_node_t *quad_tree_pool_alloc(quad_tree_t *qt) {
     return &qt->quad_tree_pool->nodes[qt->quad_tree_pool->num_nodes_used++];
 }
 
-void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, quad_tree_node_t **q, Layout_node_t *ln, double min_x, double min_y, double max_x, double max_y) {
+static void quad_tree_insert_layout_node(Quadtree_t *qt, Quadtree_node_t *parent, Quadtree_node_t **q, Layout_node_t *ln, double min_x, double min_y, double max_x, double max_y) {
     if (*q == NULL) {
         // hit an empty node; create a new leaf cell and put this layout-node in it
         *q = quad_tree_pool_alloc(qt);
@@ -110,14 +110,14 @@ void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, qua
     }
 }
 
-quad_tree_t *quad_tree_new() {
-    quad_tree_t *qt = m_new(quad_tree_t, 1);
+Quadtree_t *Quadtree_new() {
+    Quadtree_t *qt = m_new(Quadtree_t, 1);
     qt->quad_tree_pool = quad_tree_pool_new(1024, NULL);
     qt->root = NULL;
     return qt;
 }
 
-void quad_tree_build(Layout_t *layout, quad_tree_t *qt) {
+void Quadtree_build(Layout_t *layout, Quadtree_t *qt) {
     qt->root = NULL;
 
     // if no nodes, return
