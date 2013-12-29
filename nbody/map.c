@@ -824,7 +824,7 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
 }
 
 void paper_propagate_connectivity(paper_t *paper) {
-    if (!paper->connected) {
+    if (paper->included && !paper->connected) {
         paper->connected = true;
         for (int i = 0; i < paper->num_refs; i++) {
             paper_propagate_connectivity(paper->refs[i]);

@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
         map_env_get_max_id_range(map_env, &id_min, &id_max);
 
         if (arg_yearsago > 0) {
-            id_max -= arg_yearsago * 10000000;
+            id_max = 2140000000 - arg_yearsago * 10000000;
         }
 
         map_env_select_date_range(map_env, id_min, id_max);
@@ -156,7 +156,11 @@ int main(int argc, char *argv[]) {
     if (arg_write_json) {
         vstr_t *vstr = vstr_new();
         vstr_reset(vstr);
-        vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
+        if (arg_yearsago < 0) {
+            vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
+        } else {
+            vstr_printf(vstr, "map-%d.json", 2014-arg_yearsago);
+        }
         map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
     }
 
