@@ -754,6 +754,30 @@ func FindNextComma(str string, idx int) (int, int) {
     return idx, idx
 }
 
+func IsValidTableSuffix(tableSuffix string) bool {
+    if len(tableSuffix) == 0 || len(tableSuffix) > 32 {
+        return false
+    }
+
+    // TODO simply use regex?
+    validCharacters := []byte{'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','1','2','3','4','5','6','7','8','9','0','_'}
+    
+    for _, c := range tableSuffix {
+        valid := false
+        for _, vc := range validCharacters {
+            if byte(c) == vc {
+                valid = true
+                break
+            }
+        }
+        if !valid {
+            return false
+        }
+    }
+
+    return true
+}
+
 // parse a reference/citation string for the given paper
 // adds links to the paper
 // doesn't lookup the new papers for meta data
@@ -895,7 +919,7 @@ func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
     args.WriteString(")")
 
     loc_table := "map_data"
-    if tableSuffix != "" {
+    if IsValidTableSuffix(tableSuffix) {
         loc_table += "_" + tableSuffix
     }
 
@@ -1123,7 +1147,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
 
         if req.Form["test"] != nil {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
-        } else if req.Form["mp2l[]"] != nil {
+        } else if req.Form["mp2l[]"] != nil && req.Form["tbl"] != nil {
             // map: paper ids to locations
             var ids []uint
             for _, strId := range req.Form["mp2l[]"] {
@@ -1135,15 +1159,15 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             logDescription = fmt.Sprintf("Paper ids to map locations for")
             h.MapLocationFromPaperIds(ids,req.Form["tbl"][0],rw)
-        } else if req.Form["mr2l"] != nil {
+        } else if req.Form["mr2l"] != nil && req.Form["tbl"] != nil {
             // mr2l: arxiv id to references (incl locations) 
             logDescription = fmt.Sprintf("mr2l \"%s\"",req.Form["mr2l"][0])
             h.MapReferencesFromArxivId(req.Form["mr2l"][0],req.Form["tbl"][0],rw)
-        } else if req.Form["mc2l"] != nil {
+        } else if req.Form["mc2l"] != nil && req.Form["tbl"] != nil {
             // mc2l: arxiv id to citations (incl locations) 
             logDescription = fmt.Sprintf("m2cl \"%s\"",req.Form["mc2l"][0])
             h.MapCitationsFromArxivId(req.Form["mc2l"][0],req.Form["tbl"][0],rw)
-        } else if req.Form["ml2p[]"] != nil {
+        } else if req.Form["ml2p[]"] != nil && req.Form["tbl"] != nil {
             // map: location to paper id
             x, erx := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
             y, ery := strconv.ParseFloat(req.Form["ml2p[]"][1], 0)
@@ -1362,7 +1386,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             }
             h.GetDataForIDs(ids,flags,rw)
             logDescription = fmt.Sprintf("gdata (%d)",len(req.Form["gdata[]"]))
-        } else if req.Form["mp2l[]"] != nil {
+        } else if req.Form["mp2l[]"] != nil && req.Form["tbl"] != nil {
             // map: paper ids to locations
             var ids []uint
             for _, strId := range req.Form["mp2l[]"] {
@@ -2170,7 +2194,7 @@ func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, tableSuffix string, 
     args.WriteString(")")
 
     loc_table := "map_data"
-    if tableSuffix != "" {
+    if IsValidTableSuffix(tableSuffix) {
         loc_table += "_" + tableSuffix
     }
 
@@ -2212,7 +2236,7 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, tableSuffix string, r
     var resx, resy int 
 
     loc_table := "map_data"
-    if tableSuffix != "" {
+    if IsValidTableSuffix(tableSuffix) {
         loc_table += "_" + tableSuffix
     }
 
