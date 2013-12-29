@@ -7,7 +7,7 @@
 #include "xiwilib.h"
 #include "Common.h"
 #include "Layout.h"
-#include "mysql.h"
+#include "Mysql.h"
 
 #define VSTR_0 (0)
 #define VSTR_1 (1)
@@ -395,7 +395,7 @@ static bool env_load_keywords(env_t *env) {
     return true;
 }
 
-bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, int *num_papers_out, Common_paper_t **papers_out, Common_keyword_set_t **keyword_set_out) {
+bool Mysql_load_papers(const char *where_clause, bool load_authors_and_titles, int *num_papers_out, Common_paper_t **papers_out, Common_keyword_set_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
@@ -432,7 +432,7 @@ bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, i
 /* stuff to save papers positions to DB                         */
 /****************************************************************/
 
-bool mysql_save_paper_positions(Layout_t *layout) {
+bool Mysql_save_paper_positions(Layout_t *layout) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
@@ -472,7 +472,7 @@ bool mysql_save_paper_positions(Layout_t *layout) {
     return true;
 }
 
-bool mysql_load_paper_positions(Layout_t *layout) {
+bool Mysql_load_paper_positions(Layout_t *layout) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {

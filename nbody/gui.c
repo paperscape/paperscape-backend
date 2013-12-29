@@ -10,9 +10,9 @@
 #include "Common.h"
 #include "Layout.h"
 #include "map.h"
-#include "mysql.h"
+#include "Mysql.h"
 #include "mapdraw.h"
-#include "cairohelper.h"
+#include "Cairohelper.h"
 
 vstr_t *vstr;
 GtkWidget *window;
@@ -111,7 +111,7 @@ static void draw_to_png(map_env_t *map_env, int width, int height, const char *f
         cairo_identity_matrix(cr);
         cairo_set_source_rgb(cr, 0, 0, 0);
         cairo_set_font_size(cr, 10);
-        cairo_helper_draw_text_lines(cr, 10, 20, vstr_info);
+        Cairo_helper_draw_text_lines(cr, 10, 20, vstr_info);
     }
 
     cairo_status_t status = cairo_surface_write_to_png(surface, file);
@@ -147,7 +147,7 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
     cairo_identity_matrix(cr);
     cairo_set_source_rgb(cr, 1, 1, 1);
     cairo_set_font_size(cr, 10);
-    cairo_helper_draw_text_lines(cr, 10, 20, vstr);
+    Cairo_helper_draw_text_lines(cr, 10, 20, vstr);
 
     return FALSE;
 }
@@ -574,7 +574,7 @@ int main(int argc, char *argv[]) {
     int num_papers;
     Common_paper_t *papers;
     Common_keyword_set_t *keyword_set;
-    if (!mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
+    if (!Mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
 

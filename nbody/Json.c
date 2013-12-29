@@ -679,7 +679,7 @@ static bool env_load_keywords(env_t *env) {
 }
 #endif
 
-bool json_load_papers(const char *filename, int *num_papers_out, Common_paper_t **papers_out, Common_keyword_set_t **keyword_set_out) {
+bool Json_load_papers(const char *filename, int *num_papers_out, Common_paper_t **papers_out, Common_keyword_set_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env, filename)) {
@@ -840,7 +840,7 @@ static bool env_load_other_links_helper(env_t *env) {
     return true;
 }
 
-bool json_load_other_links(const char *filename, int num_papers, Common_paper_t *papers) {
+bool Json_load_other_links(const char *filename, int num_papers, Common_paper_t *papers) {
     // set up environment
     env_t env;
     if (!env_set_up(&env, filename)) {

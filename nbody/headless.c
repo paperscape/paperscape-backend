@@ -8,7 +8,7 @@
 #include "Layout.h"
 #include "map.h"
 #include "map2.h"
-#include "mysql.h"
+#include "Mysql.h"
 
 static int usage(const char *progname) {
     printf("\n");
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
     int num_papers;
     Common_paper_t *papers;
     Common_keyword_set_t *keyword_set;
-    if (!mysql_load_papers(where_clause, false, &num_papers, &papers, &keyword_set)) {
+    if (!Mysql_load_papers(where_clause, false, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
 

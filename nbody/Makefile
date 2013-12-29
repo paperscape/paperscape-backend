@@ -13,19 +13,19 @@ SRC_COMMON = \
 	map2.c \
 
 SRC_HEADLESS = \
-	mysql.c \
+	Mysql.c \
 	mapmysql.c \
 	headless.c \
 
 SRC_HEADLESSJSON = \
-	json.c \
+	Json.c \
 	headlessjson.c \
 
 SRC_GUI = \
-	mysql.c \
+	Mysql.c \
+	Cairohelper.c \
 	mapmysql.c \
 	mapdraw.c \
-	cairohelper.c \
 	gui.c \
 
 OBJ_COMMON = $(SRC_COMMON:.c=.o)

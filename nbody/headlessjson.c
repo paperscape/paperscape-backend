@@ -8,7 +8,7 @@
 #include "Layout.h"
 #include "map.h"
 #include "map2.h"
-#include "json.h"
+#include "Json.h"
 
 static int usage(const char *progname) {
     printf("\n");
@@ -85,10 +85,10 @@ int main(int argc, char *argv[]) {
     int num_papers;
     Common_paper_t *papers;
     Common_keyword_set_t *keyword_set;
-    if (!json_load_papers(arg_pscp_refs, &num_papers, &papers, &keyword_set)) {
+    if (!Json_load_papers(arg_pscp_refs, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
-    if (!json_load_other_links(arg_other_links, num_papers, papers)) {
+    if (!Json_load_other_links(arg_other_links, num_papers, papers)) {
         return 1;
     }
 

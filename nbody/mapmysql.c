@@ -10,7 +10,7 @@
 #include "Quadtree.h"
 #include "map.h"
 #include "mapprivate.h"
-#include "mysql.h"
+#include "Mysql.h"
 
 void map_env_layout_pos_load_from_db(map_env_t *map_env) {
     // make a single layout
@@ -27,7 +27,7 @@ void map_env_layout_pos_load_from_db(map_env_t *map_env) {
     }
 
     // load the layout using MySQL
-    mysql_load_paper_positions(l);
+    Mysql_load_paper_positions(l);
 
     // set do_close_repulsion, since we are loading a layout that was saved this way
     map_env->force_params.do_close_repulsion = true;
@@ -44,5 +44,5 @@ void map_env_layout_pos_save_to_db(map_env_t *map_env) {
     }
 
     // save the layout using MySQL
-    mysql_save_paper_positions(l);
+    Mysql_save_paper_positions(l);
 }
