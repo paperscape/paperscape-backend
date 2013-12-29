@@ -32,6 +32,7 @@ void map_env_do_complete_layout(map_env_t *map_env, int num_iterations_close_rep
 
     bool boost_step_size = false;
     bool refining_stage = true;
+    bool started_close_repulsion = false;
     int iterate_counter = 0;
     int iterate_counter_wait_until = 0;
     while (true) {
@@ -52,8 +53,9 @@ void map_env_do_complete_layout(map_env_t *map_env, int num_iterations_close_rep
                     map_env_refine_layout(map_env);
                     boost_step_size = true;
                 //} else if (num_finer == 1) {
-                } else if (num_finer <= 1) {
+                } else if (num_finer <= 1 && !started_close_repulsion) {
                     printf("doing close repulsion\n");
+                    started_close_repulsion = true;
                     map_env_set_do_close_repulsion(map_env, true);
                     boost_step_size = true;
                     iterate_counter_wait_until = iterate_counter + num_iterations_close_repulsion;

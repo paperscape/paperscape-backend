@@ -865,7 +865,7 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
         p->age = 1.0 * (p->id - id_start) / (id_end - id_start);
     }
 
-    // TODO Hack to disclude papers with only references
+    // Disclude papers with only references
     if (map_env->other_links_veto) {
         for (int i = i_start; i <= i_end; i++) {
             paper_t *p = &map_env->all_papers[i];
