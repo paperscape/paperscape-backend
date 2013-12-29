@@ -6,7 +6,7 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "layout.h"
+#include "Layout.h"
 #include "mysql.h"
 
 #define VSTR_0 (0)
@@ -432,7 +432,7 @@ bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, i
 /* stuff to save papers positions to DB                         */
 /****************************************************************/
 
-bool mysql_save_paper_positions(layout_t *layout) {
+bool mysql_save_paper_positions(Layout_t *layout) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
@@ -445,12 +445,12 @@ bool mysql_save_paper_positions(layout_t *layout) {
     assert(layout->child_layout == NULL);
     int total_pos = 0;
     for (int i = 0; i < layout->num_nodes; i++) {
-        layout_node_t *n = &layout->nodes[i];
+        Layout_node_t *n = &layout->nodes[i];
 
         if (n->flags & LAYOUT_NODE_POS_VALID) {
             vstr_reset(vstr);
             int x, y, r;
-            layout_node_export_quantities(n, &x, &y, &r);
+            Layout_node_export_quantities(n, &x, &y, &r);
             vstr_printf(vstr, "REPLACE INTO map_data (id,x,y,r) VALUES (%d,%d,%d,%d)", n->paper->id, x, y, r);
             if (vstr_had_error(vstr)) {
                 env_finish(&env, true);
@@ -472,7 +472,7 @@ bool mysql_save_paper_positions(layout_t *layout) {
     return true;
 }
 
-bool mysql_load_paper_positions(layout_t *layout) {
+bool mysql_load_paper_positions(Layout_t *layout) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
@@ -500,9 +500,9 @@ bool mysql_load_paper_positions(layout_t *layout) {
     int total_pos = 0;
     MYSQL_ROW row;
     while ((row = mysql_fetch_row(result))) {
-        layout_node_t *n = layout_get_node_by_id(layout, atoi(row[0]));
+        Layout_node_t *n = layout_get_node_by_id(layout, atoi(row[0]));
         if (n != NULL) {
-            layout_node_import_quantities(n, atoi(row[1]), atoi(row[2]));
+            Layout_node_import_quantities(n, atoi(row[1]), atoi(row[2]));
             n->flags |= LAYOUT_NODE_POS_VALID;
             total_pos += 1;
         }

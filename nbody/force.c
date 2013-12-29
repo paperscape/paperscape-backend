@@ -3,14 +3,14 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "layout.h"
+#include "Layout.h"
 #include "force.h"
 
-void compute_attractive_link_force(force_params_t *param, bool do_tred, layout_t *layout) {
+void compute_attractive_link_force(force_params_t *param, bool do_tred, Layout_t *layout) {
     for (int i = 0; i < layout->num_nodes; i++) {
-        layout_node_t *n1 = &layout->nodes[i];
+        Layout_node_t *n1 = &layout->nodes[i];
         for (int j = 0; j < n1->num_links; j++) {
-            layout_node_t *n2 = n1->links[j].node;
+            Layout_node_t *n2 = n1->links[j].node;
             double weight = n1->links[j].weight;
 
             double dx = n1->x - n2->x;

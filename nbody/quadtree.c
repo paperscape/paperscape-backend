@@ -4,7 +4,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "layout.h"
+#include "Layout.h"
 #include "quadtree.h"
 
 quad_tree_pool_t *quad_tree_pool_new(int alloc, quad_tree_pool_t *next) {
@@ -34,7 +34,7 @@ quad_tree_node_t *quad_tree_pool_alloc(quad_tree_t *qt) {
     return &qt->quad_tree_pool->nodes[qt->quad_tree_pool->num_nodes_used++];
 }
 
-void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, quad_tree_node_t **q, layout_node_t *ln, double min_x, double min_y, double max_x, double max_y) {
+void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, quad_tree_node_t **q, Layout_node_t *ln, double min_x, double min_y, double max_x, double max_y) {
     if (*q == NULL) {
         // hit an empty node; create a new leaf cell and put this layout-node in it
         *q = quad_tree_pool_alloc(qt);
@@ -53,7 +53,7 @@ void quad_tree_insert_layout_node(quad_tree_t *qt, quad_tree_node_t *parent, qua
 
     } else if ((*q)->num_items == 1) {
         // hit a leaf; turn it into an internal node and re-insert the layout-nodes
-        layout_node_t *ln0 = (*q)->item;
+        Layout_node_t *ln0 = (*q)->item;
         (*q)->mass = 0;
         (*q)->x = 0;
         (*q)->y = 0;
@@ -117,7 +117,7 @@ quad_tree_t *quad_tree_new() {
     return qt;
 }
 
-void quad_tree_build(layout_t *layout, quad_tree_t *qt) {
+void quad_tree_build(Layout_t *layout, quad_tree_t *qt) {
     qt->root = NULL;
 
     // if no nodes, return
@@ -130,13 +130,13 @@ void quad_tree_build(layout_t *layout, quad_tree_t *qt) {
     }
 
     // first work out the bounding box of all nodes
-    layout_node_t *n0 = &layout->nodes[0];
+    Layout_node_t *n0 = &layout->nodes[0];
     qt->min_x = n0->x;
     qt->min_y = n0->y;
     qt->max_x = n0->x;
     qt->max_y = n0->y;
     for (int i = 1; i < layout->num_nodes; i++) {
-        layout_node_t *n = &layout->nodes[i];
+        Layout_node_t *n = &layout->nodes[i];
         if (n->x < qt->min_x) { qt->min_x = n->x; }
         if (n->y < qt->min_y) { qt->min_y = n->y; }
         if (n->x > qt->max_x) { qt->max_x = n->x; }

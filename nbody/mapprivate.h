@@ -40,7 +40,7 @@ struct _map_env_t {
     // standard deviation of the positions of the papers
     double x_sd, y_sd;
 
-    layout_t *layout;
+    Layout_t *layout;
 
     // info for keywords
     Common_keyword_set_t *keyword_set;

@@ -8,7 +8,7 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "layout.h"
+#include "Layout.h"
 #include "force.h"
 #include "quadtree.h"
 #include "map.h"
@@ -71,7 +71,7 @@ int map_env_get_num_papers(map_env_t *map_env) {
     return map_env->num_papers;
 }
 
-layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, double screen_h, double x, double y) {
+Layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, double screen_h, double x, double y) {
     map_env_screen_to_world(map_env, screen_w, screen_h, &x, &y);
     return layout_get_node_at(map_env->layout, x, y);
 }
@@ -254,7 +254,7 @@ void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_a, double am
 
 int map_env_number_of_coarser_layouts(map_env_t *map_env) {
     int num_coarser = 0;
-    for (layout_t *l = map_env->layout->parent_layout; l != NULL; l = l->parent_layout) {
+    for (Layout_t *l = map_env->layout->parent_layout; l != NULL; l = l->parent_layout) {
         num_coarser += 1;
     }
     return num_coarser;
@@ -262,7 +262,7 @@ int map_env_number_of_coarser_layouts(map_env_t *map_env) {
 
 int map_env_number_of_finer_layouts(map_env_t *map_env) {
     int num_finer = 0;
-    for (layout_t *l = map_env->layout->child_layout; l != NULL; l = l->child_layout) {
+    for (Layout_t *l = map_env->layout->child_layout; l != NULL; l = l->child_layout) {
         num_finer += 1;
     }
     return num_finer;
@@ -271,7 +271,7 @@ int map_env_number_of_finer_layouts(map_env_t *map_env) {
 void map_env_coarsen_layout(map_env_t *map_env) {
     if (map_env->layout->parent_layout != NULL) {
         map_env->layout = map_env->layout->parent_layout;
-        layout_t *l = map_env->layout;
+        Layout_t *l = map_env->layout;
         for (int i = 0; i < l->num_nodes; i++) {
             l->nodes[i].x = l->nodes[i].child1->x;
             l->nodes[i].y = l->nodes[i].child1->y;
@@ -282,10 +282,10 @@ void map_env_coarsen_layout(map_env_t *map_env) {
 void map_env_refine_layout(map_env_t *map_env) {
     if (map_env->layout->child_layout != NULL) {
         map_env->layout = map_env->layout->child_layout;
-        layout_t *l = map_env->layout;
+        Layout_t *l = map_env->layout;
         for (int i = 0; i < l->num_nodes; i++) {
-            layout_node_t *node = &l->nodes[i];
-            layout_node_t *parent = node->parent;
+            Layout_node_t *node = &l->nodes[i];
+            Layout_node_t *parent = node->parent;
             if (parent->child2 == NULL) {
                 // only 1 child, being this node
                 node->x = parent->x;
@@ -305,14 +305,14 @@ void map_env_refine_layout(map_env_t *map_env) {
 
 void map_env_jolt(map_env_t *map_env, double amt) {
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
+        Layout_node_t *n = &map_env->layout->nodes[i];
         n->x += amt * (-0.5 + 1.0 * random() / RAND_MAX);
         n->y += amt * (-0.5 + 1.0 * random() / RAND_MAX);
     }
 }
 
 void map_env_rotate_all(map_env_t *map_env, double angle) {
-    layout_rotate_all(map_env->layout, angle);
+    Layout_rotate_all(map_env->layout, angle);
 }
 
 void map_env_orient_using_category(map_env_t *map_env, Common_category_t wanted_cat, double wanted_angle) {
@@ -326,7 +326,7 @@ void map_env_orient_using_category(map_env_t *map_env, Common_category_t wanted_
     double avg_cat_y = 0.0;
     double mass_cat = 0.0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
+        Layout_node_t *n = &map_env->layout->nodes[i];
         if (n->paper->allcats[0] == wanted_cat) {
             avg_cat_x += n->mass * n->x;
             avg_cat_y += n->mass * n->y;
@@ -341,7 +341,7 @@ void map_env_orient_using_category(map_env_t *map_env, Common_category_t wanted_
         avg_cat_x /= mass_cat;
         avg_cat_y /= mass_cat;
         double angle = wanted_angle - atan2(avg_cat_y, avg_cat_x);
-        layout_rotate_all(map_env->layout, angle);
+        Layout_rotate_all(map_env->layout, angle);
         printf("rotated graph by %.2f rad to orient %s at %.2f rad\n", angle, Common_category_enum_to_str(wanted_cat), wanted_angle);
     }
 }
@@ -354,13 +354,13 @@ void map_env_orient_using_paper(map_env_t *map_env, Common_paper_t *wanted_paper
 
     // orient papers
     double angle = wanted_angle - atan2(wanted_paper->layout_node->y, wanted_paper->layout_node->x);
-    layout_rotate_all(map_env->layout, angle);
+    Layout_rotate_all(map_env->layout, angle);
     printf("rotated graph by %.2f rad to orient paper %u at %.2f rad\n", angle, wanted_paper->id, wanted_angle);
 }
 
 void map_env_flip_x(map_env_t *map_env) {
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
+        Layout_node_t *n = &map_env->layout->nodes[i];
         n->x = -n->x;
     }
 }
@@ -368,11 +368,11 @@ void map_env_flip_x(map_env_t *map_env) {
 /* compute node-node forces using naive gravity/anti-gravity method
  * this method is of order N^2, and hence very slow (but accurate)
  */
-void compute_naive_node_node_force(force_params_t *force_params, layout_t *layout) {
+void compute_naive_node_node_force(force_params_t *force_params, Layout_t *layout) {
     for (int i = 0; i < layout->num_nodes; i++) {
-        layout_node_t *n1 = &layout->nodes[i];
+        Layout_node_t *n1 = &layout->nodes[i];
         for (int j = i + 1; j < layout->num_nodes; j++) {
-            layout_node_t *n2 = &layout->nodes[j];
+            Layout_node_t *n2 = &layout->nodes[j];
             double dx = n1->x - n2->x;
             double dy = n1->y - n2->y;
             double rsq = dx*dx + dy*dy;
@@ -507,7 +507,7 @@ static void compute_category_locations(map_env_t *map_env) {
     }
 }
 
-static bool layout_node_is_not_held(layout_node_t *n) {
+static bool layout_node_is_not_held(Layout_node_t *n) {
     return (n->flags & LAYOUT_NODE_HOLD_STILL) == 0;
 }
 
@@ -515,7 +515,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     // reset the forces, and work out if any nodes are held
     int any_nodes_held = 0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
+        Layout_node_t *n = &map_env->layout->nodes[i];
         any_nodes_held |= (n->flags & LAYOUT_NODE_HOLD_STILL);
         n->fx = 0;
         n->fy = 0;
@@ -530,7 +530,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     // compute maximum force (purely for user display, to make sure it's not too huge)
     double max_fmag = 0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
+        Layout_node_t *n = &map_env->layout->nodes[i];
         max_fmag = fmax(max_fmag, (double)n->fx * (double)n->fx + (double)n->fy * (double)n->fy);
     }
     map_env->max_link_force_mag = sqrt(max_fmag);
@@ -548,7 +548,7 @@ static void map_env_compute_forces(map_env_t *map_env) {
     //attract_disconnected_to_centre_of_category(map_env);
 }
 
-bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps) {
+bool map_env_iterate(map_env_t *map_env, Layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps) {
     map_env_compute_forces(map_env);
 
     // boost the step size if asked
@@ -579,7 +579,7 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
     double total_mass = 0;
     double max_fmag = 0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
+        Layout_node_t *n = &map_env->layout->nodes[i];
 
         n->fx /= n->mass;
         n->fy /= n->mass;
@@ -613,7 +613,7 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
     x_sum /= total_mass;
     y_sum /= total_mass;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
-        layout_node_t *n = &map_env->layout->nodes[i];
+        Layout_node_t *n = &map_env->layout->nodes[i];
         if (n == hold_still) {
             continue;
         }
@@ -628,7 +628,7 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
     map_env->y_sd = sqrt(ysq_sum - y_sum * y_sum);
 
     // propagate node positions to children (to calculate locations of categories)
-    layout_propagate_positions_to_children(map_env->layout);
+    Layout_propagate_positions_to_children(map_env->layout);
 
     // update the locations of the categories
     compute_category_locations(map_env);
@@ -1012,7 +1012,7 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end) {
 
 void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link) {
     // make the layouts, each one coarser than the previous
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_freq, factor_other_link);
+    Layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_freq, factor_other_link);
     for (int i = 0; i < num_coarsenings && l->num_links > 1; i++) {
         l = build_reduced_layout_from_layout(l);
     }
@@ -1026,7 +1026,7 @@ void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_r
 
     // print info about the layouts
     for (; l != NULL; l = l->child_layout) {
-        layout_print(l);
+        Layout_print(l);
     }
 
     // increase the step size for the next force iteration
@@ -1034,11 +1034,11 @@ void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_r
 }
 
 int map_env_layout_place_new_papers(map_env_t *map_env) {
-    layout_t *l = map_env->layout;
+    Layout_t *l = map_env->layout;
     int num = 0;
     int id_low = 0;
     for (int i = 0; i < l->num_nodes; i++) {
-        layout_node_t *n = &l->nodes[i];
+        Layout_node_t *n = &l->nodes[i];
         if (n->flags & LAYOUT_NODE_POS_VALID) {
             n->flags |= LAYOUT_NODE_HOLD_STILL;
         } else {
@@ -1046,7 +1046,7 @@ int map_env_layout_place_new_papers(map_env_t *map_env) {
             if (id_low == 0 || n->paper->id < id_low) {
                 id_low = n->paper->id;
             }
-            layout_node_compute_best_start_position(n);
+            Layout_node_compute_best_start_position(n);
         }
     }
     printf("have %d papers that need new positions, min id %d\n", num, id_low);
@@ -1054,16 +1054,16 @@ int map_env_layout_place_new_papers(map_env_t *map_env) {
 }
 
 void map_env_layout_finish_placing_new_papers(map_env_t *map_env) {
-    layout_t *l = map_env->layout;
+    Layout_t *l = map_env->layout;
     for (int i = 0; i < l->num_nodes; i++) {
-        layout_node_t *n = &l->nodes[i];
+        Layout_node_t *n = &l->nodes[i];
         n->flags = (n->flags & ~LAYOUT_NODE_HOLD_STILL) | LAYOUT_NODE_POS_VALID;
     }
 }
 
 void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_filename) {
     // make a single layout
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
+    Layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
 
     // initialise random positions, in case we can't/don't load a position for a given paper
@@ -1073,7 +1073,7 @@ void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_file
     }
 
     // print info about the layout
-    layout_print(l);
+    Layout_print(l);
 
     // read in the json file to set the node positions
     FILE *fp = fopen(json_filename, "rb");
@@ -1101,9 +1101,9 @@ void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_file
             printf("WARNING: malformed JSON file %s; reading entry %d\n", json_filename, entry_num);
             return;
         }
-        layout_node_t *n = layout_get_node_by_id(l, id);
+        Layout_node_t *n = layout_get_node_by_id(l, id);
         if (n != NULL) {
-            layout_node_import_quantities(n, x, y);
+            Layout_node_import_quantities(n, x, y);
             n->flags |= LAYOUT_NODE_POS_VALID;
         }
         entry_num += 1;
@@ -1151,7 +1151,7 @@ void map_env_layout_pos_save_to_json(map_env_t *map_env, const char *file) {
     for (int i = 0; i < map_env->num_papers; i++) {
         Common_paper_t *p = map_env->papers[i];
         int x, y, r;
-        layout_node_export_quantities(p->layout_node, &x, &y, &r);
+        Layout_node_export_quantities(p->layout_node, &x, &y, &r);
         vstr_printf(vstr, "[%d,%d,%d,%d]", p->id, x, y, r);
         if (i + 1 < map_env->num_papers) {
             vstr_printf(vstr, ",\n");
@@ -1177,7 +1177,7 @@ void map_env_layout_link_save_to_json(map_env_t *map_env, const char *file) {
     for (int i = 0; i < map_env->num_papers; i++) {
         Common_paper_t *p = map_env->papers[i];
         vstr_printf(vstr, "[%d,[", p->id);
-        layout_node_t *ln = p->layout_node;
+        Layout_node_t *ln = p->layout_node;
         for (int j = 0; j < ln->num_links; j++) {
             if (j > 0) {
                 vstr_printf(vstr, ",");

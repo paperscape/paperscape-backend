@@ -5,7 +5,7 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "layout.h"
+#include "Layout.h"
 #include "force.h"
 #include "quadtree.h"
 #include "map.h"
@@ -14,11 +14,11 @@
 
 void map_env_layout_pos_load_from_db(map_env_t *map_env) {
     // make a single layout
-    layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
+    Layout_t *l = build_layout_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
 
     // print info about the layout
-    layout_print(l);
+    Layout_print(l);
 
     // initialise random positions, in case we can't/don't load a position for a given paper
     for (int i = 0; i < l->num_nodes; i++) {
@@ -38,7 +38,7 @@ void map_env_layout_pos_load_from_db(map_env_t *map_env) {
 
 void map_env_layout_pos_save_to_db(map_env_t *map_env) {
     // get the finest layout, corresponding to one layout_node per paper
-    layout_t *l = map_env->layout;
+    Layout_t *l = map_env->layout;
     while (l->child_layout != NULL) {
         l = l->child_layout;
     }

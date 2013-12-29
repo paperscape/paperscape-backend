@@ -5,7 +5,7 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "layout.h"
+#include "Layout.h"
 #include "map.h"
 #include "map2.h"
 #include "json.h"

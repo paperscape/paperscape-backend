@@ -13,7 +13,7 @@ void map_env_papers_test2(map_env_t *map_env, int n);
 void map_env_world_to_screen(map_env_t *map_env, double *x, double *y);
 void map_env_screen_to_world(map_env_t *map_env, double screen_w, double screen_h, double *x, double *y);
 int map_env_get_num_papers(map_env_t *map_env);
-layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, double screen_h, double screen_x, double screen_y);
+Layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, double screen_h, double screen_x, double screen_y);
 
 void map_env_centre_view(map_env_t *map_env);
 void map_env_set_zoom_to_fit_n_standard_deviations(map_env_t *map_env, double n, double screen_w, double screen_h);
@@ -45,7 +45,7 @@ void map_env_orient_using_category(map_env_t *map_env, Common_category_t wanted_
 void map_env_orient_using_paper(map_env_t *map_env, Common_paper_t *wanted_paper, double wanted_angle);
 void map_env_flip_x(map_env_t *map_env);
 
-bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
+bool map_env_iterate(map_env_t *map_env, Layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
 
 void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max);
 void map_env_inc_num_papers(map_env_t *map_env, int amt);

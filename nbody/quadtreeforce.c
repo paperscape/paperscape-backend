@@ -3,7 +3,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "layout.h"
+#include "Layout.h"
 #include "quadtree.h"
 #include "force.h"
 
@@ -50,8 +50,8 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
             q2->fx -= fx;
             q2->fy -= fy;
             */
-            ((layout_node_t*)q1->item)->fx += fx;
-            ((layout_node_t*)q1->item)->fy += fy;
+            ((Layout_node_t*)q1->item)->fx += fx;
+            ((Layout_node_t*)q1->item)->fy += fy;
 
         } else {
             // q2 is internal node
@@ -68,8 +68,8 @@ static void quad_tree_forces_leaf_vs_node(force_params_t *param, quad_tree_node_
                 q2->fx -= fx;
                 q2->fy -= fy;
                 */
-                ((layout_node_t*)q1->item)->fx += fx;
-                ((layout_node_t*)q1->item)->fy += fy;
+                ((Layout_node_t*)q1->item)->fx += fx;
+                ((Layout_node_t*)q1->item)->fy += fy;
 
             } else {
                 // q1 and q2 are not "well separated"
@@ -116,8 +116,8 @@ static void quad_tree_node_forces_propagate(quad_tree_node_t *q, double fx, doub
         fy += q->fy;
 
         if (q->num_items == 1) {
-            ((layout_node_t*)q->item)->fx += fx;
-            ((layout_node_t*)q->item)->fy += fy;
+            ((Layout_node_t*)q->item)->fx += fx;
+            ((Layout_node_t*)q->item)->fy += fy;
         } else {
             fx /= q->mass;
             fy /= q->mass;
@@ -178,12 +178,12 @@ void quad_tree_forces(force_params_t *param, quad_tree_t *qt) {
     }
 }
 
-void quad_tree_force_apply_if(force_params_t *param, quad_tree_t *qt, bool (*f)(layout_node_t*)) {
+void quad_tree_force_apply_if(force_params_t *param, quad_tree_t *qt, bool (*f)(Layout_node_t*)) {
     if (qt->root != NULL) {
         for (quad_tree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
             for (int i = 0; i < qtp->num_nodes_used; i++) {
                 quad_tree_node_t *q = &qtp->nodes[i];
-                if (q->num_items == 1 && f((layout_node_t*)q->item)) {
+                if (q->num_items == 1 && f((Layout_node_t*)q->item)) {
                     //quad_tree_forces_leaf_vs_node(param, q, qt->root);
                     quad_tree_forces_ascend(param, q);
                 }

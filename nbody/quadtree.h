@@ -43,6 +43,6 @@ typedef struct _quad_tree_t {
 } quad_tree_t;
 
 quad_tree_t *quad_tree_new();
-void quad_tree_build(layout_t *layout, quad_tree_t *qt);
+void quad_tree_build(Layout_t *layout, quad_tree_t *qt);
 
 #endif // _INCLUDED_QUADTREE_H

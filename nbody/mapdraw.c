@@ -6,7 +6,7 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "layout.h"
+#include "Layout.h"
 #include "force.h"
 #include "quadtree.h"
 #include "map.h"
@@ -31,7 +31,7 @@ static void paper_colour(Common_paper_t *p, double *r, double *g, double *b) {
 
 /* unused function
 static void draw_paper_bg(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
-    layout_node_t *l = p->layout_node;
+    Layout_node_t *l = p->layout_node;
     double x = l->x;
     double y = l->y;
     double w = 2*p->r;
@@ -54,7 +54,7 @@ static void draw_paper(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
     cairo_rectangle(cr, x-0.5*w, y-0.5*h, w, h);
     cairo_stroke(cr);
     */
-    layout_node_t *l = p->layout_node;
+    Layout_node_t *l = p->layout_node;
     double x = l->x;
     double y = l->y;
     double w = p->radius;
@@ -223,7 +223,7 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
     // links
     if (map_env->draw_paper_links) {
         cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
-        layout_t *l = map_env->layout;
+        Layout_t *l = map_env->layout;
         if (map_env->do_tred) {
 #ifdef ENABLE_TRED
             for (int i = 0; i < map_env->num_papers; i++) {
@@ -241,9 +241,9 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
 #endif
         } else {
             for (int i = 0; i < l->num_nodes; i++) {
-                layout_node_t *n = &l->nodes[i];
+                Layout_node_t *n = &l->nodes[i];
                 for (int j = 0; j < n->num_links; j++) {
-                    layout_link_t *n2 = &n->links[j];
+                    Layout_link_t *n2 = &n->links[j];
                     cairo_move_to(cr, n->x, n->y);
                     cairo_line_to(cr, n2->node->x, n2->node->y);
                     cairo_set_line_width(cr, 0.1 * n2->weight);
@@ -280,7 +280,7 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
     } else {
         // draw the layout-nodes
         for (int i = 0; i < map_env->layout->num_nodes; i++) {
-            layout_node_t *n = &map_env->layout->nodes[i];
+            Layout_node_t *n = &map_env->layout->nodes[i];
             cairo_set_source_rgb(cr, 0.7, 0.7, 0.5);
             cairo_arc(cr, n->x, n->y, n->radius, 0, 2 * M_PI);
             if (n->radius * map_env->tr_scale < 10) {
