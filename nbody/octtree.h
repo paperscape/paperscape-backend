@@ -17,7 +17,7 @@ typedef struct _oct_tree_node_t {
     union {
         struct {
             int depth;
-            paper_t *paper;
+            Common_paper_t *paper;
         };
         struct {
             struct _oct_tree_node_t *o[8];
@@ -35,6 +35,6 @@ typedef struct _oct_tree_t {
     oct_tree_node_t *root;
 } oct_tree_t;
 
-void oct_tree_build(int num_papers, paper_t** papers, oct_tree_t *qt);
+void oct_tree_build(int num_papers, Common_paper_t** papers, oct_tree_t *qt);
 
 #endif // _INCLUDED_OCTTREE_H

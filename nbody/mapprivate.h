@@ -9,11 +9,11 @@ typedef struct _category_info_t {
 struct _map_env_t {
     // loaded
     int max_num_papers;
-    paper_t *all_papers;
+    Common_paper_t *all_papers;
 
     // currently in the graph
     int num_papers;
-    paper_t **papers;
+    Common_paper_t **papers;
 
     quad_tree_t *quad_tree;
 
@@ -43,7 +43,7 @@ struct _map_env_t {
     layout_t *layout;
 
     // info for keywords
-    keyword_set_t *keyword_set;
+    Common_keyword_set_t *keyword_set;
 
     // info for each category
     category_info_t category_info[CAT_NUMBER_OF];

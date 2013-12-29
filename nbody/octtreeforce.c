@@ -3,7 +3,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "common.h"
+#include "Common.h"
 #include "octtree.h"
 #include "force.h"
 

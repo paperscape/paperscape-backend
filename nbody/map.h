@@ -5,7 +5,7 @@ typedef struct _map_env_t map_env_t;
 
 map_env_t *map_env_new();
 
-void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *keyword_set);
+void map_env_set_papers(map_env_t *map_env, int num_papers, Common_paper_t *papers, Common_keyword_set_t *keyword_set);
 void map_env_random_papers(map_env_t *map_env, int n);
 void map_env_papers_test1(map_env_t *map_env, int n);
 void map_env_papers_test2(map_env_t *map_env, int n);
@@ -41,8 +41,8 @@ void map_env_coarsen_layout(map_env_t *map_env);
 void map_env_refine_layout(map_env_t *map_env);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
-void map_env_orient_using_category(map_env_t *map_env, category_t wanted_cat, double wanted_angle);
-void map_env_orient_using_paper(map_env_t *map_env, paper_t *wanted_paper, double wanted_angle);
+void map_env_orient_using_category(map_env_t *map_env, Common_category_t wanted_cat, double wanted_angle);
+void map_env_orient_using_paper(map_env_t *map_env, Common_paper_t *wanted_paper, double wanted_angle);
 void map_env_flip_x(map_env_t *map_env);
 
 bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);

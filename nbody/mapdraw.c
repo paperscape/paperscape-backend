@@ -5,7 +5,7 @@
 #include <cairo.h>
 
 #include "xiwilib.h"
-#include "common.h"
+#include "Common.h"
 #include "layout.h"
 #include "force.h"
 #include "quadtree.h"
@@ -13,8 +13,8 @@
 #include "mapdraw.h"
 #include "mapprivate.h"
 
-static void paper_colour(paper_t *p, double *r, double *g, double *b) {
-    category_t c = p->allcats[0];
+static void paper_colour(Common_paper_t *p, double *r, double *g, double *b) {
+    Common_category_t c = p->allcats[0];
     if (c == CAT_hep_th) { *r = 0.0; *g = 0.0; *b = 1.0; } // blue
     else if (c == CAT_hep_ph) { *r = 0.0; *g = 1.0; *b = 0.0; } // green
     else if (c == CAT_hep_ex) { *r = 1.0; *g = 1.0; *b = 0.0; } // yellow
@@ -30,7 +30,7 @@ static void paper_colour(paper_t *p, double *r, double *g, double *b) {
 }
 
 /* unused function
-static void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+static void draw_paper_bg(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
     layout_node_t *l = p->layout_node;
     double x = l->x;
     double y = l->y;
@@ -44,7 +44,7 @@ static void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
 }
 */
 
-static void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+static void draw_paper(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
     /*
     double h = w * 1.41;
     cairo_set_source_rgba(cr, 0.9, 0.9, 0.8, 0.9);
@@ -89,7 +89,7 @@ static void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     cairo_fill(cr);
 }
 
-static void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
+static void draw_paper_text(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
     if (p->title != NULL && p->radius * map_env->tr_scale > 20) {
         double x = p->layout_node->x;
         double y = p->layout_node->y;
@@ -103,7 +103,7 @@ static void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
 
 static void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
     for (int i = 0; i < map_env->num_papers; i++) {
-        paper_t *p = map_env->papers[i];
+        Common_paper_t *p = map_env->papers[i];
         const char *str = NULL;
              if (p->id == 2071594354) { str = "unparticles"; }
         else if (p->id == 2076328973) { str = "M2-branes"; }
@@ -135,7 +135,7 @@ static void draw_category_labels(cairo_t *cr, map_env_t *map_env) {
     for (int i = 0; i < CAT_NUMBER_OF; i++) {
         category_info_t *cat = &map_env->category_info[i];
         if (cat->num > 0) {
-            const char *str = category_enum_to_str(i);
+            const char *str = Common_category_enum_to_str(i);
             double x = cat->x;
             double y = cat->y;
             map_env_world_to_screen(map_env, &x, &y);
@@ -169,14 +169,14 @@ static void quad_tree_draw_grid(cairo_t *cr, quad_tree_node_t *q, double min_x, 
 }
 
 static int paper_cmp_id(const void *in1, const void *in2) {
-    paper_t *p1 = *(paper_t **)in1;
-    paper_t *p2 = *(paper_t **)in2;
+    Common_paper_t *p1 = *(Common_paper_t **)in1;
+    Common_paper_t *p2 = *(Common_paper_t **)in2;
     return p1->id - p2->id;
 }
 
 static int paper_cmp_radius(const void *in1, const void *in2) {
-    paper_t *p1 = *(paper_t **)in1;
-    paper_t *p2 = *(paper_t **)in2;
+    Common_paper_t *p1 = *(Common_paper_t **)in1;
+    Common_paper_t *p2 = *(Common_paper_t **)in2;
     if (p1->radius < p2->radius) {
         return -1;
     } else if (p1->radius > p2->radius) {
@@ -227,9 +227,9 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
         if (map_env->do_tred) {
 #ifdef ENABLE_TRED
             for (int i = 0; i < map_env->num_papers; i++) {
-                paper_t *p = map_env->papers[i];
+                Common_paper_t *p = map_env->papers[i];
                 for (int j = 0; j < p->num_refs; j++) {
-                    paper_t *p2 = p->refs[j];
+                    Common_paper_t *p2 = p->refs[j];
                     if (p->refs_tred_computed[j] && p2->included) {
                         cairo_set_line_width(cr, 0.1 * p->refs_tred_computed[j]);
                         cairo_move_to(cr, p->layout_node->x, p->layout_node->y);
@@ -259,24 +259,24 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
         // at the finest layout, so draw individual papers
 
         // sort the papers array by radius, smallest first
-        qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_radius);
+        qsort(map_env->papers, map_env->num_papers, sizeof(Common_paper_t*), paper_cmp_radius);
 
         // papers background halo (smallest first, so big ones take over the bg)
         /*
         for (int i = 0; i < map_env->num_papers; i++) {
-            paper_t *p = map_env->papers[i];
+            Common_paper_t *p = map_env->papers[i];
             draw_paper_bg(cr, map_env, p);
         }
         */
 
         // papers (biggest first, so small ones are drawn over the top)
         for (int i = map_env->num_papers - 1; i >= 0; i--) {
-            paper_t *p = map_env->papers[i];
+            Common_paper_t *p = map_env->papers[i];
             draw_paper(cr, map_env, p);
         }
 
         // sort the papers array by id, to put it back the way it was
-        qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_id);
+        qsort(map_env->papers, map_env->num_papers, sizeof(Common_paper_t*), paper_cmp_id);
     } else {
         // draw the layout-nodes
         for (int i = 0; i < map_env->layout->num_nodes; i++) {
@@ -302,7 +302,7 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
         cairo_set_source_rgb(cr, 0, 0, 0);
         cairo_set_font_size(cr, 10);
         for (int i = 0; i < map_env->num_papers; i++) {
-            paper_t *p = map_env->papers[i];
+            Common_paper_t *p = map_env->papers[i];
             draw_paper_text(cr, map_env, p);
         }
     }
@@ -330,8 +330,8 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
             int id1 = map_env->papers[map_env->num_papers - 1]->id;
             int y0, m0, d0;
             int y1, m1, d1;
-            unique_id_to_date(id0, &y0, &m0, &d0);
-            unique_id_to_date(id1, &y1, &m1, &d1);
+            Common_unique_id_to_date(id0, &y0, &m0, &d0);
+            Common_unique_id_to_date(id1, &y1, &m1, &d1);
             vstr_printf(vstr_info, "date range is %d/%d/%d -- %d/%d/%d\n", d0, m0, y0, d1, m1, y1);
         }
         vstr_printf(vstr_info, "\n");

@@ -4,7 +4,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "common.h"
+#include "Common.h"
 #include "octtree.h"
 
 typedef struct _oct_tree_pool_t {
@@ -51,7 +51,7 @@ oct_tree_node_t *oct_tree_pool_alloc() {
     return &oct_tree_pool->nodes[oct_tree_pool->num_nodes_used++];
 }
 
-void oct_tree_insert_paper(oct_tree_node_t *parent, oct_tree_node_t **o, paper_t *p, int depth, double min_x, double min_y, double min_z, double max_x, double max_y, double max_z) {
+void oct_tree_insert_paper(oct_tree_node_t *parent, oct_tree_node_t **o, Common_paper_t *p, int depth, double min_x, double min_y, double min_z, double max_x, double max_y, double max_z) {
     if (*o == NULL) {
         // hit an empty node; create a new leaf cell and put this paper in it
         *o = oct_tree_pool_alloc();
@@ -72,7 +72,7 @@ void oct_tree_insert_paper(oct_tree_node_t *parent, oct_tree_node_t **o, paper_t
 
     } else if ((*o)->num_papers == 1) {
         // hit a leaf; turn it into an internal node and re-insert the papers
-        paper_t *p0 = (*o)->paper;
+        Common_paper_t *p0 = (*o)->paper;
         (*o)->mass = 0;
         (*o)->x = 0;
         (*o)->y = 0;
@@ -137,7 +137,7 @@ void oct_tree_insert_paper(oct_tree_node_t *parent, oct_tree_node_t **o, paper_t
     }
 }
 
-void oct_tree_build(int num_papers, paper_t** papers, oct_tree_t *ot) {
+void oct_tree_build(int num_papers, Common_paper_t** papers, oct_tree_t *ot) {
     ot->root = NULL;
 
     // if no papers, return
@@ -152,7 +152,7 @@ void oct_tree_build(int num_papers, paper_t** papers, oct_tree_t *ot) {
     }
 
     // first work out the bounding box of all papers
-    paper_t *p0 = papers[0];
+    Common_paper_t *p0 = papers[0];
     ot->min_x = p0->x;
     ot->min_y = p0->y;
     ot->min_z = p0->z;
@@ -160,7 +160,7 @@ void oct_tree_build(int num_papers, paper_t** papers, oct_tree_t *ot) {
     ot->max_y = p0->y;
     ot->max_z = p0->z;
     for (int i = 1; i < num_papers; i++) {
-        paper_t *p = papers[i];
+        Common_paper_t *p = papers[i];
         if (p->x < ot->min_x) { ot->min_x = p->x; }
         if (p->y < ot->min_y) { ot->min_y = p->y; }
         if (p->z < ot->min_z) { ot->min_z = p->z; }
@@ -172,7 +172,7 @@ void oct_tree_build(int num_papers, paper_t** papers, oct_tree_t *ot) {
     // build the oct tree
     oct_tree_pool_init();
     for (int i = 0; i < num_papers; i++) {
-        paper_t *p = papers[i];
+        Common_paper_t *p = papers[i];
         oct_tree_insert_paper(NULL, &ot->root, p, 0, ot->min_x, ot->min_y, ot->min_z, ot->max_x, ot->max_y, ot->max_z);
     }
 }

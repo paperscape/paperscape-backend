@@ -1,6 +1,3 @@
-#ifndef _INCLUDED_CATS_H
-#define _INCLUDED_CATS_H
-
 CAT(acc_phys, "acc-phys")
 CAT(adap_org, "adap-org")
 CAT(alg_geom, "alg-geom")
@@ -171,5 +168,3 @@ CAT(supr_con, "supr-con")
 /*
 vim macro to convert a simple name into tuple: yyp:s/-/_/eg:s/\./_/egkddpI"A"0kA,JA)ICAT(0j
 */
-
-#endif // _INCLUDED_CATS_H

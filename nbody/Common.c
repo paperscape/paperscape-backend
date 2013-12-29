@@ -4,11 +4,11 @@
 #include <assert.h>
 
 #include "xiwilib.h"
-#include "common.h"
+#include "Common.h"
 
-void paper_init(paper_t *p, unsigned int id) {
+void Common_paper_init(Common_paper_t *p, unsigned int id) {
     // all entries have initial state which is 0x00
-    memset(p, 0, sizeof(paper_t));
+    memset(p, 0, sizeof(Common_paper_t));
     // set the paper id
     p->id = id;
 }
@@ -16,7 +16,7 @@ void paper_init(paper_t *p, unsigned int id) {
 // the keyword pool is a linked list of hash tables, each one bigger than the previous
 typedef struct _keyword_pool_t {
     int size;
-    keyword_t *table;
+    Common_keyword_t *table;
     int used;
     bool full;
     struct _keyword_pool_t *next;
@@ -29,13 +29,13 @@ struct _keyword_set_t {
 // approximatelly doubling primes; made with Mathematica command: Table[Prime[Floor[(1.7)^n]], {n, 9, 24}]
 static int doubling_primes[] = {647, 1229, 2297, 4243, 7829, 14347, 26017, 47149, 84947, 152443, 273253, 488399, 869927, 1547173, 2745121, 4861607};
 
-keyword_set_t *keyword_set_new() {
-    keyword_set_t *kws = m_new(keyword_set_t, 1);
+Common_keyword_set_t *keyword_set_new() {
+    Common_keyword_set_t *kws = m_new(Common_keyword_set_t, 1);
     kws->pool = NULL;
     return kws;
 }
 
-void keyword_set_free(keyword_set_t * kws) {
+void Common_keyword_set_free(Common_keyword_set_t * kws) {
     if (kws == NULL) {
         return;
     }
@@ -50,7 +50,7 @@ void keyword_set_free(keyword_set_t * kws) {
     m_free(kws);
 }
 
-int keyword_set_get_total(keyword_set_t *kws) {
+int Common_keyword_set_get_total(Common_keyword_set_t *kws) {
     int n = 0;
     for (keyword_pool_t *kwp = kws->pool; kwp != NULL; kwp = kwp->next) {
         n += kwp->used;
@@ -58,7 +58,7 @@ int keyword_set_get_total(keyword_set_t *kws) {
     return n;
 }
 
-void keyword_set_clear_data(keyword_set_t *kws) {
+void Common_keyword_set_clear_data(Common_keyword_set_t *kws) {
     for (keyword_pool_t *kwp = kws->pool; kwp != NULL; kwp = kwp->next) {
         for (int i = 0; i < kwp->size; i++) {
             kwp->table[i].paper = NULL;
@@ -66,7 +66,7 @@ void keyword_set_clear_data(keyword_set_t *kws) {
     }
 }
 
-keyword_t *keyword_set_lookup_or_insert(keyword_set_t *kws, const char *kw, size_t kw_len) {
+Common_keyword_t *keyword_set_lookup_or_insert(Common_keyword_set_t *kws, const char *kw, size_t kw_len) {
     if (kw_len <= 0) {
         return NULL;
     }
@@ -80,7 +80,7 @@ keyword_t *keyword_set_lookup_or_insert(keyword_set_t *kws, const char *kw, size
     for (kwp = kws->pool; kwp != NULL; kwp = kwp->next) {
         int pos = hash % kwp->size;
         for (;;) {
-            keyword_t *found_kw = &kwp->table[pos];
+            Common_keyword_t *found_kw = &kwp->table[pos];
             if (found_kw->keyword == NULL) {
                 // kw not in table
                 if (!kwp->full) {
@@ -129,7 +129,7 @@ keyword_t *keyword_set_lookup_or_insert(keyword_set_t *kws, const char *kw, size
             }
         }
     }
-    kwp->table = m_new0(keyword_t, kwp->size);
+    kwp->table = m_new0(Common_keyword_t, kwp->size);
     if (kwp->table == NULL) {
         m_free(kwp);
         return NULL;
@@ -155,21 +155,21 @@ static const char *category_string[] = {
 #undef CAT
 };
 
-int date_to_unique_id(int y, int m, int d) {
+int Common_date_to_unique_id(int y, int m, int d) {
     return (y - 1800) * 10000000 + m * 625000 + d * 15625;
 }
 
-void unique_id_to_date(int id, int *y, int *m, int *d) {
+void Common_unique_id_to_date(int id, int *y, int *m, int *d) {
     *y = id / 10000000 + 1800;
     *m = ((id % 10000000) / 625000) + 1;
     *d = ((id % 625000) / 15625) + 1;
 }
 
-const char *category_enum_to_str(category_t cat) {
+const char *Common_category_enum_to_str(Common_category_t cat) {
     return category_string[cat];
 }
 
-category_t category_str_to_enum(const char *str) {
+Common_category_t category_str_to_enum(const char *str) {
     for (int i = 0; i < CAT_NUMBER_OF; i++) {
         if (streq(category_string[i], str)) {
             return i;
@@ -178,7 +178,7 @@ category_t category_str_to_enum(const char *str) {
     return CAT_UNKNOWN;
 }
 
-category_t category_strn_to_enum(const char *str, size_t n) {
+Common_category_t category_strn_to_enum(const char *str, size_t n) {
     for (int i = 0; i < CAT_NUMBER_OF; i++) {
         if (strncmp(category_string[i], str, n) == 0 && category_string[i][n] == '\0') {
             return i;
@@ -189,14 +189,14 @@ category_t category_strn_to_enum(const char *str, size_t n) {
 
 // compute the citations from the references
 // allocates memory for paper->cites and fills it with pointers to citing papers
-bool build_citation_links(int num_papers, paper_t *papers) {
+bool Common_build_citation_links(int num_papers, Common_paper_t *papers) {
     printf("building citation links\n");
 
     // allocate memory for cites for each paper
     for (int i = 0; i < num_papers; i++) {
-        paper_t *paper = &papers[i];
+        Common_paper_t *paper = &papers[i];
         if (paper->num_cites > 0) {
-            paper->cites = m_new(paper_t*, paper->num_cites);
+            paper->cites = m_new(Common_paper_t*, paper->num_cites);
             if (paper->cites == NULL) {
                 return false;
             }
@@ -207,9 +207,9 @@ bool build_citation_links(int num_papers, paper_t *papers) {
 
     // link the cites
     for (int i = 0; i < num_papers; i++) {
-        paper_t *paper = &papers[i];
+        Common_paper_t *paper = &papers[i];
         for (int j = 0; j < paper->num_refs; j++) {
-            paper_t *ref_paper = paper->refs[j];
+            Common_paper_t *ref_paper = paper->refs[j];
             ref_paper->cites[ref_paper->num_cites++] = paper;
         }
     }
@@ -217,23 +217,23 @@ bool build_citation_links(int num_papers, paper_t *papers) {
     return true;
 }
 
-// compute the num_included_cites field in the paper_t objects
+// compute the num_included_cites field in the Common_paper_t objects
 // only includes papers that have their "included" flag set
 // only counts references that have non-zero ref_freq
-void recompute_num_included_cites(int num_papers, paper_t *papers) {
+void Common_recompute_num_included_cites(int num_papers, Common_paper_t *papers) {
     // reset citation count
     for (int i = 0; i < num_papers; i++) {
-        paper_t *p = &papers[i];
+        Common_paper_t *p = &papers[i];
         p->num_included_cites = 0;
     }
 
     // compute citation count by following references
     for (int i = 0; i < num_papers; i++) {
-        paper_t *p = &papers[i];
+        Common_paper_t *p = &papers[i];
         if (p->included) {
             for (int j = 0; j < p->num_refs; j++) {
                 if (p->refs_ref_freq[j] > 0) {
-                    paper_t *p2 = p->refs[j];
+                    Common_paper_t *p2 = p->refs[j];
                     if (p2->included) {
                         p2->num_included_cites += 1;
                     }
@@ -246,14 +246,14 @@ void recompute_num_included_cites(int num_papers, paper_t *papers) {
 typedef struct _paper_stack_t {
     int alloc;
     int used;
-    paper_t **stack;
+    Common_paper_t **stack;
 } paper_stack_t;
 
 static paper_stack_t *paper_stack_new() {
     paper_stack_t *s = m_new(paper_stack_t, 1);
     s->alloc = 1024;
     s->used = 0;
-    s->stack = m_new(paper_t*, s->alloc);
+    s->stack = m_new(Common_paper_t*, s->alloc);
     return s;
 }
 
@@ -262,20 +262,20 @@ static void paper_stack_free(paper_stack_t *s) {
     m_free(s);
 }
 
-static void paper_stack_push(paper_stack_t *s, paper_t *p) {
+static void paper_stack_push(paper_stack_t *s, Common_paper_t *p) {
     if (s->used >= s->alloc) {
         s->alloc *= 2;
-        s->stack = m_renew(paper_t*, s->stack, s->alloc);
+        s->stack = m_renew(Common_paper_t*, s->stack, s->alloc);
     }
     s->stack[s->used++] = p;
 }
 
-static paper_t *paper_stack_pop(paper_stack_t *s) {
+static Common_paper_t *paper_stack_pop(paper_stack_t *s) {
     assert(s->used > 0);
     return s->stack[--s->used];
 }
 
-static void paper_paint(paper_t *p, int colour, paper_stack_t *stack) {
+static void paper_paint(Common_paper_t *p, int colour, paper_stack_t *stack) {
     assert(p->colour == 0);
     p->colour = colour;
     paper_stack_push(stack, p);
@@ -283,7 +283,7 @@ static void paper_paint(paper_t *p, int colour, paper_stack_t *stack) {
         p = paper_stack_pop(stack);
         assert(p->colour == colour);
         for (int i = 0; i < p->num_refs; i++) {
-            paper_t *p2 = p->refs[i];
+            Common_paper_t *p2 = p->refs[i];
             if (p2->included && p2->colour != colour) {
                 assert(p2->colour == 0);
                 p2->colour = colour;
@@ -291,7 +291,7 @@ static void paper_paint(paper_t *p, int colour, paper_stack_t *stack) {
             }
         }
         for (int i = 0; i < p->num_cites; i++) {
-            paper_t *p2 = p->cites[i];
+            Common_paper_t *p2 = p->cites[i];
             if (p2->included && p2->colour != colour) {
                 assert(p2->colour == 0);
                 p2->colour = colour;
@@ -303,7 +303,7 @@ static void paper_paint(paper_t *p, int colour, paper_stack_t *stack) {
 
 // works out connected class for each paper (the colour after a flood fill painting algorigth)
 // only includes papers that have their "included" flag set
-void recompute_colours(int num_papers, paper_t *papers, int verbose) {
+void Common_recompute_colours(int num_papers, Common_paper_t *papers, int verbose) {
     // clear colour
     for (int i = 0; i < num_papers; i++) {
         papers[i].colour = 0;
@@ -313,7 +313,7 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
     int cur_colour = 1;
     paper_stack_t *paper_stack = paper_stack_new();
     for (int i = 0; i < num_papers; i++) {
-        paper_t *paper = &papers[i];
+        Common_paper_t *paper = &papers[i];
         if (paper->included && paper->colour == 0) {
             paper_paint(paper, cur_colour++, paper_stack);
         }
@@ -359,4 +359,77 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
     }
 
     m_free(num_with_col);
+}
+
+// for tred
+
+static void compute_tred_refs_mark(int p_top_index, Common_paper_t *p_cur, Common_paper_t *follow_back_paper, int follow_back_ref) {
+    if (p_cur->tred_visit_index != p_top_index) {
+        // haven't visited this paper yet
+        p_cur->tred_visit_index = p_top_index;
+        p_cur->tred_follow_back_paper = follow_back_paper;
+        p_cur->tred_follow_back_ref = follow_back_ref;
+        // visit all refs
+        for (int i = 0; i < p_cur->num_refs; i++) {
+            if (p_cur->refs_tred_computed[i] != 0) { // only follow refs that are in the transitively reduced graph
+                Common_paper_t *p_ref = p_cur->refs[i];
+                if (p_ref->index < p_cur->index) { // allow only past references
+                    compute_tred_refs_mark(p_top_index, p_ref, p_cur, i);
+                }
+            }
+        }
+    }
+}
+
+/* Transitively reduce the graph */
+void Common_compute_tred(int num_papers, Common_paper_t *papers) {
+    // reset the visit id and tred computed number
+    for (int i = 0; i < num_papers; i++) {
+        Common_paper_t *p = &papers[i];
+        p->tred_visit_index = 0;
+        // reset the tred_computed value
+        for (int j = 0; j < p->num_refs; j++) {
+            p->refs_tred_computed[j] = 0;
+        }
+        p->tred_follow_back_paper = NULL;
+        p->tred_follow_back_ref = 0;
+    }
+
+    // transitively reduce
+    for (int i = 0; i < num_papers; i++) {
+        Common_paper_t *p = &papers[i];
+
+        // clear the follow back pointer for this paper
+        p->tred_follow_back_paper = NULL;
+        p->tred_follow_back_ref = 0;
+
+        // iterate all refs, from largest index to smallest index (youngest to oldest)
+        for (int j = p->num_refs - 1; j >= 0; j--) {
+            Common_paper_t *p_past = p->refs[j];
+
+            // only allow references to the past
+            if (p_past->index >= p->index) {
+                p->refs_tred_computed[j] = 1;
+                continue;
+            }
+
+            if (p_past->tred_visit_index == p->index) {
+                // have already visited this paper
+                // follow this path; increase weight of ref path
+                Common_paper_t *p2 = p_past->tred_follow_back_paper;
+                int ref = p_past->tred_follow_back_ref;
+                while (p2 != NULL) {
+                    p2->refs_tred_computed[ref] += 1;
+                    ref = p2->tred_follow_back_ref;
+                    p2 = p2->tred_follow_back_paper;
+                }
+                continue;
+            }
+
+            // haven't visited this paper yet
+            // mark link as belonging to tred graph and mark past
+            p->refs_tred_computed[j] = 1;
+            compute_tred_refs_mark(p->index, p_past, p, j);
+        }
+    }
 }

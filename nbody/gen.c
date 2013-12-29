@@ -2,7 +2,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "common.h"
+#include "Common.h"
 #include "map.h"
 #include "gen.h"
 #include "tile.h"
@@ -30,10 +30,10 @@ static void map_env_update(map_env_t *map_env) {
         vstr_t *vstr_info = vstr_new();
         int y, m, d;
 
-        unique_id_to_date(id_range_start, &y, &m, &d);
+        Common_unique_id_to_date(id_range_start, &y, &m, &d);
         vstr_printf(vstr, "map-%04u-%02u-%02u.png", y, m, d);
         vstr_printf(vstr_info, "date: %02u-%02u-%04u to ", d, m, y);
-        unique_id_to_date(id_range_end, &y, &m, &d);
+        Common_unique_id_to_date(id_range_end, &y, &m, &d);
         vstr_printf(vstr_info, "%02u-%02u-%04u\n%d papers", d, m, y, map_env_get_num_papers(map_env));
         write_tiles(map_env, 1000, 1000, vstr_str(vstr), vstr_info);
         vstr_free(vstr_info);
@@ -41,7 +41,7 @@ static void map_env_update(map_env_t *map_env) {
         while (true) {
             id_range_start += 200000;
             id_range_end += 200000;
-            unique_id_to_date(id_range_start, &y, &m, &d);
+            Common_unique_id_to_date(id_range_start, &y, &m, &d);
             if (m <= 12) {
                 break;
             }

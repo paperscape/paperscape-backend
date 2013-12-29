@@ -4,7 +4,7 @@
 #include <sys/time.h>
 
 #include "xiwilib.h"
-#include "common.h"
+#include "Common.h"
 #include "layout.h"
 #include "map.h"
 #include "map2.h"
@@ -67,8 +67,8 @@ int main(int argc, char *argv[]) {
 
     // load the papers from the DB
     int num_papers;
-    paper_t *papers;
-    keyword_set_t *keyword_set;
+    Common_paper_t *papers;
+    Common_keyword_set_t *keyword_set;
     if (!mysql_load_papers(where_clause, false, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
