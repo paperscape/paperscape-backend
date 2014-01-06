@@ -2,6 +2,7 @@ package main
 
 import (
     "flag"
+    "fmt"
     "os"
     "encoding/json"
     "log"
@@ -10,6 +11,7 @@ import (
 
 var flagDB       = flag.String("db", "", "MySQL database to connect to")
 var flagMapTable = flag.String("map-table","map_data", "Name of map table in db")
+var flagMapTableSuffix = flag.String("suffix","", "Suffix to append to name of map table in db")
 
 func main() {
     // parse command line options
@@ -42,8 +44,25 @@ func main() {
 
     db.Reconnect = true
     db.Lock()
-    sql := "REPLACE INTO " + *flagMapTable + " (id,x,y,r) VALUES (?,?,?,?)"
-    stmt, _ := db.Prepare(sql)
+
+    loc_table := *flagMapTable
+    if *flagMapTableSuffix != "" {
+        loc_table += "_" + *flagMapTableSuffix
+    }
+
+    // Create map table if it doesn't exist
+    sql := "CREATE TABLE " + loc_table + " (id INT UNSIGNED PRIMARY KEY, x INT, y INT, r INT) ENGINE = MyISAM;"
+    err = db.Query(sql)
+    if err != nil {
+        fmt.Println("MySQL statement error;", err)
+    }
+
+    // Insert new values into table
+    sql = "REPLACE INTO " + loc_table + " (id,x,y,r) VALUES (?,?,?,?)"
+    stmt, err := db.Prepare(sql)
+    if err != nil {
+        fmt.Println("MySQL statement error;", err)
+    }
     db.Unlock()
 
     for _, paper := range papers {

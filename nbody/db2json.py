@@ -28,6 +28,8 @@ def do_work(db_cursor, from_year, to_year, category):
         refs = pciteblob.decodeBlob(refs_blob)
         arxiv_refs = ['[{},{}]'.format(id, ref_freq) for id, ref_order, ref_freq, num_refs in refs]
         print('{{"id":{},"arxiv":"{}","allcats":"{}","refs":[{}]}}{}'.format(id, arxiv, allcats, ','.join(arxiv_refs), '' if hit_num + 1 == hits else ','))
+        # Include no ref info:
+        #print('{{"id":{},"arxiv":"{}","allcats":"{}","refs":[]}}{}'.format(id, arxiv, allcats, '' if hit_num + 1 == hits else ','))
 
     # end JSON array
     print(']')

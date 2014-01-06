@@ -26,16 +26,21 @@ var COLOUR_NORMAL    = 0
 var COLOUR_HEATMAP   = 1
 var COLOUR_GRAYSCALE = 2
 
-var flagDB         = flag.String("db", "", "MySQL database to connect to")
+var flagDB           = flag.String("db", "", "MySQL database to connect to")
+var flagDBLocSuffix  = flag.String("db-suffix", "", "Suffix of location table in MySQL database: map_data_{suffix}")
+var flagJSONLocFile  = flag.String("json-layout", "", "Read paper locations from JSON file instead of DB")
+
 var flagGrayScale  = flag.Bool("gs", false, "Also make grayscale tiles")
 var flagHeatMap    = flag.Bool("hm", false, "Also make heatmap tiles")
+var flagSubCats    = flag.Bool("sub-cats", false, "Distinguish sub category papers (currently works only for astro-ph)")
+
 var flagDoSingle   = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
 var flagDoPoster   = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
+
 var flagRegionFile = flag.String("region-file", "regions.json", "JSON file with region labels")
 
 var flagSkipNormalTiles  = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
 var flagSkipLabels = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
-var flagJSONLayoutFile = flag.String("json-layout", "", "Read paper layout from JSON file instead of DB")
 
 var flagMaxCores = flag.Int("cores", -1, "Max number of system cores to use, default is all of them")
 
@@ -56,7 +61,7 @@ func main() {
     defer db.Close()
 
     // read in the graph
-    graph := ReadGraph(db, *flagJSONLayoutFile)
+    graph := ReadGraph(db, *flagJSONLocFile)
 
     // build the quad tree
     graph.BuildQuadTree()
@@ -79,6 +84,8 @@ func main() {
         // A1 at 72 dpi: 1648 x 2384 
         // A3 at 300 dpi: 3508 x 4961
         // A3 at 72 dpi: 842 x 1191 
+        // A4 at 300 dpi: 2480 x 3508
+        // A4 at 72 dpi: 595 x 842 
         //resy := 9933; resx := 14043
         resy := 7016; resx := 9933
         DrawPoster(graph, resx, resy, outPrefix, COLOUR_NORMAL)
@@ -96,7 +103,7 @@ func main() {
 
         num_papers := len(graph.papers)
 
-        fmt.Fprintf(w,"world_index({\"latestid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",graph.LatestId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
+        fmt.Fprintf(w,"world_index({\"dbsuffix\":\"%s\",\"latestid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",*flagDBLocSuffix,graph.LatestId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
         graph.QueryNewPapersId(db)
         if graph.NewPapersId != 0 {
@@ -254,7 +261,7 @@ func (graph *Graph) CalculateCategoryLabels() {
 }
 
 // read layout in form [[id,x,y,r],...] from JSON file
-func ReadPaperLayoutFromJSON(filename string) []*Paper {
+func ReadPaperLocationFromJSON(filename string) []*Paper {
     fmt.Printf("reading paper layout from JSON file %v\n", filename)
 
     // open JSON file
@@ -493,7 +500,8 @@ func (graph *Graph) QueryHeat(db *mysql.Client) {
 func (graph *Graph) QueryCategories(db *mysql.Client) {
 
     // execute the query
-    err := db.Query("SELECT id,maincat FROM meta_data")
+    //err := db.Query("SELECT id,maincat FROM meta_data")
+    err := db.Query("SELECT id,maincat,allcats FROM meta_data")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
@@ -516,29 +524,30 @@ func (graph *Graph) QueryCategories(db *mysql.Client) {
         var ok bool
         var id uint64
         var maincat string
-        //var allcats string
+        var allcats string
         if id, ok = row[0].(uint64); !ok { continue }
         if maincat, ok = row[1].(string); !ok { continue }
-        //allcats, ok = row[2].(string)
+        allcats, ok = row[2].(string)
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
             paper.maincat = maincat
-            /* code for if we want to distinguish sub-cats
-            if strings.HasPrefix(allcats, "astro-ph.CO") {
-                paper.maincat = "astro-ph.CO"
-            } else if strings.HasPrefix(allcats, "astro-ph.EP") {
-                paper.maincat = "astro-ph.EP"
-            } else if strings.HasPrefix(allcats, "astro-ph.GA") {
-                paper.maincat = "astro-ph.GA"
-            } else if strings.HasPrefix(allcats, "astro-ph.HE") {
-                paper.maincat = "astro-ph.HE"
-            } else if strings.HasPrefix(allcats, "astro-ph.IM") {
-                paper.maincat = "astro-ph.IM"
-            } else if strings.HasPrefix(allcats, "astro-ph.SR") {
-                paper.maincat = "astro-ph.SR"
+            // code for if we want to distinguish sub-cats
+            if *flagSubCats {
+                if strings.HasPrefix(allcats, "astro-ph.CO") {
+                    paper.maincat = "astro-ph.CO"
+                } else if strings.HasPrefix(allcats, "astro-ph.EP") {
+                    paper.maincat = "astro-ph.EP"
+                } else if strings.HasPrefix(allcats, "astro-ph.GA") {
+                    paper.maincat = "astro-ph.GA"
+                } else if strings.HasPrefix(allcats, "astro-ph.HE") {
+                    paper.maincat = "astro-ph.HE"
+                } else if strings.HasPrefix(allcats, "astro-ph.IM") {
+                    paper.maincat = "astro-ph.IM"
+                } else if strings.HasPrefix(allcats, "astro-ph.SR") {
+                    paper.maincat = "astro-ph.SR"
+                }
             }
-            */
         }
     }
 
@@ -594,8 +603,14 @@ func (graph *Graph) QueryLabels(db *mysql.Client) {
 }
 
 func QueryPapers(db *mysql.Client) []*Paper {
+    
+    loc_table := "map_data"
+    if *flagDBLocSuffix != "" {
+        loc_table += "_" + *flagDBLocSuffix
+    }
+
     // count number of papers
-    err := db.Query("SELECT count(id) FROM map_data")
+    err := db.Query("SELECT count(id) FROM " + loc_table)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return nil
@@ -628,7 +643,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
 
     // execute the query
     //err = db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
-    err = db.Query("SELECT id,x,y,r FROM map_data")
+    err = db.Query("SELECT id,x,y,r FROM " + loc_table)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return nil
@@ -670,7 +685,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
     }
 
     if len(papers) != int(numPapers) {
-        fmt.Println("could not read all papers from map_data; wanted", numPapers, "got", len(papers))
+        fmt.Println("could not read all papers from",loc_table,"; wanted", numPapers, "got", len(papers))
         return nil
     }
 
@@ -724,7 +739,6 @@ func (paper *Paper) DetermineLabel(authors, keywords string) {
     paper.label = cleanJsonString(kwStr + "," + auStr)
 }
 
-//func (paper *Paper) SetColour() {
 func (paper *Paper) GetColour(colourScheme int) *CairoColor {
     // basic colour of paper
     col := new(CairoColor)
@@ -779,6 +793,26 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
         } else {
             col.r, col.g, col.b = 0.7, 1, 0.3
         }
+       
+        // bit of hack at the moment
+        if *flagSubCats {
+            if paper.maincat == "astro-ph.CO" {
+                col.r, col.g, col.b = 0.3, 0.3, 1 // blue
+            } else if paper.maincat == "astro-ph.EP" {
+                col.r, col.g, col.b = 0.3, 1, 0.3 // green
+            } else if paper.maincat == "astro-ph.GA" {
+                col.r, col.g, col.b = 1, 1, 0.3 // yellow
+            } else if paper.maincat == "astro-ph.HE" {
+                col.r, col.g, col.b = 0.3, 1, 1 // cyan
+            } else if paper.maincat == "astro-ph.IM" {
+                col.r, col.g, col.b = 0.7, 0.36, 0.2 // tan brown
+            } else if paper.maincat == "astro-ph.SR" {
+                col.r, col.g, col.b = 1, 0.3, 0.3 // red
+            } else if paper.maincat == "astro-ph" {
+                col.r, col.g, col.b = 0.89, 0.53, 0.6 // skin pink
+                //col.r, col.g, col.b = 1, 1, 1 // white
+            }
+        }
 
         // brighten papers in categories that are mostly tiny dots
         brighten := paper.maincat == "math" || paper.maincat == "cs"
@@ -798,6 +832,7 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
             col.r = saturation + (col.r * (1 - age2) + age2) * (1 - saturation)
             col.g = saturation + (col.g * (1 - age2)      ) * (1 - saturation)
             col.b = saturation + (col.b * (1 - age2)      ) * (1 - saturation)
+        //} else if (!*flagSubCats) {
         } else if (true) {
             // older papers are saturated and dark, newer papers are coloured and bright
             var saturation float32 = 0.1 + 0.3 * (1 - paper.age)
@@ -830,10 +865,10 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
     return col
 }
 
-func ReadGraph(db *mysql.Client, jsonLayoutFile string) *Graph {
+func ReadGraph(db *mysql.Client, jsonLocationFile string) *Graph {
     graph := new(Graph)
 
-    if len(jsonLayoutFile) == 0 {
+    if len(jsonLocationFile) == 0 {
         // load positions from the data base
         graph.papers = QueryPapers(db)
         if graph.papers == nil {
@@ -842,7 +877,7 @@ func ReadGraph(db *mysql.Client, jsonLayoutFile string) *Graph {
         fmt.Printf("read %v papers from db\n", len(graph.papers))
     } else {
         // load positions from JSON file
-        graph.papers = ReadPaperLayoutFromJSON(jsonLayoutFile)
+        graph.papers = ReadPaperLocationFromJSON(jsonLocationFile)
         if graph.papers == nil {
             log.Fatal("could not read papers from JSON file")
         }
@@ -853,7 +888,10 @@ func ReadGraph(db *mysql.Client, jsonLayoutFile string) *Graph {
     if !*flagSkipLabels {
         graph.QueryLabels(db)
         graph.CalculateCategoryLabels()
-        graph.ReadRegionLabels(*flagRegionFile)
+        if *flagDBLocSuffix == "" {
+            // Region labels are specific to default map only
+            graph.ReadRegionLabels(*flagRegionFile)
+        }
     }
 
     // determine labels to use for each paper
@@ -1185,6 +1223,7 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
     //divisionSet := [...]int{4,8,24,72}
     //divisionSet := [...]int{4,8,24,72,216}
     //divisionSet := [...]int{4,8,16,32}
+
     //divisionSet := [...]int{4,8,16,32,64}
     //divisionSet := [...]int{4,8,16,32,64,128}
     divisionSet := [...]int{4,8,16,32,64,128,256}
