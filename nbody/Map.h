@@ -11,7 +11,7 @@ typedef struct _category_info_t {
     float x, y;     // position of this category
 } category_info_t;
 
-typedef struct _map_env_t {
+typedef struct _Map_env_t {
     // loaded
     int max_num_papers;
     Common_paper_t *all_papers;
@@ -52,61 +52,61 @@ typedef struct _map_env_t {
 
     // info for each category
     category_info_t category_info[CAT_NUMBER_OF];
-} map_env_t;
+} Map_env_t;
 
-map_env_t *map_env_new();
+Map_env_t *Map_env_new();
 
-void map_env_set_papers(map_env_t *map_env, int num_papers, Common_paper_t *papers, Common_keyword_set_t *keyword_set);
-void map_env_random_papers(map_env_t *map_env, int n);
-void map_env_papers_test1(map_env_t *map_env, int n);
-void map_env_papers_test2(map_env_t *map_env, int n);
+void Map_env_set_papers(Map_env_t *map_env, int num_papers, Common_paper_t *papers, Common_keyword_set_t *keyword_set);
+void Map_env_random_papers(Map_env_t *map_env, int n);
+void Map_env_papers_test1(Map_env_t *map_env, int n);
+void Map_env_papers_test2(Map_env_t *map_env, int n);
 
-void map_env_world_to_screen(map_env_t *map_env, double *x, double *y);
-void map_env_screen_to_world(map_env_t *map_env, double screen_w, double screen_h, double *x, double *y);
-int map_env_get_num_papers(map_env_t *map_env);
-Layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, double screen_h, double screen_x, double screen_y);
+void Map_env_world_to_screen(Map_env_t *map_env, double *x, double *y);
+void Map_env_screen_to_world(Map_env_t *map_env, double screen_w, double screen_h, double *x, double *y);
+int Map_env_get_num_papers(Map_env_t *map_env);
+Layout_node_t *Map_env_get_layout_node_at(Map_env_t *map_env, double screen_w, double screen_h, double screen_x, double screen_y);
 
-void map_env_centre_view(map_env_t *map_env);
-void map_env_set_zoom_to_fit_n_standard_deviations(map_env_t *map_env, double n, double screen_w, double screen_h);
-void map_env_scroll(map_env_t *map_env, double dx, double dy);
-void map_env_zoom(map_env_t *map_env, double screen_x, double screen_y, double amt);
-double map_env_get_step_size(map_env_t *map_env);
-void map_env_set_step_size(map_env_t *map_env, double value);
-void map_env_set_do_close_repulsion(map_env_t *map_env, bool value);
-void map_env_set_make_fake_links(map_env_t *map_env, bool value);
-void map_env_set_other_links_veto(map_env_t *map_env, bool value);
-void map_env_set_anti_gravity(map_env_t *map_env, double val);
-void map_env_set_link_strength(map_env_t *map_env, double val);
-void map_env_toggle_do_tred(map_env_t *map_env);
-void map_env_toggle_draw_grid(map_env_t *map_env);
-void map_env_toggle_draw_paper_links(map_env_t *map_env);
-void map_env_toggle_do_close_repulsion(map_env_t *map_env);
-void map_env_toggle_use_ref_freq(map_env_t *map_env);
-void map_env_adjust_anti_gravity(map_env_t *map_env, double amt);
-void map_env_adjust_link_strength(map_env_t *map_env, double amt);
-void map_env_adjust_close_repulsion(map_env_t *map_env, double amt_a, double amt_b);
-void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_a, double amt_b);
-int map_env_number_of_coarser_layouts(map_env_t *map_env);
-int map_env_number_of_finer_layouts(map_env_t *map_env);
-void map_env_coarsen_layout(map_env_t *map_env);
-void map_env_refine_layout(map_env_t *map_env);
-void map_env_jolt(map_env_t *map_env, double amt);
-void map_env_rotate_all(map_env_t *map_env, double angle);
-void map_env_orient_using_category(map_env_t *map_env, Common_category_t wanted_cat, double wanted_angle);
-void map_env_orient_using_paper(map_env_t *map_env, Common_paper_t *wanted_paper, double wanted_angle);
-void map_env_flip_x(map_env_t *map_env);
+void Map_env_centre_view(Map_env_t *map_env);
+void Map_env_set_zoom_to_fit_n_standard_deviations(Map_env_t *map_env, double n, double screen_w, double screen_h);
+void Map_env_scroll(Map_env_t *map_env, double dx, double dy);
+void Map_env_zoom(Map_env_t *map_env, double screen_x, double screen_y, double amt);
+double Map_env_get_step_size(Map_env_t *map_env);
+void Map_env_set_step_size(Map_env_t *map_env, double value);
+void Map_env_set_do_close_repulsion(Map_env_t *map_env, bool value);
+void Map_env_set_make_fake_links(Map_env_t *map_env, bool value);
+void Map_env_set_other_links_veto(Map_env_t *map_env, bool value);
+void Map_env_set_anti_gravity(Map_env_t *map_env, double val);
+void Map_env_set_link_strength(Map_env_t *map_env, double val);
+void Map_env_toggle_do_tred(Map_env_t *map_env);
+void Map_env_toggle_draw_grid(Map_env_t *map_env);
+void Map_env_toggle_draw_paper_links(Map_env_t *map_env);
+void Map_env_toggle_do_close_repulsion(Map_env_t *map_env);
+void Map_env_toggle_use_ref_freq(Map_env_t *map_env);
+void Map_env_adjust_anti_gravity(Map_env_t *map_env, double amt);
+void Map_env_adjust_link_strength(Map_env_t *map_env, double amt);
+void Map_env_adjust_close_repulsion(Map_env_t *map_env, double amt_a, double amt_b);
+void Map_env_adjust_close_repulsion2(Map_env_t *map_env, double amt_a, double amt_b);
+int Map_env_number_of_coarser_layouts(Map_env_t *map_env);
+int Map_env_number_of_finer_layouts(Map_env_t *map_env);
+void Map_env_coarsen_layout(Map_env_t *map_env);
+void Map_env_refine_layout(Map_env_t *map_env);
+void Map_env_jolt(Map_env_t *map_env, double amt);
+void Map_env_rotate_all(Map_env_t *map_env, double angle);
+void Map_env_orient_using_category(Map_env_t *map_env, Common_category_t wanted_cat, double wanted_angle);
+void Map_env_orient_using_paper(Map_env_t *map_env, Common_paper_t *wanted_paper, double wanted_angle);
+void Map_env_flip_x(Map_env_t *map_env);
 
-bool map_env_iterate(map_env_t *map_env, Layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
+bool Map_env_iterate(Map_env_t *map_env, Layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
 
-void map_env_get_max_id_range(map_env_t *map_env, int *id_min, int *id_max);
-void map_env_inc_num_papers(map_env_t *map_env, int amt);
-void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
+void Map_env_get_max_id_range(Map_env_t *map_env, int *id_min, int *id_max);
+void Map_env_inc_num_papers(Map_env_t *map_env, int amt);
+void Map_env_select_date_range(Map_env_t *map_env, int id_start, int id_end);
 
-void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link);
-int map_env_layout_place_new_papers(map_env_t *map_env);
-void map_env_layout_finish_placing_new_papers(map_env_t *map_env);
-void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_filename);
-void map_env_layout_pos_save_to_json(map_env_t *map_env, const char *file);
-void map_env_layout_link_save_to_json(map_env_t *map_env, const char *file);
+void Map_env_layout_new(Map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link);
+int Map_env_layout_place_new_papers(Map_env_t *map_env);
+void Map_env_layout_finish_placing_new_papers(Map_env_t *map_env);
+void Map_env_layout_pos_load_from_json(Map_env_t *map_env, const char *json_filename);
+void Map_env_layout_pos_save_to_json(Map_env_t *map_env, const char *file);
+void Map_env_layout_link_save_to_json(Map_env_t *map_env, const char *file);
 
 #endif // _INCLUDED_MAP_H

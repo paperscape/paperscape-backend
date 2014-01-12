@@ -9,26 +9,26 @@
 #include "Map.h"
 #include "Mapauto.h"
 
-bool Mapauto_env_do_iterations(map_env_t *map_env, int num_iterations, bool boost_step_size, bool very_fine_steps) {
+bool Mapauto_env_do_iterations(Map_env_t *map_env, int num_iterations, bool boost_step_size, bool very_fine_steps) {
     struct timeval tp;
     gettimeofday(&tp, NULL);
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     bool converged = false;
     for (int i = 0; i < num_iterations; i++) {
-        converged = map_env_iterate(map_env, NULL, boost_step_size, very_fine_steps);
+        converged = Map_env_iterate(map_env, NULL, boost_step_size, very_fine_steps);
         boost_step_size = false;
     }
     gettimeofday(&tp, NULL);
     int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-    printf("did %d iterations, %.2f seconds per iteration, %.2f step size\n", num_iterations, (end_time - start_time) / 1000.0 / num_iterations,map_env_get_step_size(map_env));
+    printf("did %d iterations, %.2f seconds per iteration, %.2f step size\n", num_iterations, (end_time - start_time) / 1000.0 / num_iterations,Map_env_get_step_size(map_env));
     return converged;
 }
 
-void Mapauto_env_do_complete_layout(map_env_t *map_env, int num_iterations_close_repulsion, int num_iterations_finest_layout) {
+void Mapauto_env_do_complete_layout(Map_env_t *map_env, int num_iterations_close_repulsion, int num_iterations_finest_layout) {
 
     printf("iterating from the start to build entire graph\n");
 
-    map_env_set_do_close_repulsion(map_env, false);
+    Map_env_set_do_close_repulsion(map_env, false);
 
     bool boost_step_size = false;
     bool refining_stage = true;
@@ -42,21 +42,21 @@ void Mapauto_env_do_complete_layout(map_env_t *map_env, int num_iterations_close
         if (refining_stage) {
             if (iterate_counter_wait_until > 0 && iterate_counter > iterate_counter_wait_until) {
                 printf("refining to finest layout\n");
-                map_env_refine_layout(map_env);
+                Map_env_refine_layout(map_env);
                 boost_step_size = true;
                 refining_stage = false;
                 iterate_counter_wait_until = iterate_counter + num_iterations_finest_layout;
             } else if (converged) {
-                int num_finer = map_env_number_of_finer_layouts(map_env);
+                int num_finer = Map_env_number_of_finer_layouts(map_env);
                 if (num_finer > 1) {
                     printf("refining layout; %d to go\n", num_finer - 1);
-                    map_env_refine_layout(map_env);
+                    Map_env_refine_layout(map_env);
                     boost_step_size = true;
                 //} else if (num_finer == 1) {
                 } else if (num_finer <= 1 && !started_close_repulsion) {
                     printf("doing close repulsion\n");
                     started_close_repulsion = true;
-                    map_env_set_do_close_repulsion(map_env, true);
+                    Map_env_set_do_close_repulsion(map_env, true);
                     boost_step_size = true;
                     iterate_counter_wait_until = iterate_counter + num_iterations_close_repulsion;
                 }

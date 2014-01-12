@@ -75,27 +75,27 @@ int main(int argc, char *argv[]) {
     }
 
     // create the map object
-    map_env_t *map_env = map_env_new();
+    Map_env_t *map_env = Map_env_new();
 
     // set the papers
-    map_env_set_papers(map_env, num_papers, papers, keyword_set);
+    Map_env_set_papers(map_env, num_papers, papers, keyword_set);
 
     // select the date range
     {
         int id_min;
         int id_max;
-        map_env_get_max_id_range(map_env, &id_min, &id_max);
+        Map_env_get_max_id_range(map_env, &id_min, &id_max);
 
         if (arg_yearsago > 0) {
             id_max = 2140000000 - arg_yearsago * 10000000;
         }
 
-        map_env_select_date_range(map_env, id_min, id_max);
+        Map_env_select_date_range(map_env, id_min, id_max);
     }
 
     if (arg_start_afresh) {
         // create a new layout with 10 levels of coarsening, using only ref_freq as weight
-        map_env_layout_new(map_env, 10, 1, 0);
+        Map_env_layout_new(map_env, 10, 1, 0);
 
         // do the layout
         Mapauto_env_do_complete_layout(map_env, 2000, 6000);
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
             Mapmysql_env_layout_pos_load_from_db(map_env);
         } else {
             // load existing positions from json file
-            map_env_layout_pos_load_from_json(map_env, arg_layout_json);
+            Map_env_layout_pos_load_from_json(map_env, arg_layout_json);
         }
 
         // rotate the entire map by a random amount, to reduce quad-tree-force artifacts
@@ -115,38 +115,38 @@ int main(int argc, char *argv[]) {
         gettimeofday(&tp, NULL);
         srandom(tp.tv_sec * 1000000 + tp.tv_usec);
         double angle = 6.28 * (double)random() / (double)RAND_MAX;
-        map_env_rotate_all(map_env, angle);
+        Map_env_rotate_all(map_env, angle);
         printf("rotated graph by %.2f rad to eliminate quad-tree-force artifacts\n", angle);
 
         if (arg_yearsago < 0) {
             // assign positions to new papers
-            int n_new = map_env_layout_place_new_papers(map_env);
+            int n_new = Map_env_layout_place_new_papers(map_env);
             if (n_new > 0) {
                 printf("iterating to place new papers\n");
-                map_env_set_do_close_repulsion(map_env, false);
+                Map_env_set_do_close_repulsion(map_env, false);
                 Mapauto_env_do_iterations(map_env, 250, false, false);
             }
-            map_env_layout_finish_placing_new_papers(map_env);
+            Map_env_layout_finish_placing_new_papers(map_env);
 
             // iterate to adjust whole graph
             printf("iterating to adjust entire graph\n");
-            map_env_set_do_close_repulsion(map_env, true);
+            Map_env_set_do_close_repulsion(map_env, true);
             Mapauto_env_do_iterations(map_env, 80, false, false);
         
             // iterate for final, very fine steps
             printf("iterating final, very fine steps\n");
-            map_env_set_do_close_repulsion(map_env, true);
+            Map_env_set_do_close_repulsion(map_env, true);
             Mapauto_env_do_iterations(map_env, 30, false, true);
         
         } else {
-            map_env_set_step_size(map_env,0.5);
+            Map_env_set_step_size(map_env,0.5);
             Mapauto_env_do_complete_layout(map_env, 4000, 10000);
         }
 
     }
 
     // align the map in a fixed direction
-    map_env_orient_using_category(map_env, CAT_hep_ph, 4.2);
+    Map_env_orient_using_category(map_env, CAT_hep_ph, 4.2);
 
     // write the new positions to the DB (never do this for timelapse)
     if (arg_write_db && arg_yearsago < 0) {
@@ -158,11 +158,11 @@ int main(int argc, char *argv[]) {
         vstr_t *vstr = vstr_new();
         vstr_reset(vstr);
         if (arg_yearsago < 0) {
-            vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
+            vstr_printf(vstr, "map-%06u.json", Map_env_get_num_papers(map_env));
         } else {
             vstr_printf(vstr, "map-%d.json", 2014-arg_yearsago);
         }
-        map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
+        Map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
     }
 
     return 0;

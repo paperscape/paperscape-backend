@@ -12,7 +12,7 @@
 #include "Mapmysql.h"
 #include "Map.h"
 
-void Mapmysql_env_layout_pos_load_from_db(map_env_t *map_env) {
+void Mapmysql_env_layout_pos_load_from_db(Map_env_t *map_env) {
     // make a single layout
     Layout_t *l = Layout_build_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
@@ -36,7 +36,7 @@ void Mapmysql_env_layout_pos_load_from_db(map_env_t *map_env) {
     map_env->step_size = 0.1;
 }
 
-void Mapmysql_env_layout_pos_save_to_db(map_env_t *map_env) {
+void Mapmysql_env_layout_pos_save_to_db(Map_env_t *map_env) {
     // get the finest layout, corresponding to one layout_node per paper
     Layout_t *l = map_env->layout;
     while (l->child_layout != NULL) {

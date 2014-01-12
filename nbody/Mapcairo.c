@@ -29,7 +29,7 @@ static void paper_colour(Common_paper_t *p, double *r, double *g, double *b) {
 }
 
 /* unused function
-static void draw_paper_bg(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
+static void draw_paper_bg(cairo_t *cr, Map_env_t *map_env, Common_paper_t *p) {
     Layout_node_t *l = p->layout_node;
     double x = l->x;
     double y = l->y;
@@ -43,7 +43,7 @@ static void draw_paper_bg(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
 }
 */
 
-static void draw_paper(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
+static void draw_paper(cairo_t *cr, Map_env_t *map_env, Common_paper_t *p) {
     /*
     double h = w * 1.41;
     cairo_set_source_rgba(cr, 0.9, 0.9, 0.8, 0.9);
@@ -88,11 +88,11 @@ static void draw_paper(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
     cairo_fill(cr);
 }
 
-static void draw_paper_text(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) {
+static void draw_paper_text(cairo_t *cr, Map_env_t *map_env, Common_paper_t *p) {
     if (p->title != NULL && p->radius * map_env->tr_scale > 20) {
         double x = p->layout_node->x;
         double y = p->layout_node->y;
-        map_env_world_to_screen(map_env, &x, &y);
+        Map_env_world_to_screen(map_env, &x, &y);
         cairo_text_extents_t extents;
         cairo_text_extents(cr, p->title, &extents);
         cairo_move_to(cr, x - 0.5 * extents.width, y + 0.5 * extents.height);
@@ -100,7 +100,7 @@ static void draw_paper_text(cairo_t *cr, map_env_t *map_env, Common_paper_t *p) 
     }
 }
 
-static void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
+static void draw_big_labels(cairo_t *cr, Map_env_t *map_env) {
     for (int i = 0; i < map_env->num_papers; i++) {
         Common_paper_t *p = map_env->papers[i];
         const char *str = NULL;
@@ -121,7 +121,7 @@ static void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
         if (str != NULL) {
             double x = p->layout_node->x;
             double y = p->layout_node->y;
-            map_env_world_to_screen(map_env, &x, &y);
+            Map_env_world_to_screen(map_env, &x, &y);
             cairo_text_extents_t extents;
             cairo_text_extents(cr, str, &extents);
             cairo_move_to(cr, x - 0.5 * extents.width, y + 0.5 * extents.height);
@@ -130,14 +130,14 @@ static void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
     }
 }
 
-static void draw_category_labels(cairo_t *cr, map_env_t *map_env) {
+static void draw_category_labels(cairo_t *cr, Map_env_t *map_env) {
     for (int i = 0; i < CAT_NUMBER_OF; i++) {
         category_info_t *cat = &map_env->category_info[i];
         if (cat->num > 0) {
             const char *str = Common_category_enum_to_str(i);
             double x = cat->x;
             double y = cat->y;
-            map_env_world_to_screen(map_env, &x, &y);
+            Map_env_world_to_screen(map_env, &x, &y);
             cairo_text_extents_t extents;
             cairo_text_extents(cr, str, &extents);
             cairo_move_to(cr, x - 0.5 * extents.width, y + 0.5 * extents.height);
@@ -185,7 +185,7 @@ static int paper_cmp_radius(const void *in1, const void *in2) {
     }
 }
 
-static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
+static void draw_all(Map_env_t *map_env, cairo_t *cr, int width, int height) {
     // clear bg
     //cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
     cairo_set_source_rgb(cr, 0, 0, 0);
@@ -315,14 +315,14 @@ static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
     draw_category_labels(cr, map_env);
 }
 
-void Mapcairo_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
+void Mapcairo_env_draw(Map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
     //layout_propagate_positions_to_children(map_env->layout); this is now done each force iteration
 
     draw_all(map_env, cr, width, height);
 
     // create info string to return
     if (vstr_info != NULL) {
-        vstr_printf(vstr_info, "have %d layout nodes in graph; %d finer levels, %d coarser levels\n", map_env->layout->num_nodes, map_env_number_of_finer_layouts(map_env), map_env_number_of_coarser_layouts(map_env));
+        vstr_printf(vstr_info, "have %d layout nodes in graph; %d finer levels, %d coarser levels\n", map_env->layout->num_nodes, Map_env_number_of_finer_layouts(map_env), Map_env_number_of_coarser_layouts(map_env));
         vstr_printf(vstr_info, "have %d papers connected and included in graph\n", map_env->num_papers);
         if (map_env->num_papers > 0) {
             int id0 = map_env->papers[0]->id;
