@@ -7,7 +7,8 @@
 #include "Common.h"
 #include "Layout.h"
 #include "map.h"
-#include "map2.h"
+#include "Mapmysql.h"
+#include "Mapauto.h"
 #include "Mysql.h"
 
 static int usage(const char *progname) {
@@ -97,13 +98,13 @@ int main(int argc, char *argv[]) {
         map_env_layout_new(map_env, 10, 1, 0);
 
         // do the layout
-        map_env_do_complete_layout(map_env, 2000, 6000);
+        Mapauto_env_do_complete_layout(map_env, 2000, 6000);
 
     } else {
 
         if (arg_layout_json == NULL) {
             // load existing positions from DB
-            map_env_layout_pos_load_from_db(map_env);
+            Mapmysql_env_layout_pos_load_from_db(map_env);
         } else {
             // load existing positions from json file
             map_env_layout_pos_load_from_json(map_env, arg_layout_json);
@@ -123,23 +124,23 @@ int main(int argc, char *argv[]) {
             if (n_new > 0) {
                 printf("iterating to place new papers\n");
                 map_env_set_do_close_repulsion(map_env, false);
-                map_env_do_iterations(map_env, 250, false, false);
+                Mapauto_env_do_iterations(map_env, 250, false, false);
             }
             map_env_layout_finish_placing_new_papers(map_env);
 
             // iterate to adjust whole graph
             printf("iterating to adjust entire graph\n");
             map_env_set_do_close_repulsion(map_env, true);
-            map_env_do_iterations(map_env, 80, false, false);
+            Mapauto_env_do_iterations(map_env, 80, false, false);
         
             // iterate for final, very fine steps
             printf("iterating final, very fine steps\n");
             map_env_set_do_close_repulsion(map_env, true);
-            map_env_do_iterations(map_env, 30, false, true);
+            Mapauto_env_do_iterations(map_env, 30, false, true);
         
         } else {
             map_env_set_step_size(map_env,0.5);
-            map_env_do_complete_layout(map_env, 4000, 10000);
+            Mapauto_env_do_complete_layout(map_env, 4000, 10000);
         }
 
     }
@@ -149,7 +150,7 @@ int main(int argc, char *argv[]) {
 
     // write the new positions to the DB (never do this for timelapse)
     if (arg_write_db && arg_yearsago < 0) {
-        map_env_layout_pos_save_to_db(map_env);
+        Mapmysql_env_layout_pos_save_to_db(map_env);
     }
 
     // write map to JSON (always do this for timelapse)

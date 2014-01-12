@@ -7,9 +7,9 @@
 #include "Common.h"
 #include "Layout.h"
 #include "map.h"
-#include "map2.h"
+#include "Mapauto.h"
 
-bool map_env_do_iterations(map_env_t *map_env, int num_iterations, bool boost_step_size, bool very_fine_steps) {
+bool Mapauto_env_do_iterations(map_env_t *map_env, int num_iterations, bool boost_step_size, bool very_fine_steps) {
     struct timeval tp;
     gettimeofday(&tp, NULL);
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
@@ -24,7 +24,7 @@ bool map_env_do_iterations(map_env_t *map_env, int num_iterations, bool boost_st
     return converged;
 }
 
-void map_env_do_complete_layout(map_env_t *map_env, int num_iterations_close_repulsion, int num_iterations_finest_layout) {
+void Mapauto_env_do_complete_layout(map_env_t *map_env, int num_iterations_close_repulsion, int num_iterations_finest_layout) {
 
     printf("iterating from the start to build entire graph\n");
 
@@ -36,7 +36,7 @@ void map_env_do_complete_layout(map_env_t *map_env, int num_iterations_close_rep
     int iterate_counter = 0;
     int iterate_counter_wait_until = 0;
     while (true) {
-        bool converged = map_env_do_iterations(map_env, 50, boost_step_size, false);
+        bool converged = Mapauto_env_do_iterations(map_env, 50, boost_step_size, false);
         boost_step_size = false;
         iterate_counter += 50;
         if (refining_stage) {

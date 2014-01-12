@@ -10,7 +10,7 @@
 #include "Force.h"
 #include "Quadtree.h"
 #include "map.h"
-#include "mapdraw.h"
+#include "Mapcairo.h"
 #include "mapprivate.h"
 
 static void paper_colour(Common_paper_t *p, double *r, double *g, double *b) {
@@ -186,7 +186,7 @@ static int paper_cmp_radius(const void *in1, const void *in2) {
     }
 }
 
-static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
+static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
     // clear bg
     //cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
     cairo_set_source_rgb(cr, 0, 0, 0);
@@ -316,10 +316,10 @@ static void map_env_draw_all(map_env_t *map_env, cairo_t *cr, int width, int hei
     draw_category_labels(cr, map_env);
 }
 
-void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
+void Mapcairo_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
     //layout_propagate_positions_to_children(map_env->layout); this is now done each force iteration
 
-    map_env_draw_all(map_env, cr, width, height);
+    draw_all(map_env, cr, width, height);
 
     // create info string to return
     if (vstr_info != NULL) {

@@ -11,7 +11,8 @@
 #include "Layout.h"
 #include "map.h"
 #include "Mysql.h"
-#include "mapdraw.h"
+#include "Mapmysql.h"
+#include "Mapcairo.h"
 #include "Cairohelper.h"
 
 vstr_t *vstr;
@@ -105,7 +106,7 @@ static gboolean map_env_update(map_env_t *map_env) {
 static void draw_to_png(map_env_t *map_env, int width, int height, const char *file, vstr_t *vstr_info) {
     cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_RGB24, width, height);
     cairo_t *cr = cairo_create(surface);
-    map_env_draw(map_env, cr, width, height, NULL);
+    Mapcairo_env_draw(map_env, cr, width, height, NULL);
 
     if (vstr_info != NULL) {
         cairo_identity_matrix(cr);
@@ -135,7 +136,7 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
             map_env_centre_view(map_env);
             map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, width, height);
         }
-        map_env_draw(map_env, cr, width, height, vstr);
+        Mapcairo_env_draw(map_env, cr, width, height, vstr);
     }
     vstr_printf(vstr, "\n");
     vstr_printf(vstr, "(A) auto refine: %d\n", auto_refine);
@@ -618,7 +619,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (arg_layout_db) {
-        map_env_layout_pos_load_from_db(map_env);
+        Mapmysql_env_layout_pos_load_from_db(map_env);
     } else if (arg_layout_json != NULL) {
         map_env_layout_pos_load_from_json(map_env, arg_layout_json);
     } else {

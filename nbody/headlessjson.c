@@ -7,7 +7,7 @@
 #include "Common.h"
 #include "Layout.h"
 #include "map.h"
-#include "map2.h"
+#include "Mapauto.h"
 #include "Json.h"
 
 static int usage(const char *progname) {
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
     map_env_layout_new(map_env, 10, arg_factor_ref_freq, arg_factor_other_link);
 
     // do the layout
-    map_env_do_complete_layout(map_env, 4000, 10000);
+    Mapauto_env_do_complete_layout(map_env, 4000, 10000);
 
     // align the map in a fixed direction
     if (num_papers > 0) {

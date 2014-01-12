@@ -54,9 +54,7 @@ void map_env_select_date_range(map_env_t *map_env, int id_start, int id_end);
 void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link);
 int map_env_layout_place_new_papers(map_env_t *map_env);
 void map_env_layout_finish_placing_new_papers(map_env_t *map_env);
-void map_env_layout_pos_load_from_db(map_env_t *map_env);
 void map_env_layout_pos_load_from_json(map_env_t *map_env, const char *json_filename);
-void map_env_layout_pos_save_to_db(map_env_t *map_env);
 void map_env_layout_pos_save_to_json(map_env_t *map_env, const char *file);
 void map_env_layout_link_save_to_json(map_env_t *map_env, const char *file);
 
