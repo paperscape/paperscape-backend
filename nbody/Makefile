@@ -9,7 +9,7 @@ SRC_COMMON = \
 	Layout.c \
 	Quadtree.c \
 	Force.c \
-	map.c \
+	Map.c \
 
 SRC_HEADLESS = \
 	Mysql.c \

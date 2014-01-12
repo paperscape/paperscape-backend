@@ -11,8 +11,7 @@
 #include "Layout.h"
 #include "Force.h"
 #include "Quadtree.h"
-#include "map.h"
-#include "mapprivate.h"
+#include "Map.h"
 
 map_env_t *map_env_new() {
     map_env_t *map_env = m_new(map_env_t, 1);

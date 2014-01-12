@@ -9,9 +9,8 @@
 #include "Layout.h"
 #include "Force.h"
 #include "Quadtree.h"
-#include "map.h"
+#include "Map.h"
 #include "Mapcairo.h"
-#include "mapprivate.h"
 
 static void paper_colour(Common_paper_t *p, double *r, double *g, double *b) {
     Common_category_t c = p->allcats[0];

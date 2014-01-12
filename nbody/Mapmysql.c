@@ -10,8 +10,7 @@
 #include "Quadtree.h"
 #include "Mysql.h"
 #include "Mapmysql.h"
-#include "map.h"
-#include "mapprivate.h"
+#include "Map.h"
 
 void Mapmysql_env_layout_pos_load_from_db(map_env_t *map_env) {
     // make a single layout

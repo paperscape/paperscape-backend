@@ -9,7 +9,7 @@
 #include "xiwilib.h"
 #include "Common.h"
 #include "Layout.h"
-#include "map.h"
+#include "Map.h"
 #include "Mysql.h"
 #include "Mapmysql.h"
 #include "Mapcairo.h"

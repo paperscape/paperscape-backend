@@ -1,7 +1,7 @@
 #ifndef _INCLUDED_MAP2_H
 #define _INCLUDED_MAP2_H
 
-#include "map.h"
+#include "Map.h"
 
 // high-level map layout functions
 

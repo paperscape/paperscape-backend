@@ -6,7 +6,7 @@
 #include "xiwilib.h"
 #include "Common.h"
 #include "Layout.h"
-#include "map.h"
+#include "Map.h"
 #include "Mapmysql.h"
 #include "Mapauto.h"
 #include "Mysql.h"

@@ -6,7 +6,7 @@
 #include "xiwilib.h"
 #include "Common.h"
 #include "Layout.h"
-#include "map.h"
+#include "Map.h"
 #include "Mapauto.h"
 
 bool Mapauto_env_do_iterations(map_env_t *map_env, int num_iterations, bool boost_step_size, bool very_fine_steps) {
