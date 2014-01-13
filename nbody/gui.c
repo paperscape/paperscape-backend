@@ -604,7 +604,7 @@ int main(int argc, char *argv[]) {
         int id_max;
         Map_env_get_max_id_range(map_env, &id_min, &id_max);
         int id_range_start = id_min;
-        int id_range_end = id_min + 20000000; // plus 2 years
+        int id_range_end   = id_max;
 
         // for starting part way through
         id_range_start = Common_date_to_unique_id(2012, 3, 0);
@@ -613,7 +613,7 @@ int main(int argc, char *argv[]) {
         id_range_start = id_min; id_range_end = id_max; // full range
         id_range_start = id_min; id_range_end = id_max; // full range
 
-        id_range_end = id_max - 120000000; // minus 2 years
+        //id_range_end = id_max - 120000000; // minus 2 years
 
         Map_env_select_date_range(map_env, id_range_start, id_range_end);
     }
