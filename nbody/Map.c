@@ -187,6 +187,10 @@ double Map_env_get_step_size(Map_env_t *map_env) {
     return map_env->step_size;
 }
 
+double Map_env_get_link_strength(Map_env_t *map_env) {
+    return map_env->force_params.link_strength;
+}
+
 void Map_env_set_step_size(Map_env_t *map_env, double value) {
     map_env->step_size = value;
 }

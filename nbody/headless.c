@@ -22,6 +22,7 @@ static int usage(const char *progname) {
     printf("    --write-db           write positions to DB (default is not to)\n");
     printf("    --write-json         write positions to json file (default is not to)\n");
     printf("    --years-ago <num>    perform timelapse (writes positions to json)\n");
+    printf("    --link <num>         link strength\n");
     printf("\n");
     return 1;
 }
@@ -33,6 +34,7 @@ int main(int argc, char *argv[]) {
     const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
     bool arg_write_db = false;
     bool arg_write_json = false;
+    double arg_link_strength = -1;
     int arg_yearsago = -1; // for timelapse (-1 means no timelapse)
     const char *arg_layout_json = NULL;
     for (int a = 1; a < argc; a++) {
@@ -58,6 +60,12 @@ int main(int argc, char *argv[]) {
             }
             arg_yearsago = atoi(argv[a]);
             arg_write_json = true;
+        } else if (streq(argv[a], "--link")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_link_strength = strtod(argv[a], NULL);
         } else {
             return usage(argv[0]);
         }
@@ -76,6 +84,11 @@ int main(int argc, char *argv[]) {
 
     // create the map object
     Map_env_t *map_env = Map_env_new();
+
+    // set parameters
+    if (arg_link_strength > 0) {
+        Map_env_set_link_strength(map_env, arg_link_strength);
+    }
 
     // set the papers
     Map_env_set_papers(map_env, num_papers, papers, keyword_set);
@@ -160,7 +173,7 @@ int main(int argc, char *argv[]) {
         if (arg_yearsago < 0) {
             vstr_printf(vstr, "map-%06u.json", Map_env_get_num_papers(map_env));
         } else {
-            vstr_printf(vstr, "map-%d.json", 2014-arg_yearsago);
+            vstr_printf(vstr, "map-%d_L%03d.json", 2014-arg_yearsago,(int)100*Map_env_get_link_strength(map_env));
         }
         Map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
     }
