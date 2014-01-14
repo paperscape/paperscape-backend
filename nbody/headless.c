@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
         if (arg_yearsago < 0) {
             vstr_printf(vstr, "map-%06u.json", Map_env_get_num_papers(map_env));
         } else {
-            vstr_printf(vstr, "map-%d_L%03d.json", 2014-arg_yearsago,(int)100*Map_env_get_link_strength(map_env));
+            vstr_printf(vstr, "map-%d_L%04d.json", 2014-arg_yearsago,(int)(1000.*Map_env_get_link_strength(map_env)));
         }
         Map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
     }

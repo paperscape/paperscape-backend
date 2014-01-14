@@ -517,6 +517,7 @@ static int usage(const char *progname) {
     printf("    --layout-db          load layout from DB\n");
     printf("    --layout-json <file> load layout from given JSON file\n");
     printf("    --no-fake-links      don't create fake links\n");
+    printf("    --years-ago <num>    perform timelapse\n");
     printf("\n");
     return 1;
 }
@@ -526,6 +527,7 @@ int main(int argc, char *argv[]) {
     // parse command line arguments
     double arg_anti_grav_rsq = -1;
     double arg_link_strength = -1;
+    int arg_yearsago = -1; // for timelapse (-1 means no timelapse)
     bool arg_layout_db = false;
     bool no_fake_links = false;
     const char *arg_layout_json = NULL;
@@ -542,6 +544,12 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
+        } else if (streq(argv[a], "--years-ago")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_yearsago = atoi(argv[a]);
         } else if (streq(argv[a], "--layout-db")) {
             arg_layout_db = true;
         } else if (streq(argv[a], "--layout-json")) {
@@ -611,9 +619,12 @@ int main(int argc, char *argv[]) {
         id_range_end = id_range_start + 20000000; // plus 2 years
         id_range_end = id_range_start +  3000000; // plus 0.5 year
         id_range_start = id_min; id_range_end = id_max; // full range
-        id_range_start = id_min; id_range_end = id_max; // full range
 
         //id_range_end = id_max - 120000000; // minus 2 years
+
+        if (arg_yearsago > 0) {
+            id_range_end = 2140000000 - arg_yearsago * 10000000;
+        }
 
         Map_env_select_date_range(map_env, id_range_start, id_range_end);
     }
