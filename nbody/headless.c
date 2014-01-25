@@ -88,7 +88,11 @@ int main(int argc, char *argv[]) {
     // set parameters
     if (arg_link_strength > 0) {
         Map_env_set_link_strength(map_env, arg_link_strength);
+    } else if (arg_yearsago >= 0) {
+        double link_strength = 1.17 + 0.014*((double)arg_yearsago);
+        Map_env_set_link_strength(map_env, link_strength);
     }
+    printf("using a link strength of: %.3f\n",Map_env_get_link_strength(map_env));
 
     // set the papers
     Map_env_set_papers(map_env, num_papers, papers, keyword_set);
