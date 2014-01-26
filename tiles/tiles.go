@@ -33,6 +33,7 @@ var flagJSONLocFile  = flag.String("json-layout", "", "Read paper locations from
 var flagGrayScale  = flag.Bool("gs", false, "Also make grayscale tiles")
 var flagHeatMap    = flag.Bool("hm", false, "Also make heatmap tiles")
 var flagSubCats    = flag.Bool("sub-cats", false, "Distinguish sub category papers (currently works only for astro-ph)")
+var flagCentreGraph    = flag.Bool("centre", false, "Whether to centre the graph on the total centre of mass")
 
 var flagDoSingle   = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
 var flagDoPoster   = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
@@ -903,18 +904,41 @@ func ReadGraph(db *mysql.Client, jsonLocationFile string) *Graph {
     //if *flagHeatMap {
     //    graph.QueryHeat(db)
     //}
+    
+    var sumMass, sumMassX, sumMassY int64
 
     for _, paper := range graph.papers {
         if paper.x - paper.radius < graph.MinX { graph.MinX = paper.x - paper.radius }
         if paper.y - paper.radius < graph.MinY { graph.MinY = paper.y - paper.radius }
         if paper.x + paper.radius > graph.MaxX { graph.MaxX = paper.x + paper.radius }
         if paper.y + paper.radius > graph.MaxY { graph.MaxY = paper.y + paper.radius }
+        mass := int64(paper.radius*paper.radius)
+        sumMass += mass
+        sumMassX += mass*int64(paper.x)
+        sumMassY += mass*int64(paper.y)
     }
 
     graph.MinX -= GRAPH_PADDING
     graph.MaxX += GRAPH_PADDING
     graph.MinY -= GRAPH_PADDING
     graph.MaxY += GRAPH_PADDING
+
+    // centre graph on total centre of mass
+    if *flagCentreGraph && sumMass > 0 {
+        centreX := int(sumMassX/sumMass)
+        centreY := int(sumMassY/sumMass)
+        fmt.Printf("Adjusting for centre of mass: (%d,%d)\n",centreX,centreY)
+        if (centreX - graph.MinX) > (graph.MaxX - centreX) {
+            graph.MaxX = 2.*centreX - graph.MinX
+        } else {
+            graph.MinX = 2.*centreX - graph.MaxX
+        }
+        if (centreY - graph.MinY) > (graph.MaxY - centreY) {
+            graph.MaxY = 2.*centreY - graph.MinY
+        } else {
+            graph.MinY = 2.*centreY - graph.MaxY
+        }
+    }
 
     graph.BoundsX = graph.MaxX - graph.MinX
     graph.BoundsY = graph.MaxY - graph.MinY
