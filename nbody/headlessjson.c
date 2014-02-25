@@ -76,8 +76,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (arg_pscp_refs == NULL || arg_other_links == NULL) {
-        printf("--pscp-refs and --other-links must be specified\n");
+    //if (arg_pscp_refs == NULL || arg_other_links == NULL) {
+    if (arg_pscp_refs == NULL) {
+        //printf("--pscp-refs and --other-links must be specified\n");
+        printf("--pscp-refs\n");
         return 1;
     }
 
@@ -88,8 +90,10 @@ int main(int argc, char *argv[]) {
     if (!Json_load_papers(arg_pscp_refs, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
-    if (!Json_load_other_links(arg_other_links, num_papers, papers)) {
-        return 1;
+    if (arg_other_links != NULL) {
+        if (!Json_load_other_links(arg_other_links, num_papers, papers)) {
+            return 1;
+        }
     }
 
     // create the map object
