@@ -1292,11 +1292,30 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             // search-title: search papers for words in title
             h.SearchTitle(req.Form["sti"][0], rw)
             logDescription = fmt.Sprintf("sti \"%s\"",req.Form["sti"][0])
-        } else if req.Form["sca"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
+        } else if req.Form["sca"] != nil && (req.Form["f"] != nil || req.Form["fd"] != nil) && (req.Form["t"] != nil || req.Form["td"] != nil) {
             // search-category: search papers between given id range, in given category
-            // x = include cross lists, f = from, t = to
-            h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", req.Form["f"][0], req.Form["t"][0], rw)
-            logDescription = fmt.Sprintf("sca \"%s\" (%s,%s)", req.Form["sca"][0], req.Form["f"][0], req.Form["t"][0])
+            // x = include cross lists, f = from - ID, t = to - ID, 
+            // fd = from - numer of days ago, td = to - number of days ago
+            var fId, tId string;
+            var fd, td uint64;
+            if req.Form["f"] != nil {
+                fId = req.Form["f"][0]
+            } else {
+                fId = "0"
+            }
+            if req.Form["t"] != nil  {
+                tId = req.Form["t"][0]
+            } else {
+                tId = "0"
+            }
+            if req.Form["fd"] != nil {
+                fd, _ = strconv.ParseUint(req.Form["fd"][0], 10, 0)
+            }
+            if req.Form["td"] != nil {
+                td, _ = strconv.ParseUint(req.Form["td"][0], 10, 0)
+            }
+            h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", fId, tId, uint(fd), uint(td), rw)
+            logDescription = fmt.Sprintf("sca \"%s\" (%s,%s,%d,%d)", req.Form["sca"][0], fId,tId,fd,td)
         } else if req.Form["snp"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
             // search-new-papers: search papers between given id range
             // f = from, t = to
@@ -2895,7 +2914,7 @@ func sanityCheckId(id string) bool {
 // TODO use prepared statements to gaurd against sql injection
 // searches for all papers within the id range, with main category as given
 // returns id, numCites, refs for up to 500 results
-func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, idFrom string, idTo string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, idFrom string, idTo string, daysagoFrom uint, daysagoTo uint, rw http.ResponseWriter) {
     // sanity check of category, and build query
     // comma is used to separate multiple categories, which means "or"
 
@@ -2941,8 +2960,46 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     catQuery.WriteString(catQueryEnd)
     catQuery.WriteString(")")
 
+    if (daysagoFrom <= 0 && daysagoFrom > 31) { daysagoFrom = 0 }
+    if (daysagoTo <= 0 && daysagoTo > 31) { daysagoTo = 0 }
+    
+    // if given non-trivial "daysago" number to lookup
+    if daysagoFrom > daysagoTo {
+        fmt.Printf("%d %d\n",daysagoFrom,daysagoTo)
+        stmt := h.papers.StatementBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo = ? OR daysAgo = ?",daysagoFrom,daysagoTo)
+
+        var id uint64
+        var results [2]uint64
+        var daysAgo uint
+        
+        if stmt != nil {
+            stmt.BindResult(&daysAgo,&id)
+            for i, _ := range results {
+                eof, err := stmt.Fetch()
+                if err != nil {
+                    fmt.Println("MySQL statement error;", err)
+                    break
+                } else if eof { break }
+                results[i] = id 
+            }
+            err := stmt.FreeResult()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+            }
+        }
+        h.papers.StatementEnd(stmt) 
+        
+        if results[0] > results[1] {
+            idFrom = strconv.FormatUint(results[1],10)
+            idTo = strconv.FormatUint(results[0],10)
+        } else {
+            idFrom = strconv.FormatUint(results[0],10)
+            idTo = strconv.FormatUint(results[1],10)
+        }
+    }
+
     // sanity check of id numbers
-    if !sanityCheckId(idFrom) {
+    if !sanityCheckId(idFrom) || idFrom == "0" {
         return
     }
     if !sanityCheckId(idTo) {
