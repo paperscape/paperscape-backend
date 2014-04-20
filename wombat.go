@@ -2965,7 +2965,6 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     
     // if given non-trivial "daysago" number to lookup
     if daysagoFrom > daysagoTo {
-        fmt.Printf("%d %d\n",daysagoFrom,daysagoTo)
         stmt := h.papers.StatementBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo = ? OR daysAgo = ?",daysagoFrom,daysagoTo)
 
         var id uint64
