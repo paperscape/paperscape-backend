@@ -1,0 +1,8 @@
+#./tiles --gs --km "neutrino" --single-image "5000x5000x1" out-neutrino
+#./tiles --gs --km "standard model" --single-image "5000x5000x1" out-standard_model
+#./tiles --gs --km "dark matter" --single-image "5000x5000x1" out-dark_matter
+#./tiles --gs --km "supersymmetry" --single-image "5000x5000x1" out-supersymmetry
+#./tiles --gs --km "Higgs" --single-image "5000x5000x1" out-Higgs
+#./tiles --gs --km "Monte Carlo" --single-image "5000x5000x1" out-Monte_Carlo
+./tiles --gs --km "network" --single-image "5000x5000x1" out-network
+
