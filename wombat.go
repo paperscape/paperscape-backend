@@ -576,6 +576,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE id = %d", id)
     } else if len(arxiv) > 0 {
         // security issue: should make sure arxiv string is sanitised
+        // NOTE: currently only checking for consistent characters, including '-' and '.'
         query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE arxiv = '%s'", arxiv)
     } else {
         return nil
@@ -989,7 +990,7 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
 
     // work out the meta filename for this arxiv
     var filename string
-    if len(arxiv) == 9 && arxiv[4] == '.' {
+    if (len(arxiv) == 9 || len(arxiv) == 10) && arxiv[4] == '.' {
         filename = fmt.Sprintf("%s/%sxx/%s/%s.xml", *flagMetaBaseDir, arxiv[:2], arxiv[:4], arxiv)
     } else if len(arxiv) >= 10 {
         l := len(arxiv)
