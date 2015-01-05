@@ -468,7 +468,7 @@ static bool env_load_ids(env_t *env) {
     return true;
 }
 
-static Common_paper_t *env_get_paper_by_id(env_t *env, int id) {
+static Common_paper_t *env_get_paper_by_id(env_t *env, unsigned int id) {
     int lo = 0;
     int hi = env->num_papers - 1;
     while (lo <= hi) {
@@ -621,7 +621,7 @@ static bool env_load_keywords(env_t *env) {
     int total_keywords = 0;
     while ((row = mysql_fetch_row(result))) {
         lens = mysql_fetch_lengths(result);
-        Common_paper_t *paper = env_get_paper_by_id(env, atoi(row[0]));
+        Common_paper_t *paper = env_get_paper_by_id(env, atoll(row[0]));
         if (paper != NULL) {
             unsigned long len = lens[1];
             if (len == 0) {

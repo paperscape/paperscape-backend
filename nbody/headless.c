@@ -99,12 +99,12 @@ int main(int argc, char *argv[]) {
 
     // select the date range
     {
-        int id_min;
-        int id_max;
+        unsigned int id_min;
+        unsigned int id_max;
         Map_env_get_max_id_range(map_env, &id_min, &id_max);
 
         if (arg_yearsago > 0) {
-            id_max = 2140000000 - arg_yearsago * 10000000;
+            id_max = (unsigned int)2150000000 - arg_yearsago * 10000000;
         }
 
         Map_env_select_date_range(map_env, id_min, id_max);

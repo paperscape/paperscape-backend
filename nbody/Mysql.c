@@ -179,7 +179,7 @@ static bool env_load_ids(env_t *env, const char *where_clause, bool load_authors
             mysql_free_result(result);
             return false;
         }
-        int id = atoi(row[0]);
+        unsigned long long id = atoll(row[0]);
         Common_paper_t *paper = &env->papers[i];
         Common_paper_init(paper, id);
 
@@ -224,12 +224,12 @@ static bool env_load_ids(env_t *env, const char *where_clause, bool load_authors
         env->papers[i].index = i;
     }
 
-    printf("read %d ids\n", env->num_papers);
+    printf("read %d ids %u -- %u\n", env->num_papers, env->papers[0].id, env->papers[env->num_papers - 1].id);
 
     return true;
 }
 
-static Common_paper_t *env_get_paper_by_id(env_t *env, int id) {
+static Common_paper_t *env_get_paper_by_id(env_t *env, unsigned int id) {
     int lo = 0;
     int hi = env->num_papers - 1;
     while (lo <= hi) {
@@ -266,7 +266,7 @@ static bool env_load_refs(env_t *env) {
     int total_refs = 0;
     while ((row = mysql_fetch_row(result))) {
         lens = mysql_fetch_lengths(result);
-        Common_paper_t *paper = env_get_paper_by_id(env, atoi(row[0]));
+        Common_paper_t *paper = env_get_paper_by_id(env, atoll(row[0]));
         if (paper != NULL) {
             unsigned long len = lens[1];
             if (len == 0) {
@@ -338,7 +338,7 @@ static bool env_load_keywords(env_t *env) {
     int total_keywords = 0;
     while ((row = mysql_fetch_row(result))) {
         lens = mysql_fetch_lengths(result);
-        Common_paper_t *paper = env_get_paper_by_id(env, atoi(row[0]));
+        Common_paper_t *paper = env_get_paper_by_id(env, atoll(row[0]));
         if (paper != NULL) {
             unsigned long len = lens[1];
             if (len == 0) {
@@ -451,7 +451,7 @@ bool Mysql_save_paper_positions(Layout_t *layout) {
             vstr_reset(vstr);
             int x, y, r;
             Layout_node_export_quantities(n, &x, &y, &r);
-            vstr_printf(vstr, "REPLACE INTO map_data (id,x,y,r) VALUES (%d,%d,%d,%d)", n->paper->id, x, y, r);
+            vstr_printf(vstr, "REPLACE INTO map_data (id,x,y,r) VALUES (%u,%d,%d,%d)", n->paper->id, x, y, r);
             if (vstr_had_error(vstr)) {
                 env_finish(&env, true);
                 return false;
@@ -500,7 +500,7 @@ bool Mysql_load_paper_positions(Layout_t *layout) {
     int total_pos = 0;
     MYSQL_ROW row;
     while ((row = mysql_fetch_row(result))) {
-        Layout_node_t *n = Layout_get_node_by_id(layout, atoi(row[0]));
+        Layout_node_t *n = Layout_get_node_by_id(layout, atoll(row[0]));
         if (n != NULL) {
             Layout_node_import_quantities(n, atoi(row[1]), atoi(row[2]));
             n->flags |= LAYOUT_NODE_POS_VALID;

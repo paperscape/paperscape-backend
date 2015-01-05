@@ -51,7 +51,7 @@ Layout_t *Layout_build_reduced_from_layout(Layout_t *layout);
 
 void Layout_propagate_positions_to_children(Layout_t *layout);
 void Layout_print(Layout_t *layout);
-Layout_node_t *Layout_get_node_by_id(Layout_t *layout, int id);
+Layout_node_t *Layout_get_node_by_id(Layout_t *layout, unsigned int id);
 Layout_node_t *Layout_get_node_at(Layout_t *layout, double x, double y);
 void Layout_node_compute_best_start_position(Layout_node_t *n);
 void Layout_rotate_all(Layout_t *layout, double angle);

@@ -718,7 +718,7 @@ bool Map_env_iterate(Map_env_t *map_env, Layout_node_t *hold_still, bool boost_s
     #endif
 }
 
-void Map_env_get_max_id_range(Map_env_t *map_env, int *id_min, int *id_max) {
+void Map_env_get_max_id_range(Map_env_t *map_env, unsigned int *id_min, unsigned int *id_max) {
     if (map_env->max_num_papers > 0) {
         *id_min = map_env->all_papers[0].id;
         *id_max = map_env->all_papers[map_env->max_num_papers - 1].id;
@@ -801,7 +801,7 @@ static void make_fake_links_for_paper(Map_env_t *map_env, Common_paper_t *paper)
             paper->fake_links[paper->num_fake_links++] = want_kw->paper;
             /*
             if (paper->title == NULL || p_found->title == NULL) {
-                printf("connected %d to %d\n", paper->id, p_found->id);
+                printf("connected %u to %u\n", paper->id, p_found->id);
             } else {
                 printf("connected %s to %s\n", paper->title, p_found->title);
             }
@@ -811,7 +811,7 @@ static void make_fake_links_for_paper(Map_env_t *map_env, Common_paper_t *paper)
 
     // if we couldn't find anything, try just looking for something in the same category
     if (paper->num_fake_links == 0) {
-        //printf("for paper %d, resorting to category link (it has %d keywords)\n", paper->id, paper->num_keywords);
+        //printf("for paper %u, resorting to category link (it has %d keywords)\n", paper->id, paper->num_keywords);
         Common_paper_t *p_found = NULL;
         for (int i = 0; i < map_env->num_papers; i++) {
             Common_paper_t *p2 = map_env->papers[i];
@@ -839,7 +839,7 @@ void paper_propagate_connectivity(Common_paper_t *paper) {
     }
 }
 
-void Map_env_select_date_range(Map_env_t *map_env, int id_start, int id_end) {
+void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsigned id_end) {
     int i_start = map_env->max_num_papers - 1;
     int i_end = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
@@ -861,7 +861,7 @@ void Map_env_select_date_range(Map_env_t *map_env, int id_start, int id_end) {
         return;
     }
 
-    printf("date range: %d - %d; index %d - %d\n", id_start, id_end, i_start, i_end);
+    printf("date range: %u - %u; index %d - %d\n", id_start, id_end, i_start, i_end);
 
     for (int i = i_start; i <= i_end; i++) {
         Common_paper_t *p = &map_env->all_papers[i];
@@ -979,7 +979,7 @@ void Map_env_select_date_range(Map_env_t *map_env, int id_start, int id_end) {
         Common_paper_t *p = map_env->papers[i];
         if (p->included && !p->connected) {
             if (map_env->make_fake_links) {
-                printf("WARNING: could not connect paper %d with fake links; allcats[0]=%s, keywords=", p->id, Common_category_enum_to_str(p->allcats[0]));
+                printf("WARNING: could not connect paper %u with fake links; allcats[0]=%s, keywords=", p->id, Common_category_enum_to_str(p->allcats[0]));
                 for (int j = 0; j < p->num_keywords; j++) {
                     printf("%s,", p->keywords[j]->keyword);
                 }
@@ -1040,7 +1040,7 @@ void Map_env_layout_new(Map_env_t *map_env, int num_coarsenings, double factor_r
 int Map_env_layout_place_new_papers(Map_env_t *map_env) {
     Layout_t *l = map_env->layout;
     int num = 0;
-    int id_low = 0;
+    unsigned int id_low = 0;
     for (int i = 0; i < l->num_nodes; i++) {
         Layout_node_t *n = &l->nodes[i];
         if (n->flags & LAYOUT_NODE_POS_VALID) {
@@ -1053,7 +1053,7 @@ int Map_env_layout_place_new_papers(Map_env_t *map_env) {
             Layout_node_compute_best_start_position(n);
         }
     }
-    printf("have %d papers that need new positions, min id %d\n", num, id_low);
+    printf("have %d papers that need new positions, min id %u\n", num, id_low);
     return num;
 }
 
@@ -1100,8 +1100,9 @@ void Map_env_layout_pos_load_from_json(Map_env_t *map_env, const char *json_file
             ungetc(c, fp);
             break;
         }
-        int id, x, y, r;
-        if (fscanf(fp, "%d,%d,%d,%d]", &id, &x, &y, &r) != 4) {
+        unsigned int id;
+        int x, y, r;
+        if (fscanf(fp, "%u,%d,%d,%d]", &id, &x, &y, &r) != 4) {
             printf("WARNING: malformed JSON file %s; reading entry %d\n", json_filename, entry_num);
             return;
         }
@@ -1156,7 +1157,7 @@ void Map_env_layout_pos_save_to_json(Map_env_t *map_env, const char *file) {
         Common_paper_t *p = map_env->papers[i];
         int x, y, r;
         Layout_node_export_quantities(p->layout_node, &x, &y, &r);
-        vstr_printf(vstr, "[%d,%d,%d,%d]", p->id, x, y, r);
+        vstr_printf(vstr, "[%u,%d,%d,%d]", p->id, x, y, r);
         if (i + 1 < map_env->num_papers) {
             vstr_printf(vstr, ",\n");
         } else {
@@ -1180,13 +1181,13 @@ void Map_env_layout_link_save_to_json(Map_env_t *map_env, const char *file) {
     vstr_printf(vstr, "[\n");
     for (int i = 0; i < map_env->num_papers; i++) {
         Common_paper_t *p = map_env->papers[i];
-        vstr_printf(vstr, "[%d,[", p->id);
+        vstr_printf(vstr, "[%u,[", p->id);
         Layout_node_t *ln = p->layout_node;
         for (int j = 0; j < ln->num_links; j++) {
             if (j > 0) {
                 vstr_printf(vstr, ",");
             }
-            vstr_printf(vstr, "[%d,%.6g]", ln->links[j].node->paper->id, ln->links[j].weight);
+            vstr_printf(vstr, "[%u,%.6g]", ln->links[j].node->paper->id, ln->links[j].weight);
         }
         if (i + 1 < map_env->num_papers) {
             vstr_printf(vstr, "]],\n");

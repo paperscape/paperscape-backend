@@ -155,11 +155,11 @@ static const char *category_string[] = {
 #undef CAT
 };
 
-int Common_date_to_unique_id(int y, int m, int d) {
-    return (y - 1800) * 10000000 + m * 625000 + d * 15625;
+unsigned int Common_date_to_unique_id(int y, int m, int d) {
+    return ((unsigned int)y - 1800) * 10000000 + (unsigned int)m * 625000 + (unsigned int)d * 15625;
 }
 
-void Common_unique_id_to_date(int id, int *y, int *m, int *d) {
+void Common_unique_id_to_date(unsigned int id, int *y, int *m, int *d) {
     *y = id / 10000000 + 1800;
     *m = ((id % 10000000) / 625000) + 1;
     *d = ((id % 625000) / 15625) + 1;

@@ -34,8 +34,8 @@ Layout_node_t *mouse_layout_node_held = NULL;
 Layout_node_t *mouse_layout_node_prev = NULL;
 
 /* obsolete
-int id_range_start = 2050000000;
-int id_range_end = 2060000000;
+unsigned int id_range_start = 2050000000;
+unsigned int id_range_end = 2060000000;
 */
 
 static int iterate_counter = 0;
@@ -321,9 +321,9 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
                 Common_paper_t *p = mouse_layout_node_held->paper;
                 vstr_reset(vstr);
                 if (p->authors == NULL || p->title == NULL) {
-                    vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites)", p->index, p->id, p->num_refs, p->num_cites);
+                    vstr_printf(vstr, "paper[%d] = %u (%d refs, %d cites)", p->index, p->id, p->num_refs, p->num_cites);
                 } else {
-                    vstr_printf(vstr, "paper[%d] = %d (%d refs, %d cites) %s -- %s", p->index, p->id, p->num_refs, p->num_cites, p->title, p->authors);
+                    vstr_printf(vstr, "paper[%d] = %u (%d refs, %d cites) %s -- %s", p->index, p->id, p->num_refs, p->num_cites, p->title, p->authors);
                 }
                 gtk_statusbar_push(GTK_STATUSBAR(statusbar), statusbar_context_id, vstr_str(vstr));
                 printf("%s\n", vstr_str(vstr));
@@ -338,7 +338,7 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
             Map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
             mouse_layout_node_prev->x = x;
             mouse_layout_node_prev->y = y;
-            printf("moved paper %d to (%.2f,%.2f)\n", ((Common_paper_t*)mouse_layout_node_prev->paper)->id, x, y);
+            printf("moved paper %u to (%.2f,%.2f)\n", ((Common_paper_t*)mouse_layout_node_prev->paper)->id, x, y);
             if (!update_running) {
                 gtk_widget_queue_draw(window);
             }
@@ -608,11 +608,11 @@ int main(int argc, char *argv[]) {
 
     // select the date range
     {
-        int id_min;
-        int id_max;
+        unsigned int id_min;
+        unsigned int id_max;
         Map_env_get_max_id_range(map_env, &id_min, &id_max);
-        int id_range_start = id_min;
-        int id_range_end   = id_max;
+        unsigned int id_range_start = id_min;
+        unsigned int id_range_end   = id_max;
 
         // for starting part way through
         id_range_start = Common_date_to_unique_id(2012, 3, 0);
@@ -623,7 +623,7 @@ int main(int argc, char *argv[]) {
         //id_range_end = id_max - 120000000; // minus 2 years
 
         if (arg_yearsago > 0) {
-            id_range_end = 2140000000 - arg_yearsago * 10000000;
+            id_range_end = (unsigned int)2150000000 - arg_yearsago * 10000000;
         }
 
         Map_env_select_date_range(map_env, id_range_start, id_range_end);

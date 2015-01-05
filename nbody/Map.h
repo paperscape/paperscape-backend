@@ -99,9 +99,9 @@ void Map_env_flip_x(Map_env_t *map_env);
 
 bool Map_env_iterate(Map_env_t *map_env, Layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
 
-void Map_env_get_max_id_range(Map_env_t *map_env, int *id_min, int *id_max);
+void Map_env_get_max_id_range(Map_env_t *map_env, unsigned int *id_min, unsigned int *id_max);
 void Map_env_inc_num_papers(Map_env_t *map_env, int amt);
-void Map_env_select_date_range(Map_env_t *map_env, int id_start, int id_end);
+void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsigned int id_end);
 
 void Map_env_layout_new(Map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link);
 int Map_env_layout_place_new_papers(Map_env_t *map_env);

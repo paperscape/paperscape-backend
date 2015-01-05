@@ -416,7 +416,7 @@ void Layout_print(Layout_t *l) {
     */
 }
 
-Layout_node_t *Layout_get_node_by_id(Layout_t *layout, int id) {
+Layout_node_t *Layout_get_node_by_id(Layout_t *layout, unsigned int id) {
     assert(layout->child_layout == NULL);
     int lo = 0;
     int hi = layout->num_nodes - 1;

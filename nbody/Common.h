@@ -76,8 +76,8 @@ int Common_keyword_set_get_total(Common_keyword_set_t *kws);
 void Common_keyword_set_clear_data(Common_keyword_set_t *kws);
 Common_keyword_t *keyword_set_lookup_or_insert(Common_keyword_set_t *kws, const char *kw, size_t kw_len);
 
-int Common_date_to_unique_id(int y, int m, int d);
-void Common_unique_id_to_date(int id, int *y, int *m, int *d);
+unsigned int Common_date_to_unique_id(int y, int m, int d);
+void Common_unique_id_to_date(unsigned int id, int *y, int *m, int *d);
 
 bool Common_build_citation_links(int num_papers, Common_paper_t *papers);
 void Common_recompute_num_included_cites(int num_papers, Common_paper_t *papers);

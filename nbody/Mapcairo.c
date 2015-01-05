@@ -325,8 +325,8 @@ void Mapcairo_env_draw(Map_env_t *map_env, cairo_t *cr, int width, int height, v
         vstr_printf(vstr_info, "have %d layout nodes in graph; %d finer levels, %d coarser levels\n", map_env->layout->num_nodes, Map_env_number_of_finer_layouts(map_env), Map_env_number_of_coarser_layouts(map_env));
         vstr_printf(vstr_info, "have %d papers connected and included in graph\n", map_env->num_papers);
         if (map_env->num_papers > 0) {
-            int id0 = map_env->papers[0]->id;
-            int id1 = map_env->papers[map_env->num_papers - 1]->id;
+            unsigned int id0 = map_env->papers[0]->id;
+            unsigned int id1 = map_env->papers[map_env->num_papers - 1]->id;
             int y0, m0, d0;
             int y1, m1, d1;
             Common_unique_id_to_date(id0, &y0, &m0, &d0);

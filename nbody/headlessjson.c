@@ -108,8 +108,8 @@ int main(int argc, char *argv[]) {
 
     // select the date range
     {
-        int id_min;
-        int id_max;
+        unsigned int id_min;
+        unsigned int id_max;
         Map_env_get_max_id_range(map_env, &id_min, &id_max);
         Map_env_select_date_range(map_env, id_min, id_max);
     }
