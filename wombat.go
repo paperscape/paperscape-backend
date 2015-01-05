@@ -891,17 +891,17 @@ func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
     if paper == nil { return }
    
     // build list of ids
-    var ids []uint 
+    var ids []uint64
 
-    ids = append(ids, uint(paper.id))
+    ids = append(ids, uint64(paper.id))
     if paper.refs != nil {
         for _, ref := range paper.refs {
-            ids = append(ids, uint(ref.pastId))
+            ids = append(ids, uint64(ref.pastId))
         }
     }
     if paper.cites != nil {
         for _, cite := range paper.cites {
-            ids = append(ids, uint(cite.futureId))
+            ids = append(ids, uint64(cite.futureId))
         }
     }
 
@@ -1151,10 +1151,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
         } else if req.Form["mp2l[]"] != nil && req.Form["tbl"] != nil {
             // map: paper ids to locations
-            var ids []uint
+            var ids []uint64
             for _, strId := range req.Form["mp2l[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint(preId))
+                    ids = append(ids, uint64(preId))
                 } else {
                     log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
@@ -1409,10 +1409,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             logDescription = fmt.Sprintf("gdata (%d)",len(req.Form["gdata[]"]))
         } else if req.Form["mp2l[]"] != nil && req.Form["tbl"] != nil {
             // map: paper ids to locations
-            var ids []uint
+            var ids []uint64
             for _, strId := range req.Form["mp2l[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint(preId))
+                    ids = append(ids, uint64(preId))
                 } else {
                     log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
@@ -2164,33 +2164,7 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
     fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"}",code,modcode)
 }
 
-/*
-func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
-
-    var txmin,tymin,txmax,tymax int
-    var lxmin,lymin,lxmax,lymax int
-    var tpixw,tpixh,idmax,idnew uint
-    var tilings,labelings string
-
-    //stmt := h.papers.StatementBegin("SELECT max(id) FROM map_data")
-    //if !h.papers.StatementBindSingleRow(stmt,&idmax) {
-    //    return
-    //}
-
-    stmt := h.papers.StatementBegin("SELECT tile_data.latest_id,tile_data.xmin,tile_data.ymin,tile_data.xmax,tile_data.ymax,tile_data.tile_pixel_w,tile_data.tile_pixel_h,tile_data.tilings,label_data.xmin,label_data.ymin,label_data.xmax,label_data.ymax,label_data.zones FROM tile_data,label_data WHERE tile_data.latest_id = label_data.latest_id")
-    if !h.papers.StatementBindSingleRow(stmt,&idmax,&txmin,&tymin,&txmax,&tymax,&tpixw,&tpixh,&tilings,&lxmin,&lymin,&lxmax,&lymax,&labelings) {
-        return
-    }
-
-    stmt = h.papers.StatementBegin("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < ?",idmax)
-    if !h.papers.StatementBindSingleRow(stmt,&idnew) {
-        return
-    }
-
-    fmt.Fprintf(rw, "{\"txmin\":%d,\"tymin\":%d,\"txmax\":%d,\"tymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s,\"lxmin\":%d,\"lymin\":%d,\"lxmax\":%d,\"lymax\":%d,\"label\":%s}",txmin, tymin,txmax,tymax,idmax,idnew,tpixw,tpixh,tilings,lxmin,lymin,lxmax,lymax,labelings)
-}*/
-
-func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, tableSuffix string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint64, tableSuffix string, rw http.ResponseWriter) {
     
     var x,y int
     var r uint 
@@ -2254,7 +2228,8 @@ func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, tableSuffix string, 
 
 func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, tableSuffix string, rw http.ResponseWriter) {
     
-    var id, resr uint
+    var id uint64
+    var resr uint
     var resx, resy int 
 
     loc_table := "map_data"
