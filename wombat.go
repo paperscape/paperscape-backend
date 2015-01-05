@@ -906,7 +906,8 @@ func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
     }
 
     var x,y int 
-    var resId, r uint
+    var resId uint64
+    var r uint
 
     // create sql statement dynamically based on number of IDs
     var args bytes.Buffer
@@ -944,13 +945,13 @@ func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
             } else if eof { break }
             // attach location to correct reference
             foundIt := false
-            if paper.id == resId {
+            if paper.id == uint(resId) {
                 paper.location = &Location{x,y,r}
                 foundIt = true
             }
             if !foundIt && paper.refs != nil {
                 for _, ref := range paper.refs {
-                    if ref.pastId == resId {
+                    if ref.pastId == uint(resId) {
                         ref.location = &Location{x,y,r} 
                         foundIt = true
                         break
@@ -959,7 +960,7 @@ func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
             }
             if !foundIt && paper.cites != nil {
                 for _, cite := range paper.cites {
-                    if cite.futureId == resId {
+                    if cite.futureId == uint(resId) {
                         cite.location = &Location{x,y,r} 
                         foundIt = true
                         break
@@ -1150,10 +1151,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
         } else if req.Form["mp2l[]"] != nil && req.Form["tbl"] != nil {
             // map: paper ids to locations
-            var ids []uint64
+            var ids []uint
             for _, strId := range req.Form["mp2l[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint64(preId))
+                    ids = append(ids, uint(preId))
                 } else {
                     log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
@@ -1408,10 +1409,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             logDescription = fmt.Sprintf("gdata (%d)",len(req.Form["gdata[]"]))
         } else if req.Form["mp2l[]"] != nil && req.Form["tbl"] != nil {
             // map: paper ids to locations
-            var ids []uint64
+            var ids []uint
             for _, strId := range req.Form["mp2l[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint64(preId))
+                    ids = append(ids, uint(preId))
                 } else {
                     log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
@@ -2189,10 +2190,11 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "{\"txmin\":%d,\"tymin\":%d,\"txmax\":%d,\"tymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s,\"lxmin\":%d,\"lymin\":%d,\"lxmax\":%d,\"lymax\":%d,\"label\":%s}",txmin, tymin,txmax,tymax,idmax,idnew,tpixw,tpixh,tilings,lxmin,lymin,lxmax,lymax,labelings)
 }*/
 
-func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint64, tableSuffix string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, tableSuffix string, rw http.ResponseWriter) {
     
-    var x,y int 
-    var resId, r uint64
+    var x,y int
+    var r uint 
+    var resId uint64
 
     fmt.Fprintf(rw, "[")
     
@@ -2750,7 +2752,8 @@ func (h *MyHTTPHandler) SearchKeyword(searchString string, rw http.ResponseWrite
 
     stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.keywords) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
 
-    var id,numCites uint64
+    var id uint64
+    var numCites uint
 
     numResults := 0
     fmt.Fprintf(rw, "[")
@@ -2809,7 +2812,8 @@ func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWrite
     //stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
     stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE (meta_data.id = pcite.id) AND (MATCH(meta_data.authors,meta_data.keywords) AGAINST (? IN BOOLEAN MODE)) LIMIT 150",booleanSearchString.String())
 
-    var id,numCites uint64
+    var id uint64
+    var numCites uint
     //var refStr []byte
     
     numResults := 0
