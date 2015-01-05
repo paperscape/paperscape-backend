@@ -1150,10 +1150,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
         } else if req.Form["mp2l[]"] != nil && req.Form["tbl"] != nil {
             // map: paper ids to locations
-            var ids []uint
+            var ids []uint64
             for _, strId := range req.Form["mp2l[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint(preId))
+                    ids = append(ids, uint64(preId))
                 } else {
                     log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
@@ -1408,10 +1408,10 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             logDescription = fmt.Sprintf("gdata (%d)",len(req.Form["gdata[]"]))
         } else if req.Form["mp2l[]"] != nil && req.Form["tbl"] != nil {
             // map: paper ids to locations
-            var ids []uint
+            var ids []uint64
             for _, strId := range req.Form["mp2l[]"] {
                 if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
-                    ids = append(ids, uint(preId))
+                    ids = append(ids, uint64(preId))
                 } else {
                     log.Printf("ERROR: can't convert id '%s'; skipping\n", strId)
                 }
@@ -2189,10 +2189,10 @@ func (h *MyHTTPHandler) MapLoadWorld(rw http.ResponseWriter) {
     fmt.Fprintf(rw, "{\"txmin\":%d,\"tymin\":%d,\"txmax\":%d,\"tymax\":%d,\"idmax\":%d,\"idnew\":%d,\"tpxw\":%d,\"tpxh\":%d,\"tile\":%s,\"lxmin\":%d,\"lymin\":%d,\"lxmax\":%d,\"lymax\":%d,\"label\":%s}",txmin, tymin,txmax,tymax,idmax,idnew,tpixw,tpixh,tilings,lxmin,lymin,lxmax,lymax,labelings)
 }*/
 
-func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint, tableSuffix string, rw http.ResponseWriter) {
+func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint64, tableSuffix string, rw http.ResponseWriter) {
     
     var x,y int 
-    var resId, r uint
+    var resId, r uint64
 
     fmt.Fprintf(rw, "[")
     
