@@ -128,7 +128,13 @@ static bool env_get_num_ids(env_t *env, int *num_ids) {
 static int paper_cmp_id(const void *in1, const void *in2) {
     Common_paper_t *p1 = (Common_paper_t *)in1;
     Common_paper_t *p2 = (Common_paper_t *)in2;
-    return p1->id - p2->id;
+    if (p1->id < p2->id) {
+        return -1;
+    } else if (p1->id > p2->id) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 static bool env_load_ids(env_t *env, const char *where_clause, bool load_authors_and_titles) {
