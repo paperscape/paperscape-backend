@@ -218,6 +218,7 @@ type Paper struct {
     publJSON   string   // publication string in JSON format
     refs       []*Link  // makes references to
     cites      []*Link  // cited by 
+    numRefs    uint     // number of times refered to
     numCites   uint     // number of times cited
     dNumCites1 uint     // change in numCites in past day
     dNumCites5 uint     // change in numCites in past 5 days
@@ -633,17 +634,20 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     }
 
     //// Get number of times cited, and change in number of cites
-    query = fmt.Sprintf("SELECT numCites,dNumCites1,dNumCites5 FROM pcite WHERE id = %d", paper.id)
+    query = fmt.Sprintf("SELECT numRefs,numCites,dNumCites1,dNumCites5 FROM pcite WHERE id = %d", paper.id)
     row2 := papers.QuerySingleRow(query)
 
     if row2 != nil {
-        if numCites, ok := row2[0].(uint64); ok {
+        if numRefs, ok := row2[0].(uint64); ok {
+            paper.numRefs = uint(numRefs)
+        }
+        if numCites, ok := row2[1].(uint64); ok {
             paper.numCites = uint(numCites)
         }
-        if dNumCites1, ok := row2[1].(int64); ok {
+        if dNumCites1, ok := row2[2].(int64); ok {
             paper.dNumCites1 = uint(dNumCites1)
         }
-        if dNumCites5, ok := row2[2].(int64); ok {
+        if dNumCites5, ok := row2[3].(int64); ok {
             paper.dNumCites5 = uint(dNumCites5)
         }
     } else {
@@ -1462,7 +1466,7 @@ func PrintJSONMetaInfo(w io.Writer, paper *Paper) {
     }
 
     //fmt.Fprintf(w, "{\"id\":%d,\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", paper.id, authorsJSON, titleJSON, paper.numCites, paper.dNumCites1, paper.dNumCites5)
-    fmt.Fprintf(w, "\"auth\":%s,\"titl\":%s,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", authorsJSON, titleJSON, paper.numCites, paper.dNumCites1, paper.dNumCites5)
+    fmt.Fprintf(w, "\"auth\":%s,\"titl\":%s,\"nr\":%d,\"nc\":%d,\"dnc1\":%d,\"dnc5\":%d", authorsJSON, titleJSON, paper.numRefs, paper.numCites, paper.dNumCites1, paper.dNumCites5)
     if len(paper.arxiv) > 0 {
         fmt.Fprintf(w, ",\"arxv\":\"%s\"", paper.arxiv)
         if len(paper.allcats) > 0 {
