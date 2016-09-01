@@ -29,6 +29,15 @@ static bool have_error(env_t *env) {
 }
 
 static bool env_set_up(env_t* env) {
+    char *mysql_host, *mysql_user, *mysql_pwd, *mysql_db, *mysql_sock;
+    
+    mysql_host = getenv("PSCP_MYSQL_HOST");
+    mysql_user = getenv("PSCP_MYSQL_USER");
+    mysql_pwd  = getenv("PSCP_MYSQL_PWD");
+    mysql_db   = getenv("PSCP_MYSQL_DB");
+    mysql_sock = getenv("PSCP_MYSQL_SOCKET");
+    if (mysql_host == NULL) mysql_host = "localhost";
+
     for (int i = 0; i < VSTR_MAX; i++) {
         env->vstr[i] = vstr_new();
     }
@@ -45,13 +54,9 @@ static bool env_set_up(env_t* env) {
     env->close_mysql = true;
 
     // connect to the MySQL server
-    if (mysql_real_connect(&env->mysql, "localhost", "hidden", "hidden", "xiwi", 0, NULL, 0) == NULL) {
-        if (mysql_real_connect(&env->mysql, "susi", "hidden", "hidden", "xiwi", 0, NULL, 0) == NULL) {
-            if (mysql_real_connect(&env->mysql, "localhost", "hidden", "hidden", "xiwi", 0, "/home/damien/mysql/mysql.sock", 0) == NULL) {
-                have_error(env);
-                return false;
-            }
-        }
+    if (mysql_real_connect(&env->mysql, mysql_host, mysql_user, mysql_pwd, mysql_db, 0, mysql_sock, 0) == NULL) {
+        have_error(env);
+        return false;
     }
 
     return true;
