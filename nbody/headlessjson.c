@@ -6,9 +6,9 @@
 #include "xiwilib.h"
 #include "common.h"
 #include "layout.h"
-#include "Map.h"
-#include "Mapauto.h"
-#include "Json.h"
+#include "map.h"
+#include "mapauto.h"
+#include "json.h"
 
 static int usage(const char *progname) {
     printf("\n");
@@ -87,53 +87,53 @@ int main(int argc, char *argv[]) {
     int num_papers;
     paper_t *papers;
     keyword_set_t *keyword_set;
-    if (!Json_load_papers(arg_pscp_refs, &num_papers, &papers, &keyword_set)) {
+    if (!json_load_papers(arg_pscp_refs, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
     if (arg_other_links != NULL) {
-        if (!Json_load_other_links(arg_other_links, num_papers, papers)) {
+        if (!json_load_other_links(arg_other_links, num_papers, papers)) {
             return 1;
         }
     }
 
     // create the map object
-    Map_env_t *map_env = Map_env_new();
+    map_env_t *map_env = map_env_new();
 
     // whether to create fake links for disconnected papers
-    Map_env_set_make_fake_links(map_env,!no_fake_links);
-    Map_env_set_other_links_veto(map_env,other_links_veto);
+    map_env_set_make_fake_links(map_env,!no_fake_links);
+    map_env_set_other_links_veto(map_env,other_links_veto);
 
     // set the papers
-    Map_env_set_papers(map_env, num_papers, papers, keyword_set);
+    map_env_set_papers(map_env, num_papers, papers, keyword_set);
 
     // select the date range
     {
         unsigned int id_min;
         unsigned int id_max;
-        Map_env_get_max_id_range(map_env, &id_min, &id_max);
-        Map_env_select_date_range(map_env, id_min, id_max);
+        map_env_get_max_id_range(map_env, &id_min, &id_max);
+        map_env_select_date_range(map_env, id_min, id_max);
     }
 
     // create a new layout with 10 levels of coarsening
     printf("using weight formula: %lf * ref_freq + %lf * other_link\n", arg_factor_ref_freq, arg_factor_other_link);
-    Map_env_layout_new(map_env, 10, arg_factor_ref_freq, arg_factor_other_link);
+    map_env_layout_new(map_env, 10, arg_factor_ref_freq, arg_factor_other_link);
 
     // do the layout
-    Mapauto_env_do_complete_layout(map_env, 4000, 10000);
+    map_env_do_complete_layout(map_env, 4000, 10000);
 
     // align the map in a fixed direction
     if (num_papers > 0) {
-        Map_env_orient_using_paper(map_env, &papers[0], 0);
+        map_env_orient_using_paper(map_env, &papers[0], 0);
     }
 
     // write position info to JSON
     if (arg_write_pos != NULL) {
-        Map_env_layout_pos_save_to_json(map_env, arg_write_pos);
+        map_env_layout_pos_save_to_json(map_env, arg_write_pos);
     }
 
     // write link info to JSON
     if (arg_write_link != NULL) {
-        Map_env_layout_link_save_to_json(map_env, arg_write_link);
+        map_env_layout_link_save_to_json(map_env, arg_write_link);
     }
 
     return 0;

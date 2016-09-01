@@ -9,11 +9,11 @@
 #include "xiwilib.h"
 #include "common.h"
 #include "layout.h"
-#include "Map.h"
-#include "Mysql.h"
-#include "Mapmysql.h"
-#include "Mapcairo.h"
-#include "Cairohelper.h"
+#include "map.h"
+#include "mysql.h"
+#include "mapmysql.h"
+#include "mapcairo.h"
+#include "cairohelper.h"
 
 vstr_t *vstr;
 GtkWidget *window;
@@ -40,14 +40,14 @@ unsigned int id_range_end = 2060000000;
 
 static int iterate_counter = 0;
 static int converged_counter = 0;
-static gboolean Map_env_update(Map_env_t *map_env) {
+static gboolean map_env_update(map_env_t *map_env) {
     struct timeval tp;
     gettimeofday(&tp, NULL);
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     for (int i = 1; i <= 5; i++) {
         iterate_counter += 1;
         printf("nbody iteration %d", iterate_counter);
-        if (Map_env_iterate(map_env, mouse_layout_node_held, boost_step_size > 0, false)) {
+        if (map_env_iterate(map_env, mouse_layout_node_held, boost_step_size > 0, false)) {
             converged_counter += 1;
         } else {
             converged_counter = 0;
@@ -71,24 +71,24 @@ static gboolean Map_env_update(Map_env_t *map_env) {
 
     if (auto_refine) {
         if (iterate_counter_full_refine > 0 && iterate_counter > iterate_counter_full_refine) {
-            if (Map_env_number_of_finer_layouts(map_env) > 1) {
+            if (map_env_number_of_finer_layouts(map_env) > 1) {
                 printf("auto refine: refine with close repulsion\n");
-                Map_env_refine_layout(map_env);
+                map_env_refine_layout(map_env);
                 boost_step_size = 1;
                 iterate_counter_full_refine = iterate_counter + 2000;
             } else {
                 printf("auto refine: refine with close repulsion final\n");
-                Map_env_refine_layout(map_env);
+                map_env_refine_layout(map_env);
                 auto_refine = false;
             }
         } else if (converged_counter > 100) {
-            if (Map_env_number_of_finer_layouts(map_env) > 1) {
+            if (map_env_number_of_finer_layouts(map_env) > 1) {
                 printf("auto refine: refine\n");
-                Map_env_refine_layout(map_env);
+                map_env_refine_layout(map_env);
                 boost_step_size = 1;
             } else {
                 printf("auto refine: do close repulsion\n");
-                Map_env_set_do_close_repulsion(map_env, true);
+                map_env_set_do_close_repulsion(map_env, true);
                 boost_step_size = 1;
                 iterate_counter_full_refine = iterate_counter + 2000;
             }
@@ -103,16 +103,16 @@ static gboolean Map_env_update(Map_env_t *map_env) {
     return TRUE; // yes, we want to be called again
 }
 
-static void draw_to_png(Map_env_t *map_env, int width, int height, const char *file, vstr_t *vstr_info) {
+static void draw_to_png(map_env_t *map_env, int width, int height, const char *file, vstr_t *vstr_info) {
     cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_RGB24, width, height);
     cairo_t *cr = cairo_create(surface);
-    Mapcairo_env_draw(map_env, cr, width, height, NULL);
+    map_env_draw(map_env, cr, width, height, NULL);
 
     if (vstr_info != NULL) {
         cairo_identity_matrix(cr);
         cairo_set_source_rgb(cr, 0, 0, 0);
         cairo_set_font_size(cr, 10);
-        Cairo_helper_draw_text_lines(cr, 10, 20, vstr_info);
+        cairo_helper_draw_text_lines(cr, 10, 20, vstr_info);
     }
 
     cairo_status_t status = cairo_surface_write_to_png(surface, file);
@@ -125,7 +125,7 @@ static void draw_to_png(Map_env_t *map_env, int width, int height, const char *f
     }
 }
 
-static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, Map_env_t *map_env) {
+static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env) {
     guint width = gtk_widget_get_allocated_width(widget);
     guint height = gtk_widget_get_allocated_height(widget);
 
@@ -133,10 +133,10 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, Map_env_t *map_env
     vstr_printf(vstr, "included papers: %s\n", included_papers_string);
     if (iterate_counter > 0) {
         if (lock_view_all) {
-            Map_env_centre_view(map_env);
-            Map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, width, height);
+            map_env_centre_view(map_env);
+            map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, width, height);
         }
-        Mapcairo_env_draw(map_env, cr, width, height, vstr);
+        map_env_draw(map_env, cr, width, height, vstr);
     }
     vstr_printf(vstr, "\n");
     vstr_printf(vstr, "(A) auto refine: %d\n", auto_refine);
@@ -148,12 +148,12 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, Map_env_t *map_env
     cairo_identity_matrix(cr);
     cairo_set_source_rgb(cr, 1, 1, 1);
     cairo_set_font_size(cr, 10);
-    Cairo_helper_draw_text_lines(cr, 10, 20, vstr);
+    cairo_helper_draw_text_lines(cr, 10, 20, vstr);
 
     return FALSE;
 }
 
-static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, Map_env_t *map_env) {
+static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, map_env_t *map_env) {
     //printf("here %d %d\n", event->state, event->keyval);
 
     if (event->keyval == GDK_KEY_space) {
@@ -162,7 +162,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
             update_running = false;
             printf("update not running\n");
         } else {
-            g_idle_add((GSourceFunc)Map_env_update, map_env);
+            g_idle_add((GSourceFunc)map_env_update, map_env);
             update_running = true;
             printf("update running\n");
         }
@@ -190,57 +190,57 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         } else if (event->keyval == GDK_KEY_f) {
         }
 
-        Map_env_select_date_range(map_env, id_range_start, id_range_end, true);
+        map_env_select_date_range(map_env, id_range_start, id_range_end, true);
         */
 
         /*
     } else if (event->keyval == GDK_KEY_a) {
-        Map_env_inc_num_papers(map_env, 1);
+        map_env_inc_num_papers(map_env, 1);
     } else if (event->keyval == GDK_KEY_b) {
-        Map_env_inc_num_papers(map_env, 10);
+        map_env_inc_num_papers(map_env, 10);
     } else if (event->keyval == GDK_KEY_c) {
-        Map_env_inc_num_papers(map_env, 100);
+        map_env_inc_num_papers(map_env, 100);
     } else if (event->keyval == GDK_KEY_d) {
-        Map_env_inc_num_papers(map_env, 1000);
+        map_env_inc_num_papers(map_env, 1000);
     } else if (event->keyval == GDK_KEY_e) {
-        Map_env_inc_num_papers(map_env, 10000);
+        map_env_inc_num_papers(map_env, 10000);
         */
 
     } else if (event->keyval == GDK_KEY_g) {
-        Map_env_toggle_draw_grid(map_env);
+        map_env_toggle_draw_grid(map_env);
 
     } else if (event->keyval == GDK_KEY_J) {
         // write map to JSON
         vstr_reset(vstr);
-        vstr_printf(vstr, "map-%06u.json", Map_env_get_num_papers(map_env));
-        Map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
+        vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
+        map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
 
     } else if (event->keyval == GDK_KEY_j) {
-        Map_env_jolt(map_env, 0.5);
+        map_env_jolt(map_env, 0.5);
     } else if (event->keyval == GDK_KEY_k) {
-        Map_env_jolt(map_env, 2.5);
+        map_env_jolt(map_env, 2.5);
 
     } else if (event->keyval == GDK_KEY_l) {
-        Map_env_toggle_draw_paper_links(map_env);
+        map_env_toggle_draw_paper_links(map_env);
 
     } else if (event->keyval == GDK_KEY_q) {
         gtk_main_quit();
 
     } else if (event->keyval == GDK_KEY_r) {
-        Map_env_toggle_do_close_repulsion(map_env);
+        map_env_toggle_do_close_repulsion(map_env);
 
     } else if (event->keyval == GDK_KEY_t) {
-        Map_env_toggle_do_tred(map_env);
+        map_env_toggle_do_tred(map_env);
 
     } else if (event->keyval == GDK_KEY_v) {
-        Map_env_toggle_use_ref_freq(map_env);
+        map_env_toggle_use_ref_freq(map_env);
 
     } else if (event->keyval == GDK_KEY_w) {
         draw_to_png(map_env, 1000, 1000, "out.png", NULL);
 
     } else if (event->keyval == GDK_KEY_z) {
-        Map_env_centre_view(map_env);
-        Map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, 1000, 1000);
+        map_env_centre_view(map_env);
+        map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, 1000, 1000);
 
     } else if (event->keyval == GDK_KEY_A) {
         auto_refine = !auto_refine;
@@ -248,49 +248,49 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         lock_view_all = !lock_view_all;
 
     } else if (event->keyval == GDK_KEY_1) {
-        Map_env_adjust_anti_gravity(map_env, 0.9);
+        map_env_adjust_anti_gravity(map_env, 0.9);
     } else if (event->keyval == GDK_KEY_exclam) {
-        Map_env_adjust_anti_gravity(map_env, 1.1);
+        map_env_adjust_anti_gravity(map_env, 1.1);
 
     } else if (event->keyval == GDK_KEY_2) {
-        Map_env_adjust_link_strength(map_env, 0.9);
+        map_env_adjust_link_strength(map_env, 0.9);
     } else if (event->keyval == GDK_KEY_at) {
-        Map_env_adjust_link_strength(map_env, 1.1);
+        map_env_adjust_link_strength(map_env, 1.1);
 
     } else if (event->keyval == GDK_KEY_3) {
-        Map_env_adjust_close_repulsion(map_env, 0.7, 1.0);
+        map_env_adjust_close_repulsion(map_env, 0.7, 1.0);
     } else if (event->keyval == GDK_KEY_numbersign) {
-        Map_env_adjust_close_repulsion(map_env, 1.5, 1.0);
+        map_env_adjust_close_repulsion(map_env, 1.5, 1.0);
     } else if (event->keyval == GDK_KEY_4) {
-        Map_env_adjust_close_repulsion(map_env, 1.0, 0.7);
+        map_env_adjust_close_repulsion(map_env, 1.0, 0.7);
     } else if (event->keyval == GDK_KEY_dollar) {
-        Map_env_adjust_close_repulsion(map_env, 1.0, 1.5);
+        map_env_adjust_close_repulsion(map_env, 1.0, 1.5);
 
     } else if (event->keyval == GDK_KEY_5) {
-        Map_env_adjust_close_repulsion2(map_env, 0.95, 0.0);
+        map_env_adjust_close_repulsion2(map_env, 0.95, 0.0);
     } else if (event->keyval == GDK_KEY_percent) {
-        Map_env_adjust_close_repulsion2(map_env, 1.05, 0.0);
+        map_env_adjust_close_repulsion2(map_env, 1.05, 0.0);
     } else if (event->keyval == GDK_KEY_6) {
-        Map_env_adjust_close_repulsion2(map_env, 1.0, -0.05);
+        map_env_adjust_close_repulsion2(map_env, 1.0, -0.05);
     } else if (event->keyval == GDK_KEY_asciicircum) {
-        Map_env_adjust_close_repulsion2(map_env, 1.0, 0.05);
+        map_env_adjust_close_repulsion2(map_env, 1.0, 0.05);
 
     } else if (event->keyval == GDK_KEY_9) {
-        Map_env_coarsen_layout(map_env);
+        map_env_coarsen_layout(map_env);
     } else if (event->keyval == GDK_KEY_0) {
-        Map_env_refine_layout(map_env);
+        map_env_refine_layout(map_env);
 
     } else if (event->keyval == GDK_KEY_plus || event->keyval == GDK_KEY_equal) {
-        Map_env_zoom(map_env, 0, 0, 1.2);
+        map_env_zoom(map_env, 0, 0, 1.2);
     } else if (event->keyval == GDK_KEY_minus) {
-        Map_env_zoom(map_env, 0, 0, 0.8);
+        map_env_zoom(map_env, 0, 0, 0.8);
 
     } else if (event->keyval == GDK_KEY_Left) {
-        Map_env_rotate_all(map_env, 0.1);
+        map_env_rotate_all(map_env, 0.1);
     } else if (event->keyval == GDK_KEY_Right) {
-        Map_env_rotate_all(map_env, -0.1);
+        map_env_rotate_all(map_env, -0.1);
     } else if (event->keyval == GDK_KEY_Up) {
-        Map_env_flip_x(map_env);
+        map_env_flip_x(map_env);
     }
 
     if (!update_running) {
@@ -300,24 +300,24 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     return TRUE; // we handled the event, stop processing
 }
 
-static gboolean button_press_event_callback(GtkWidget *widget, GdkEventButton *event, Map_env_t *map_env) {
+static gboolean button_press_event_callback(GtkWidget *widget, GdkEventButton *event, map_env_t *map_env) {
     if (event->button == GDK_BUTTON_PRIMARY) {
         mouse_held = TRUE;
         mouse_dragged = FALSE;
         mouse_last_x = event->x;
         mouse_last_y = event->y;
-        mouse_layout_node_held = Map_env_get_layout_node_at(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), event->x, event->y);
+        mouse_layout_node_held = map_env_get_layout_node_at(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), event->x, event->y);
         mouse_layout_node_prev = mouse_layout_node_held;
     }
 
     return TRUE; // we handled the event, stop processing
 }
 
-static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton *event, Map_env_t *map_env) {
+static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton *event, map_env_t *map_env) {
     if (event->button == GDK_BUTTON_PRIMARY) {
         mouse_held = FALSE;
         if (!mouse_dragged) {
-            if (mouse_layout_node_held != NULL && Map_env_number_of_finer_layouts(map_env) == 0) {
+            if (mouse_layout_node_held != NULL && map_env_number_of_finer_layouts(map_env) == 0) {
                 paper_t *p = mouse_layout_node_held->paper;
                 vstr_reset(vstr);
                 if (p->authors == NULL || p->title == NULL) {
@@ -331,11 +331,11 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
         }
         mouse_layout_node_held = NULL;
     } else if (event->button == GDK_BUTTON_SECONDARY) {
-        if (mouse_layout_node_prev != NULL && Map_env_number_of_finer_layouts(map_env) == 0) {
+        if (mouse_layout_node_prev != NULL && map_env_number_of_finer_layouts(map_env) == 0) {
             // right click move previously clicked paper to this location
             double x = event->x;
             double y = event->y;
-            Map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
+            map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
             mouse_layout_node_prev->x = x;
             mouse_layout_node_prev->y = y;
             printf("moved paper %u to (%.2f,%.2f)\n", ((paper_t*)mouse_layout_node_prev->paper)->id, x, y);
@@ -348,13 +348,13 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
     return TRUE; // we handled the event, stop processing
 }
 
-static gboolean scroll_event_callback(GtkWidget *widget, GdkEventScroll *event, Map_env_t *map_env) {
+static gboolean scroll_event_callback(GtkWidget *widget, GdkEventScroll *event, map_env_t *map_env) {
     guint width = gtk_widget_get_allocated_width(widget);
     guint height = gtk_widget_get_allocated_height(widget);
     if (event->direction == GDK_SCROLL_UP) {
-        Map_env_zoom(map_env, event->x - 0.5 * width, event->y - 0.5 * height, 1.2);
+        map_env_zoom(map_env, event->x - 0.5 * width, event->y - 0.5 * height, 1.2);
     } else if (event->direction == GDK_SCROLL_DOWN) {
-        Map_env_zoom(map_env, event->x - 0.5 * width, event->y - 0.5 * height, 0.8);
+        map_env_zoom(map_env, event->x - 0.5 * width, event->y - 0.5 * height, 0.8);
     }
 
     if (!update_running) {
@@ -364,7 +364,7 @@ static gboolean scroll_event_callback(GtkWidget *widget, GdkEventScroll *event, 
     return TRUE; // we handled the event, stop processing
 }
 
-static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion *event, Map_env_t *map_env) {
+static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion *event, map_env_t *map_env) {
     if (mouse_held) {
         if (!mouse_dragged) {
             if (fabs(mouse_last_x - event->x) > 4 || fabs(mouse_last_y - event->y) > 4) {
@@ -375,12 +375,12 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
                 // mouse dragged on background
                 double dx = event->x - mouse_last_x;
                 double dy = event->y - mouse_last_y;
-                Map_env_scroll(map_env, dx, dy);
+                map_env_scroll(map_env, dx, dy);
             } else {
                 // mouse dragged on paper
                 double x = event->x;
                 double y = event->y;
-                Map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
+                map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
                 mouse_layout_node_held->x = x;
                 mouse_layout_node_held->y = y;
             }
@@ -397,7 +397,7 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
 
 // for a gtk example, see: http://git.gnome.org/browse/gtk+/tree/demos/gtk-demo/drawingarea.c
 
-void build_gui(Map_env_t *map_env, const char *papers_string) {
+void build_gui(map_env_t *map_env, const char *papers_string) {
     vstr = vstr_new();
     included_papers_string = papers_string;
 
@@ -464,8 +464,8 @@ void build_gui(Map_env_t *map_env, const char *papers_string) {
 
     g_signal_connect(window, "key-press-event", G_CALLBACK(key_press_event_callback), map_env);
 
-    //g_timeout_add(100 /* milliseconds */, (GSourceFunc)Map_env_update, map_env);
-    g_idle_add((GSourceFunc)Map_env_update, map_env);
+    //g_timeout_add(100 /* milliseconds */, (GSourceFunc)map_env_update, map_env);
+    g_idle_add((GSourceFunc)map_env_update, map_env);
     g_signal_connect(drawing_area, "draw", G_CALLBACK(draw_callback), map_env);
     g_signal_connect(drawing_area, "button-press-event", G_CALLBACK(button_press_event_callback), map_env);
     g_signal_connect(drawing_area, "button-release-event", G_CALLBACK(button_release_event_callback), map_env);
@@ -583,34 +583,34 @@ int main(int argc, char *argv[]) {
     int num_papers;
     paper_t *papers;
     keyword_set_t *keyword_set;
-    if (!Mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
+    if (!mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
 
     // create the map object
-    Map_env_t *map_env = Map_env_new();
+    map_env_t *map_env = map_env_new();
 
     // whether to create fake links for disconnected papers
-    Map_env_set_make_fake_links(map_env,!no_fake_links);
+    map_env_set_make_fake_links(map_env,!no_fake_links);
 
     // set parameters
     if (arg_anti_grav_rsq > 0) {
-        Map_env_set_anti_gravity(map_env, arg_anti_grav_rsq);
+        map_env_set_anti_gravity(map_env, arg_anti_grav_rsq);
     }
     if (arg_link_strength > 0) {
-        Map_env_set_link_strength(map_env, arg_link_strength);
+        map_env_set_link_strength(map_env, arg_link_strength);
     }
 
     // set the papers
-    Map_env_set_papers(map_env, num_papers, papers, keyword_set);
-    //Map_env_random_papers(map_env, 1000);
-    //Map_env_papers_test2(map_env, 100);
+    map_env_set_papers(map_env, num_papers, papers, keyword_set);
+    //map_env_random_papers(map_env, 1000);
+    //map_env_papers_test2(map_env, 100);
 
     // select the date range
     {
         unsigned int id_min;
         unsigned int id_max;
-        Map_env_get_max_id_range(map_env, &id_min, &id_max);
+        map_env_get_max_id_range(map_env, &id_min, &id_max);
         unsigned int id_range_start = id_min;
         unsigned int id_range_end   = id_max;
 
@@ -626,15 +626,15 @@ int main(int argc, char *argv[]) {
             id_range_end = (unsigned int)2150000000 - arg_yearsago * 10000000;
         }
 
-        Map_env_select_date_range(map_env, id_range_start, id_range_end);
+        map_env_select_date_range(map_env, id_range_start, id_range_end);
     }
 
     if (arg_layout_db) {
-        Mapmysql_env_layout_pos_load_from_db(map_env);
+        map_env_layout_pos_load_from_db(map_env);
     } else if (arg_layout_json != NULL) {
-        Map_env_layout_pos_load_from_json(map_env, arg_layout_json);
+        map_env_layout_pos_load_from_json(map_env, arg_layout_json);
     } else {
-        Map_env_layout_new(map_env, 10, 1, 0);
+        map_env_layout_new(map_env, 10, 1, 0);
     }
 
     // init gtk

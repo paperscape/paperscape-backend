@@ -9,24 +9,24 @@ SRC_COMMON = \
 	layout.c \
 	quadtree.c \
 	force.c \
-	Map.c \
+	map.c \
 
 SRC_HEADLESS = \
-	Mysql.c \
-	Mapmysql.c \
-	Mapauto.c \
+	mysql.c \
+	mapmysql.c \
+	mapauto.c \
 	headless.c \
 
 SRC_HEADLESSJSON = \
-	Json.c \
-	Mapauto.c \
+	json.c \
+	mapauto.c \
 	headlessjson.c \
 
 SRC_GUI = \
-	Mysql.c \
-	Cairohelper.c \
-	Mapmysql.c \
-	Mapcairo.c \
+	mysql.c \
+	cairohelper.c \
+	mapmysql.c \
+	mapcairo.c \
 	gui.c \
 
 OBJ_COMMON = $(SRC_COMMON:.c=.o)

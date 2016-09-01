@@ -2,9 +2,9 @@
 #include <cairo.h>
 
 #include "xiwilib.h"
-#include "Cairohelper.h"
+#include "cairohelper.h"
 
-void Cairo_helper_draw_text_lines(cairo_t *cr, double x, double y, vstr_t *vstr) {
+void cairo_helper_draw_text_lines(cairo_t *cr, double x, double y, vstr_t *vstr) {
     char *s1 = vstr_str(vstr);
     while (*s1 != '\0') {
         char *s2 = s1;

@@ -8,11 +8,11 @@
 #include "layout.h"
 #include "force.h"
 #include "quadtree.h"
-#include "Mysql.h"
-#include "Mapmysql.h"
-#include "Map.h"
+#include "mysql.h"
+#include "mapmysql.h"
+#include "map.h"
 
-void Mapmysql_env_layout_pos_load_from_db(Map_env_t *map_env) {
+void map_env_layout_pos_load_from_db(map_env_t *map_env) {
     // make a single layout
     layout_t *l = layout_build_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
@@ -27,7 +27,7 @@ void Mapmysql_env_layout_pos_load_from_db(Map_env_t *map_env) {
     }
 
     // load the layout using MySQL
-    Mysql_load_paper_positions(l);
+    mysql_load_paper_positions(l);
 
     // set do_close_repulsion, since we are loading a layout that was saved this way
     map_env->force_params.do_close_repulsion = true;
@@ -36,7 +36,7 @@ void Mapmysql_env_layout_pos_load_from_db(Map_env_t *map_env) {
     map_env->step_size = 0.1;
 }
 
-void Mapmysql_env_layout_pos_save_to_db(Map_env_t *map_env) {
+void map_env_layout_pos_save_to_db(map_env_t *map_env) {
     // get the finest layout, corresponding to one layout_node per paper
     layout_t *l = map_env->layout;
     while (l->child_layout != NULL) {
@@ -44,5 +44,5 @@ void Mapmysql_env_layout_pos_save_to_db(Map_env_t *map_env) {
     }
 
     // save the layout using MySQL
-    Mysql_save_paper_positions(l);
+    mysql_save_paper_positions(l);
 }
