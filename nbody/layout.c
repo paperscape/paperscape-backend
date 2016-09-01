@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include "xiwilib.h"
+#include "util/xiwilib.h"
 #include "common.h"
 #include "layout.h"
 

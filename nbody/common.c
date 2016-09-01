@@ -3,7 +3,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include "xiwilib.h"
+#include "util/xiwilib.h"
 #include "common.h"
 
 void paper_init(paper_t *p, unsigned int id) {

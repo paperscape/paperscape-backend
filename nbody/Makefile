@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS_COMMON = -Wall -ansi -std=gnu99 -O3 -I../../clib
+CFLAGS_COMMON = -Wall -ansi -std=gnu99 -O3
 LDFLAGS_COMMON =
 CFLAGS_GUI = $(shell pkg-config --cflags gtk+-3.0)
 LDFLAGS_GUI = $(shell pkg-config --libs gtk+-3.0)
@@ -34,7 +34,7 @@ OBJ_HEADLESS = $(SRC_HEADLESS:.c=.o)
 OBJ_HEADLESSJSON = $(SRC_HEADLESSJSON:.c=.o)
 OBJ_GUI = $(SRC_GUI:.c=.o)
 
-LIB_COMMON = -lm -lpthread ../../clib/xiwilib.a
+LIB_COMMON = -lm -lpthread util/xiwilib.a
 LIB_HEADLESS = -lmysqlclient
 LIB_HEADLESSJSON =
 LIB_GUI = -lmysqlclient

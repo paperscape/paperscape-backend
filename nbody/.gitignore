@@ -6,3 +6,8 @@ nbody-gui
 *.json
 *.png
 data/*
+out-*
+local-*
+*.pyc
+
+

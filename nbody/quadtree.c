@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include "xiwilib.h"
+#include "util/xiwilib.h"
 #include "layout.h"
 #include "quadtree.h"
 

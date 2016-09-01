@@ -3,7 +3,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-#include "xiwilib.h"
+#include "util/xiwilib.h"
 #include "common.h"
 #include "layout.h"
 #include "map.h"

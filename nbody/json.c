@@ -4,8 +4,8 @@
 #include <string.h>
 #include <math.h>
 
-#include "xiwilib.h"
-#include "jsmn.h"
+#include "util/xiwilib.h"
+#include "util/jsmn.h"
 #include "common.h"
 #include "layout.h"
 

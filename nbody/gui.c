@@ -6,7 +6,7 @@
 #include <gtk/gtk.h>
 #include <cairo.h>
 
-#include "xiwilib.h"
+#include "util/xiwilib.h"
 #include "common.h"
 #include "layout.h"
 #include "map.h"

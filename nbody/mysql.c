@@ -4,7 +4,7 @@
 #include <string.h>
 #include <mysql/mysql.h>
 
-#include "xiwilib.h"
+#include "util/xiwilib.h"
 #include "common.h"
 #include "layout.h"
 #include "mysql.h"

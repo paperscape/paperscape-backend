@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <cairo.h>
 
-#include "xiwilib.h"
+#include "util/xiwilib.h"
 #include "cairohelper.h"
 
 void cairo_helper_draw_text_lines(cairo_t *cr, double x, double y, vstr_t *vstr) {

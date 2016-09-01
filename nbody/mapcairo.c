@@ -4,7 +4,7 @@
 #include <math.h>
 #include <cairo.h>
 
-#include "xiwilib.h"
+#include "util/xiwilib.h"
 #include "common.h"
 #include "layout.h"
 #include "force.h"
