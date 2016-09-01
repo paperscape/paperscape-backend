@@ -1,0 +1,3 @@
+cairohelper.o cairohelper.P : cairohelper.c /usr/include/cairo/cairo.h \
+ /usr/include/cairo/cairo-version.h /usr/include/cairo/cairo-features.h \
+ /usr/include/cairo/cairo-deprecated.h util/xiwilib.h cairohelper.h

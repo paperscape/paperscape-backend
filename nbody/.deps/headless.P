@@ -1,0 +1,2 @@
+headless.o headless.P : headless.c util/xiwilib.h common.h cats.h layout.h map.h \
+ quadtree.h force.h mapmysql.h mapauto.h mysql.h

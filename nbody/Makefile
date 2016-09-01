@@ -10,54 +10,76 @@ SRC_COMMON = \
 	quadtree.c \
 	force.c \
 	map.c \
+	mapauto.c \
 
-SRC_HEADLESS = \
+SRC_MYSQL = \
 	mysql.c \
 	mapmysql.c \
-	mapauto.c \
+
+SRC_HEADLESS = \
 	headless.c \
 
 SRC_HEADLESSJSON = \
 	json.c \
-	mapauto.c \
 	headlessjson.c \
 
 SRC_GUI = \
-	mysql.c \
 	cairohelper.c \
-	mapmysql.c \
 	mapcairo.c \
 	gui.c \
 
+SRC_ALL = \
+	$(SRC_COMMON) \
+	$(SRC_MYSQL) \
+	$(SRC_HEADLESS) \
+	$(SRC_HEADLESSJSON) \
+	$(SRC_GUI) \
+
 OBJ_COMMON = $(SRC_COMMON:.c=.o)
+OBJ_MYSQL = $(SRC_MYSQL:.c=.o)
 OBJ_HEADLESS = $(SRC_HEADLESS:.c=.o)
 OBJ_HEADLESSJSON = $(SRC_HEADLESSJSON:.c=.o)
 OBJ_GUI = $(SRC_GUI:.c=.o)
 
 LIB_COMMON = -lm -lpthread util/xiwilib.a
-LIB_HEADLESS = -lmysqlclient
-LIB_HEADLESSJSON =
-LIB_GUI = -lmysqlclient
+LIB_MYSQL  = -lmysqlclient
 
 PROG_HEADLESS = nbody-headless
 PROG_HEADLESSJSON = nbody-headlessjson
 PROG_GUI = nbody-gui
 
-$(PROG_HEADLESS): CFLAGS = $(CFLAGS_COMMON)
-$(PROG_HEADLESS): $(OBJ_COMMON) $(OBJ_HEADLESS)
-	$(CC) -o $@ $(OBJ_COMMON) $(OBJ_HEADLESS) $(LIB_COMMON) $(LIB_HEADLESS) $(LDFLAGS)
-
 all: $(PROG_HEADLESS) $(PROG_HEADLESSJSON) $(PROG_GUI)
+
+$(PROG_HEADLESS): CFLAGS = $(CFLAGS_COMMON)
+$(PROG_HEADLESS): $(OBJ_COMMON) $(OBJ_MYSQL) $(OBJ_HEADLESS)
+	$(CC) -o $@ $(OBJ_COMMON) $(OBJ_MYSQL) $(OBJ_HEADLESS) $(LIB_COMMON) $(LIB_MYSQL) $(LDFLAGS)
 
 $(PROG_HEADLESSJSON): CFLAGS = $(CFLAGS_COMMON)
 $(PROG_HEADLESSJSON): $(OBJ_COMMON) $(OBJ_HEADLESSJSON)
-	$(CC) -o $@ $(OBJ_COMMON) $(OBJ_HEADLESSJSON) $(LIB_COMMON) $(LIB_HEADLESSJSON) $(LDFLAGS)
+	$(CC) -o $@ $(OBJ_COMMON) $(OBJ_HEADLESSJSON) $(LIB_COMMON) $(LIB_MYSQL) $(LDFLAGS)
 
 $(PROG_GUI): CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_GUI)
-$(PROG_GUI): $(OBJ_COMMON) $(OBJ_GUI)
-	$(CC) -o $@ $(OBJ_COMMON) $(OBJ_GUI) $(LIB_COMMON) $(LIB_GUI) $(LDFLAGS) $(LDFLAGS_GUI)
+$(PROG_GUI): $(OBJ_COMMON) $(OBJ_MYSQL) $(OBJ_GUI)
+	$(CC) -o $@ $(OBJ_COMMON) $(OBJ_MYSQL) $(OBJ_GUI) $(LIB_COMMON) $(LIB_MYSQL) $(LDFLAGS) $(LDFLAGS_GUI)
+
+# Auto-dependency tracking
+# (see http://make.mad-scientist.net/papers/advanced-auto-dependency-generation/)
+DEPDIR = .deps
+$(shell mkdir -p $(DEPDIR) >/dev/null)
+
+$(DEPDIR)/%.P : %.c
+	$(CC) -MM $(CFLAGS_COMMON) $(CFLAGS_GUI) -o $*.d $<
+	@sed 's/\($*\)\.o[ :]*/\1.o $*.P : /g' < $*.d > $@; \
+		/bin/rm -f $*.d; [ -s $@ ] || /bin/rm -f $@;
+
+ifneq ($(MAKECMDGOALS),clean)
+-include $(SRC_ALL:%.c=$(DEPDIR)/%.P)
+endif
 
 clean:
-	/bin/rm $(OBJ_COMMON) $(OBJ_HEADLESS) $(OBJ_HEADLESSJSON) $(OBJ_GUI)
+	/bin/rm -f $(SRC_ALL:%.c=%.o) $(SRC_ALL:%.c=%.d) $(SRC_ALL:%.c=$(DEPDIR)/%.P)
 
-.PHONY: all clean depend
+#clean:
+#	/bin/rm $(OBJ_COMMON) $(OBJ_HEADLESS) $(OBJ_HEADLESSJSON) $(OBJ_GUI)
+
+.PHONY: all clean

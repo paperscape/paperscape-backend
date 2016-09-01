@@ -1,0 +1,1 @@
+quadtree.o quadtree.P : quadtree.c util/xiwilib.h layout.h common.h cats.h quadtree.h

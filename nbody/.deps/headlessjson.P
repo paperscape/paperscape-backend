@@ -1,0 +1,2 @@
+headlessjson.o headlessjson.P : headlessjson.c util/xiwilib.h common.h cats.h layout.h \
+ map.h quadtree.h force.h mapauto.h json.h
