@@ -12,11 +12,12 @@ import (
     "math"
     "sort"
     "log"
-    //"xiwi"
-    "GoMySQL"
-    "github.com/ungerik/go-cairo"
     "time"
     "encoding/json"
+    //"xiwi"
+    //"GoMySQL"
+    "github.com/yanatan16/GoMySQL"
+    "github.com/ungerik/go-cairo"
 )
 
 var GRAPH_PADDING = 100 // what to pad graph by on each side
