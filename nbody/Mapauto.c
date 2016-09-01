@@ -5,7 +5,7 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "Layout.h"
+#include "layout.h"
 #include "Map.h"
 #include "Mapauto.h"
 

@@ -7,7 +7,7 @@
 #include "xiwilib.h"
 #include "jsmn.h"
 #include "Common.h"
-#include "Layout.h"
+#include "layout.h"
 
 #define JS_TOK_MAX (4000) // need lots for papers with lots of references
 

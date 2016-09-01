@@ -4,27 +4,27 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "Layout.h"
-#include "Quadtree.h"
+#include "layout.h"
+#include "quadtree.h"
 
-static Quadtree_pool_t *quad_tree_pool_new(int alloc, Quadtree_pool_t *next) {
-    Quadtree_pool_t *qtp = m_new(Quadtree_pool_t, 1);
+static quadtree_pool_t *quad_tree_pool_new(int alloc, quadtree_pool_t *next) {
+    quadtree_pool_t *qtp = m_new(quadtree_pool_t, 1);
     qtp->num_nodes_alloc = alloc;
     qtp->num_nodes_used = 0;
-    qtp->nodes = m_new(Quadtree_node_t, qtp->num_nodes_alloc);
+    qtp->nodes = m_new(quadtree_node_t, qtp->num_nodes_alloc);
     qtp->next = next;
     return qtp;
 }
 
-static void quad_tree_pool_free_all(Quadtree_pool_t *qtp) {
+static void quad_tree_pool_free_all(quadtree_pool_t *qtp) {
     for (; qtp != NULL; qtp = qtp->next) {
         qtp->num_nodes_used = 0;
     }
 }
 
-static Quadtree_node_t *quad_tree_pool_alloc(Quadtree_t *qt) {
+static quadtree_node_t *quad_tree_pool_alloc(quadtree_t *qt) {
     // look for a free node
-    for (Quadtree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
+    for (quadtree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
         if (qtp->num_nodes_used < qtp->num_nodes_alloc) {
             return &qtp->nodes[qtp->num_nodes_used++];
         }
@@ -34,7 +34,7 @@ static Quadtree_node_t *quad_tree_pool_alloc(Quadtree_t *qt) {
     return &qt->quad_tree_pool->nodes[qt->quad_tree_pool->num_nodes_used++];
 }
 
-static void quad_tree_insert_layout_node(Quadtree_t *qt, Quadtree_node_t *parent, Quadtree_node_t **q, Layout_node_t *ln, double min_x, double min_y, double max_x, double max_y) {
+static void quad_tree_insert_layout_node(quadtree_t *qt, quadtree_node_t *parent, quadtree_node_t **q, layout_node_t *ln, double min_x, double min_y, double max_x, double max_y) {
     if (*q == NULL) {
         // hit an empty node; create a new leaf cell and put this layout-node in it
         *q = quad_tree_pool_alloc(qt);
@@ -53,7 +53,7 @@ static void quad_tree_insert_layout_node(Quadtree_t *qt, Quadtree_node_t *parent
 
     } else if ((*q)->num_items == 1) {
         // hit a leaf; turn it into an internal node and re-insert the layout-nodes
-        Layout_node_t *ln0 = (*q)->item;
+        layout_node_t *ln0 = (*q)->item;
         (*q)->mass = 0;
         (*q)->x = 0;
         (*q)->y = 0;
@@ -110,14 +110,14 @@ static void quad_tree_insert_layout_node(Quadtree_t *qt, Quadtree_node_t *parent
     }
 }
 
-Quadtree_t *Quadtree_new() {
-    Quadtree_t *qt = m_new(Quadtree_t, 1);
+quadtree_t *quadtree_new() {
+    quadtree_t *qt = m_new(quadtree_t, 1);
     qt->quad_tree_pool = quad_tree_pool_new(1024, NULL);
     qt->root = NULL;
     return qt;
 }
 
-void Quadtree_build(Layout_t *layout, Quadtree_t *qt) {
+void quadtree_build(layout_t *layout, quadtree_t *qt) {
     qt->root = NULL;
 
     // if no nodes, return
@@ -130,13 +130,13 @@ void Quadtree_build(Layout_t *layout, Quadtree_t *qt) {
     }
 
     // first work out the bounding box of all nodes
-    Layout_node_t *n0 = &layout->nodes[0];
+    layout_node_t *n0 = &layout->nodes[0];
     qt->min_x = n0->x;
     qt->min_y = n0->y;
     qt->max_x = n0->x;
     qt->max_y = n0->y;
     for (int i = 1; i < layout->num_nodes; i++) {
-        Layout_node_t *n = &layout->nodes[i];
+        layout_node_t *n = &layout->nodes[i];
         if (n->x < qt->min_x) { qt->min_x = n->x; }
         if (n->y < qt->min_y) { qt->min_y = n->y; }
         if (n->x > qt->max_x) { qt->max_x = n->x; }

@@ -4,15 +4,15 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "Layout.h"
-#include "Force.h"
-#include "Quadtree.h"
+#include "layout.h"
+#include "force.h"
+#include "quadtree.h"
 
-void Force_compute_attractive_link_force(Force_params_t *param, bool do_tred, Layout_t *layout) {
+void force_compute_attractive_link_force(force_params_t *param, bool do_tred, layout_t *layout) {
     for (int i = 0; i < layout->num_nodes; i++) {
-        Layout_node_t *n1 = &layout->nodes[i];
+        layout_node_t *n1 = &layout->nodes[i];
         for (int j = 0; j < n1->num_links; j++) {
-            Layout_node_t *n2 = n1->links[j].node;
+            layout_node_t *n2 = n1->links[j].node;
             double weight = n1->links[j].weight;
 
             double dx = n1->x - n2->x;
@@ -61,7 +61,7 @@ void Force_compute_attractive_link_force(Force_params_t *param, bool do_tred, La
 }
 
 // q1 is a leaf against which we check q2
-static void quad_tree_forces_leaf_vs_node(Force_params_t *param, Quadtree_node_t *q1, Quadtree_node_t *q2) {
+static void quad_tree_forces_leaf_vs_node(force_params_t *param, quadtree_node_t *q1, quadtree_node_t *q2) {
     if (q2 == NULL) {
         // q2 is empty node
     } else {
@@ -103,8 +103,8 @@ static void quad_tree_forces_leaf_vs_node(Force_params_t *param, Quadtree_node_t
             q2->fx -= fx;
             q2->fy -= fy;
             */
-            ((Layout_node_t*)q1->item)->fx += fx;
-            ((Layout_node_t*)q1->item)->fy += fy;
+            ((layout_node_t*)q1->item)->fx += fx;
+            ((layout_node_t*)q1->item)->fy += fy;
 
         } else {
             // q2 is internal node
@@ -121,8 +121,8 @@ static void quad_tree_forces_leaf_vs_node(Force_params_t *param, Quadtree_node_t
                 q2->fx -= fx;
                 q2->fy -= fy;
                 */
-                ((Layout_node_t*)q1->item)->fx += fx;
-                ((Layout_node_t*)q1->item)->fy += fy;
+                ((layout_node_t*)q1->item)->fx += fx;
+                ((layout_node_t*)q1->item)->fy += fy;
 
             } else {
                 // q1 and q2 are not "well separated"
@@ -136,10 +136,10 @@ static void quad_tree_forces_leaf_vs_node(Force_params_t *param, Quadtree_node_t
     }
 }
 
-static void quad_tree_forces_ascend(Force_params_t *param, Quadtree_node_t *q) {
+static void quad_tree_forces_ascend(force_params_t *param, quadtree_node_t *q) {
     assert(q->num_items == 1); // must be a leaf node
-    for (Quadtree_node_t *q2 = q; q2->parent != NULL; q2 = q2->parent) {
-        Quadtree_node_t *parent = q2->parent;
+    for (quadtree_node_t *q2 = q; q2->parent != NULL; q2 = q2->parent) {
+        quadtree_node_t *parent = q2->parent;
         assert(parent->num_items > 1); // all parents should be internal nodes
         if (parent->q0 != q2) { quad_tree_forces_leaf_vs_node(param, q, parent->q0); }
         if (parent->q1 != q2) { quad_tree_forces_leaf_vs_node(param, q, parent->q1); }
@@ -148,7 +148,7 @@ static void quad_tree_forces_ascend(Force_params_t *param, Quadtree_node_t *q) {
     }
 }
 
-static void quad_tree_forces_descend(Force_params_t *param, Quadtree_node_t *q) {
+static void quad_tree_forces_descend(force_params_t *param, quadtree_node_t *q) {
     if (q->num_items == 1) {
         quad_tree_forces_ascend(param, q);
     } else {
@@ -160,7 +160,7 @@ static void quad_tree_forces_descend(Force_params_t *param, Quadtree_node_t *q) 
 }
 
 /*
-static void quad_tree_node_forces_propagate(Quadtree_node_t *q, double fx, double fy) {
+static void quad_tree_node_forces_propagate(quadtree_node_t *q, double fx, double fy) {
     if (q == NULL) {
     } else {
         fx *= q->mass;
@@ -169,8 +169,8 @@ static void quad_tree_node_forces_propagate(Quadtree_node_t *q, double fx, doubl
         fy += q->fy;
 
         if (q->num_items == 1) {
-            ((Layout_node_t*)q->item)->fx += fx;
-            ((Layout_node_t*)q->item)->fy += fy;
+            ((layout_node_t*)q->item)->fx += fx;
+            ((layout_node_t*)q->item)->fy += fy;
         } else {
             fx /= q->mass;
             fy /= q->mass;
@@ -186,8 +186,8 @@ static void quad_tree_node_forces_propagate(Quadtree_node_t *q, double fx, doubl
 #include <pthread.h>
 
 typedef struct _multi_env_t {
-    Force_params_t *param;
-    Quadtree_node_t *q;
+    force_params_t *param;
+    quadtree_node_t *q;
 } multi_env_t;
 
 static void *multi_do(void *env_in) {
@@ -200,7 +200,7 @@ static void *multi_do(void *env_in) {
 
 // descending then ascending is almost twice as fast (for large graphs) as
 // just naively iterating through all the leaves, possibly due to cache effects
-void Force_quad_tree_forces(Force_params_t *param, Quadtree_t *qt) {
+void force_quad_tree_forces(force_params_t *param, quadtree_t *qt) {
     if (qt->root != NULL) {
         if (qt->root->num_items == 1 || 0) {
             // without threading
@@ -231,12 +231,12 @@ void Force_quad_tree_forces(Force_params_t *param, Quadtree_t *qt) {
     }
 }
 
-void Force_quad_tree_apply_if(Force_params_t *param, Quadtree_t *qt, bool (*f)(Layout_node_t*)) {
+void force_quad_tree_apply_if(force_params_t *param, quadtree_t *qt, bool (*f)(layout_node_t*)) {
     if (qt->root != NULL) {
-        for (Quadtree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
+        for (quadtree_pool_t *qtp = qt->quad_tree_pool; qtp != NULL; qtp = qtp->next) {
             for (int i = 0; i < qtp->num_nodes_used; i++) {
-                Quadtree_node_t *q = &qtp->nodes[i];
-                if (q->num_items == 1 && f((Layout_node_t*)q->item)) {
+                quadtree_node_t *q = &qtp->nodes[i];
+                if (q->num_items == 1 && f((layout_node_t*)q->item)) {
                     //quad_tree_forces_leaf_vs_node(param, q, qt->root);
                     quad_tree_forces_ascend(param, q);
                 }

@@ -54,7 +54,7 @@ typedef struct _Common_paper_t {
     float radius;
     float mass;
 
-    struct _Layout_node_t *layout_node;
+    struct _layout_node_t *layout_node;
 } Common_paper_t;
 
 typedef struct _Common_keyword_t {

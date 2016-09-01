@@ -2,9 +2,9 @@
 #define _INCLUDED_MAP_H
 
 #include "Common.h"
-#include "Quadtree.h"
-#include "Layout.h"
-#include "Force.h"
+#include "quadtree.h"
+#include "layout.h"
+#include "force.h"
 
 typedef struct _category_info_t {
     unsigned int num;       // number of papers in this category
@@ -20,12 +20,12 @@ typedef struct _Map_env_t {
     int num_papers;
     Common_paper_t **papers;
 
-    Quadtree_t *quad_tree;
+    quadtree_t *quad_tree;
 
     bool make_fake_links;
     bool other_links_veto;
 
-    Force_params_t force_params;
+    force_params_t force_params;
 
     bool do_tred;
     bool draw_grid;
@@ -45,7 +45,7 @@ typedef struct _Map_env_t {
     // standard deviation of the positions of the papers
     double x_sd, y_sd;
 
-    Layout_t *layout;
+    layout_t *layout;
 
     // info for keywords
     Common_keyword_set_t *keyword_set;
@@ -64,7 +64,7 @@ void Map_env_papers_test2(Map_env_t *map_env, int n);
 void Map_env_world_to_screen(Map_env_t *map_env, double *x, double *y);
 void Map_env_screen_to_world(Map_env_t *map_env, double screen_w, double screen_h, double *x, double *y);
 int Map_env_get_num_papers(Map_env_t *map_env);
-Layout_node_t *Map_env_get_layout_node_at(Map_env_t *map_env, double screen_w, double screen_h, double screen_x, double screen_y);
+layout_node_t *Map_env_get_layout_node_at(Map_env_t *map_env, double screen_w, double screen_h, double screen_x, double screen_y);
 
 void Map_env_centre_view(Map_env_t *map_env);
 void Map_env_set_zoom_to_fit_n_standard_deviations(Map_env_t *map_env, double n, double screen_w, double screen_h);
@@ -97,7 +97,7 @@ void Map_env_orient_using_category(Map_env_t *map_env, Common_category_t wanted_
 void Map_env_orient_using_paper(Map_env_t *map_env, Common_paper_t *wanted_paper, double wanted_angle);
 void Map_env_flip_x(Map_env_t *map_env);
 
-bool Map_env_iterate(Map_env_t *map_env, Layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
+bool Map_env_iterate(Map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
 
 void Map_env_get_max_id_range(Map_env_t *map_env, unsigned int *id_min, unsigned int *id_max);
 void Map_env_inc_num_papers(Map_env_t *map_env, int amt);

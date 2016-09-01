@@ -8,7 +8,7 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "Layout.h"
+#include "layout.h"
 #include "Map.h"
 #include "Mysql.h"
 #include "Mapmysql.h"
@@ -30,8 +30,8 @@ bool auto_refine = true;
 static int iterate_counter_full_refine = 0;
 bool lock_view_all = true;
 double mouse_last_x = 0, mouse_last_y = 0;
-Layout_node_t *mouse_layout_node_held = NULL;
-Layout_node_t *mouse_layout_node_prev = NULL;
+layout_node_t *mouse_layout_node_held = NULL;
+layout_node_t *mouse_layout_node_prev = NULL;
 
 /* obsolete
 unsigned int id_range_start = 2050000000;

@@ -5,20 +5,20 @@
 
 #include "xiwilib.h"
 #include "Common.h"
-#include "Layout.h"
-#include "Force.h"
-#include "Quadtree.h"
+#include "layout.h"
+#include "force.h"
+#include "quadtree.h"
 #include "Mysql.h"
 #include "Mapmysql.h"
 #include "Map.h"
 
 void Mapmysql_env_layout_pos_load_from_db(Map_env_t *map_env) {
     // make a single layout
-    Layout_t *l = Layout_build_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
+    layout_t *l = layout_build_from_papers(map_env->num_papers, map_env->papers, false, 1, 0);
     map_env->layout = l;
 
     // print info about the layout
-    Layout_print(l);
+    layout_print(l);
 
     // initialise random positions, in case we can't/don't load a position for a given paper
     for (int i = 0; i < l->num_nodes; i++) {
@@ -38,7 +38,7 @@ void Mapmysql_env_layout_pos_load_from_db(Map_env_t *map_env) {
 
 void Mapmysql_env_layout_pos_save_to_db(Map_env_t *map_env) {
     // get the finest layout, corresponding to one layout_node per paper
-    Layout_t *l = map_env->layout;
+    layout_t *l = map_env->layout;
     while (l->child_layout != NULL) {
         l = l->child_layout;
     }
