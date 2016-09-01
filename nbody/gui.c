@@ -39,6 +39,7 @@ unsigned int id_range_end = 2060000000;
 */
 
 static int iterate_counter = 0;
+static double iters_per_sec = 1.; 
 static int converged_counter = 0;
 static gboolean map_env_update(map_env_t *map_env) {
     struct timeval tp;
@@ -46,7 +47,7 @@ static gboolean map_env_update(map_env_t *map_env) {
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     for (int i = 1; i <= 5; i++) {
         iterate_counter += 1;
-        printf("nbody iteration %d", iterate_counter);
+        //printf("nbody iteration %d", iterate_counter);
         if (map_env_iterate(map_env, mouse_layout_node_held, boost_step_size > 0, false)) {
             converged_counter += 1;
         } else {
@@ -58,14 +59,14 @@ static gboolean map_env_update(map_env_t *map_env) {
         if (i == 5) {
             gettimeofday(&tp, NULL);
             int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-            double ips = 5.0 * 1000.0 / (end_time - start_time);
-            if (ips > 1) {
-                printf("; %.2f iterations per second\n", ips);
-            } else {
-                printf("; %.2f seconds per iteration\n", 1.0 / ips);
-            }
-        } else {
-            printf("\n");
+            iters_per_sec = 5.0 * 1000.0 / (end_time - start_time);
+            //if (iters_per_sec > 1) {
+            //    printf("; %.2f iterations per second\n", iters_per_sec);
+            //} else {
+            //    printf("; %.2f seconds per iteration\n", 1.0 / iters_per_sec);
+            //}
+        //} else {
+        //    printf("\n");
         }
     }
 
@@ -142,7 +143,7 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
     vstr_printf(vstr, "(A) auto refine: %d\n", auto_refine);
     vstr_printf(vstr, "(V) lock view: %d\n", lock_view_all);
     vstr_printf(vstr, "\n");
-    vstr_printf(vstr, "number of iterations: %d\n", iterate_counter);
+    vstr_printf(vstr, "number of iterations: %d (%.1f/sec)\n", iterate_counter,iters_per_sec);
 
     // draw info to canvas
     cairo_identity_matrix(cr);
@@ -412,6 +413,7 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     gtk_container_add(GTK_CONTAINER(window), box_outer);
 
     // create the controls
+    /*
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
     GtkWidget *ctrl_tred = gtk_toggle_button_new_with_label("transitive reduction");
     GtkWidget *ctrl_draw_links = gtk_toggle_button_new_with_label("draw links");
@@ -427,6 +429,7 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     gtk_box_pack_start(GTK_BOX(box), ctrl_draw_grid, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box), xxx, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box_outer), box, FALSE, FALSE, 0);
+    */
 
     // create the drawing area
     GtkWidget *drawing_area = gtk_drawing_area_new();
