@@ -5,7 +5,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "Common.h"
+#include "common.h"
 #include "layout.h"
 
 static void layout_combine_duplicate_links(layout_t *layout) {
@@ -36,7 +36,7 @@ static void layout_combine_duplicate_links(layout_t *layout) {
     }
 }
 
-layout_t *layout_build_from_papers(int num_papers, Common_paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link) {
+layout_t *layout_build_from_papers(int num_papers, paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link) {
     // allocate memory for the nodes
     int num_nodes = num_papers;
     layout_node_t *nodes = m_new(layout_node_t, num_nodes);
@@ -48,7 +48,7 @@ layout_t *layout_build_from_papers(int num_papers, Common_paper_t **papers, bool
 
     // build the nodes
     for (int i = 0; i < num_papers; i++) {
-        Common_paper_t *paper = papers[i];
+        paper_t *paper = papers[i];
         layout_node_t *node = &nodes[i];
         node->flags = LAYOUT_NODE_IS_FINEST;
         node->parent = NULL;
@@ -84,7 +84,7 @@ layout_t *layout_build_from_papers(int num_papers, Common_paper_t **papers, bool
     layout_link_t *all_links = m_new(layout_link_t, num_total_links);
     layout_link_t *links = all_links;
     for (int i = 0; i < num_papers; i++) {
-        Common_paper_t *paper = papers[i];
+        paper_t *paper = papers[i];
         layout_node_t *node = &nodes[i];
         node->links = links;
 

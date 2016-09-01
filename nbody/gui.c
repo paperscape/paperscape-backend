@@ -7,7 +7,7 @@
 #include <cairo.h>
 
 #include "xiwilib.h"
-#include "Common.h"
+#include "common.h"
 #include "layout.h"
 #include "Map.h"
 #include "Mysql.h"
@@ -318,7 +318,7 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
         mouse_held = FALSE;
         if (!mouse_dragged) {
             if (mouse_layout_node_held != NULL && Map_env_number_of_finer_layouts(map_env) == 0) {
-                Common_paper_t *p = mouse_layout_node_held->paper;
+                paper_t *p = mouse_layout_node_held->paper;
                 vstr_reset(vstr);
                 if (p->authors == NULL || p->title == NULL) {
                     vstr_printf(vstr, "paper[%d] = %u (%d refs, %d cites)", p->index, p->id, p->num_refs, p->num_cites);
@@ -338,7 +338,7 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
             Map_env_screen_to_world(map_env, gtk_widget_get_allocated_width(widget), gtk_widget_get_allocated_height(widget), &x, &y);
             mouse_layout_node_prev->x = x;
             mouse_layout_node_prev->y = y;
-            printf("moved paper %u to (%.2f,%.2f)\n", ((Common_paper_t*)mouse_layout_node_prev->paper)->id, x, y);
+            printf("moved paper %u to (%.2f,%.2f)\n", ((paper_t*)mouse_layout_node_prev->paper)->id, x, y);
             if (!update_running) {
                 gtk_widget_queue_draw(window);
             }
@@ -581,8 +581,8 @@ int main(int argc, char *argv[]) {
 
     // load the papers from the DB
     int num_papers;
-    Common_paper_t *papers;
-    Common_keyword_set_t *keyword_set;
+    paper_t *papers;
+    keyword_set_t *keyword_set;
     if (!Mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
@@ -615,7 +615,7 @@ int main(int argc, char *argv[]) {
         unsigned int id_range_end   = id_max;
 
         // for starting part way through
-        id_range_start = Common_date_to_unique_id(2012, 3, 0);
+        id_range_start = date_to_unique_id(2012, 3, 0);
         id_range_end = id_range_start + 20000000; // plus 2 years
         id_range_end = id_range_start +  3000000; // plus 0.5 year
         id_range_start = id_min; id_range_end = id_max; // full range

@@ -1,7 +1,7 @@
 #ifndef _INCLUDED_MAP_H
 #define _INCLUDED_MAP_H
 
-#include "Common.h"
+#include "common.h"
 #include "quadtree.h"
 #include "layout.h"
 #include "force.h"
@@ -14,11 +14,11 @@ typedef struct _category_info_t {
 typedef struct _Map_env_t {
     // loaded
     int max_num_papers;
-    Common_paper_t *all_papers;
+    paper_t *all_papers;
 
     // currently in the graph
     int num_papers;
-    Common_paper_t **papers;
+    paper_t **papers;
 
     quadtree_t *quad_tree;
 
@@ -48,7 +48,7 @@ typedef struct _Map_env_t {
     layout_t *layout;
 
     // info for keywords
-    Common_keyword_set_t *keyword_set;
+    keyword_set_t *keyword_set;
 
     // info for each category
     category_info_t category_info[CAT_NUMBER_OF];
@@ -56,7 +56,7 @@ typedef struct _Map_env_t {
 
 Map_env_t *Map_env_new();
 
-void Map_env_set_papers(Map_env_t *map_env, int num_papers, Common_paper_t *papers, Common_keyword_set_t *keyword_set);
+void Map_env_set_papers(Map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *keyword_set);
 void Map_env_random_papers(Map_env_t *map_env, int n);
 void Map_env_papers_test1(Map_env_t *map_env, int n);
 void Map_env_papers_test2(Map_env_t *map_env, int n);
@@ -93,8 +93,8 @@ void Map_env_coarsen_layout(Map_env_t *map_env);
 void Map_env_refine_layout(Map_env_t *map_env);
 void Map_env_jolt(Map_env_t *map_env, double amt);
 void Map_env_rotate_all(Map_env_t *map_env, double angle);
-void Map_env_orient_using_category(Map_env_t *map_env, Common_category_t wanted_cat, double wanted_angle);
-void Map_env_orient_using_paper(Map_env_t *map_env, Common_paper_t *wanted_paper, double wanted_angle);
+void Map_env_orient_using_category(Map_env_t *map_env, category_t wanted_cat, double wanted_angle);
+void Map_env_orient_using_paper(Map_env_t *map_env, paper_t *wanted_paper, double wanted_angle);
 void Map_env_flip_x(Map_env_t *map_env);
 
 bool Map_env_iterate(Map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);

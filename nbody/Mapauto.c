@@ -4,7 +4,7 @@
 #include <sys/time.h>
 
 #include "xiwilib.h"
-#include "Common.h"
+#include "common.h"
 #include "layout.h"
 #include "Map.h"
 #include "Mapauto.h"

@@ -6,7 +6,7 @@
 
 #include "xiwilib.h"
 #include "jsmn.h"
-#include "Common.h"
+#include "common.h"
 #include "layout.h"
 
 #define JS_TOK_MAX (4000) // need lots for papers with lots of references
@@ -20,8 +20,8 @@ typedef struct _env_t {
 
     // graph data
     int num_papers;
-    Common_paper_t *papers;
-    Common_keyword_set_t *keyword_set;
+    paper_t *papers;
+    keyword_set_t *keyword_set;
 } env_t;
 
 static bool have_error(env_t *env, const char *msg) {
@@ -46,7 +46,7 @@ static void env_finish(env_t* env, bool free_keyword_set) {
     }
 
     if (free_keyword_set) {
-        Common_keyword_set_free(env->keyword_set);
+        keyword_set_free(env->keyword_set);
         env->keyword_set = NULL;
     }
 }
@@ -166,8 +166,8 @@ static bool env_get_num_entries(env_t *env, int *num_entries) {
 }
 
 static int paper_cmp_id(const void *in1, const void *in2) {
-    Common_paper_t *p1 = (Common_paper_t *)in1;
-    Common_paper_t *p2 = (Common_paper_t *)in2;
+    paper_t *p1 = (paper_t *)in1;
+    paper_t *p2 = (paper_t *)in2;
     if (p1->id < p2->id) {
         return -1;
     } else if (p1->id > p2->id) {
@@ -380,7 +380,7 @@ static bool env_load_ids(env_t *env) {
     }
 
     // allocate memory for the papers
-    env->papers = m_new(Common_paper_t, num_entries);
+    env->papers = m_new(paper_t, num_entries);
     if (env->papers == NULL) {
         return false;
     }
@@ -413,8 +413,8 @@ static bool env_load_ids(env_t *env) {
         }
 
         // create the paper object, with the id
-        Common_paper_t *paper = &env->papers[i];
-        Common_paper_init(paper, id_val.uint);
+        paper_t *paper = &env->papers[i];
+        paper_init(paper, id_val.uint);
 
         // look for the allcats member
         jsmn_token_value_t allcats_val;
@@ -431,7 +431,7 @@ static bool env_load_ids(env_t *env) {
         int cat_num = 0;
         for (const char *start = allcats_val.str, *cur = allcats_val.str; cat_num < COMMON_PAPER_MAX_CATS; cur++) {
             if (*cur == ',' || *cur == '\0') {
-                Common_category_t cat = category_strn_to_enum(start, cur - start);
+                category_t cat = category_strn_to_enum(start, cur - start);
                 if (cat == CAT_UNKNOWN) {
                     // print unknown categories; for adding to cats.h
                     printf("%.*s\n", (int)(cur - start), start);
@@ -462,7 +462,7 @@ static bool env_load_ids(env_t *env) {
     env->num_papers = i;
 
     // sort the papers array by id
-    qsort(env->papers, env->num_papers, sizeof(Common_paper_t), paper_cmp_id);
+    qsort(env->papers, env->num_papers, sizeof(paper_t), paper_cmp_id);
 
     // assign the index based on their sorted position
     for (int i = 0; i < env->num_papers; i++) {
@@ -474,7 +474,7 @@ static bool env_load_ids(env_t *env) {
     return true;
 }
 
-static Common_paper_t *env_get_paper_by_id(env_t *env, unsigned int id) {
+static paper_t *env_get_paper_by_id(env_t *env, unsigned int id) {
     int lo = 0;
     int hi = env->num_papers - 1;
     while (lo <= hi) {
@@ -518,7 +518,7 @@ static bool env_load_refs(env_t *env) {
         }
 
         // lookup the paper object with this id
-        Common_paper_t *paper = env_get_paper_by_id(env, id_val.uint);
+        paper_t *paper = env_get_paper_by_id(env, id_val.uint);
 
         // if paper found, parse its refs
         if (paper != NULL) {
@@ -545,7 +545,7 @@ static bool env_load_refs(env_t *env) {
                 // some refs to parse
 
                 // allocate memory
-                paper->refs = m_new(Common_paper_t*, paper->num_refs);
+                paper->refs = m_new(paper_t*, paper->num_refs);
                 paper->refs_ref_freq = m_new(byte, paper->num_refs);
                 if (paper->refs == NULL || paper->refs_ref_freq == NULL) {
                     return false;
@@ -627,7 +627,7 @@ static bool env_load_keywords(env_t *env) {
     int total_keywords = 0;
     while ((row = mysql_fetch_row(result))) {
         lens = mysql_fetch_lengths(result);
-        Common_paper_t *paper = env_get_paper_by_id(env, atoll(row[0]));
+        paper_t *paper = env_get_paper_by_id(env, atoll(row[0]));
         if (paper != NULL) {
             unsigned long len = lens[1];
             if (len == 0) {
@@ -651,7 +651,7 @@ static bool env_load_keywords(env_t *env) {
                 }
 
                 // allocate memory
-                paper->keywords = m_new(Common_keyword_t*, num_keywords);
+                paper->keywords = m_new(keyword_t*, num_keywords);
                 if (paper->keywords == NULL) {
                     mysql_free_result(result);
                     return false;
@@ -664,7 +664,7 @@ static bool env_load_keywords(env_t *env) {
                     while (kw_end < kws_end && *kw_end != ',') {
                         kw_end++;
                     }
-                    Common_keyword_t *unique_keyword = keyword_set_lookup_or_insert(env->keyword_set, kw, kw_end - kw);
+                    keyword_t *unique_keyword = keyword_set_lookup_or_insert(env->keyword_set, kw, kw_end - kw);
                     if (unique_keyword != NULL) {
                         paper->keywords[paper->num_keywords++] = unique_keyword;
                     }
@@ -679,13 +679,13 @@ static bool env_load_keywords(env_t *env) {
     }
     mysql_free_result(result);
 
-    printf("read %d unique, %d total keywords\n", Common_keyword_set_get_total(env->keyword_set), total_keywords);
+    printf("read %d unique, %d total keywords\n", keyword_set_get_total(env->keyword_set), total_keywords);
 
     return true;
 }
 #endif
 
-bool Json_load_papers(const char *filename, int *num_papers_out, Common_paper_t **papers_out, Common_keyword_set_t **keyword_set_out) {
+bool Json_load_papers(const char *filename, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env, filename)) {
@@ -703,7 +703,7 @@ bool Json_load_papers(const char *filename, int *num_papers_out, Common_paper_t 
     if (!env_load_refs(&env)) {
         return false;
     }
-    if (!Common_build_citation_links(env.num_papers, env.papers)) {
+    if (!build_citation_links(env.num_papers, env.papers)) {
         return false;
     }
 
@@ -747,7 +747,7 @@ static bool env_load_other_links_helper(env_t *env) {
         }
 
         // lookup the paper object with this id
-        Common_paper_t *paper = env_get_paper_by_id(env, id_val.uint);
+        paper_t *paper = env_get_paper_by_id(env, id_val.uint);
 
         // if paper found, parse its links
         if (paper != NULL) {
@@ -770,7 +770,7 @@ static bool env_load_other_links_helper(env_t *env) {
 
                 // reallocate memory to add links to refs
                 int n_alloc = paper->num_refs + links_tok->size;
-                paper->refs = m_renew(Common_paper_t*, paper->refs, n_alloc);
+                paper->refs = m_renew(paper_t*, paper->refs, n_alloc);
                 paper->refs_ref_freq = m_renew(byte, paper->refs_ref_freq, n_alloc);
                 paper->refs_other_weight = m_new(float, n_alloc);
                 if (paper->refs == NULL || paper->refs_ref_freq == NULL || paper->refs_other_weight == NULL) {
@@ -812,7 +812,7 @@ static bool env_load_other_links_helper(env_t *env) {
                     }
 
                     // get linked-to paper
-                    Common_paper_t *paper2 = env_get_paper_by_id(env, link_id_val.uint);
+                    paper_t *paper2 = env_get_paper_by_id(env, link_id_val.uint);
 
                     if (paper2 != NULL && paper2 != paper) {
                         // search for existing link
@@ -846,7 +846,7 @@ static bool env_load_other_links_helper(env_t *env) {
     return true;
 }
 
-bool Json_load_other_links(const char *filename, int num_papers, Common_paper_t *papers) {
+bool Json_load_other_links(const char *filename, int num_papers, paper_t *papers) {
     // set up environment
     env_t env;
     if (!env_set_up(&env, filename)) {
@@ -875,7 +875,7 @@ bool Json_load_other_links(const char *filename, int num_papers, Common_paper_t 
             m_free(env.papers[i].cites);
         }
     }
-    if (!Common_build_citation_links(env.num_papers, env.papers)) {
+    if (!build_citation_links(env.num_papers, env.papers)) {
         return false;
     }
 

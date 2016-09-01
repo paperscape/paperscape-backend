@@ -7,7 +7,7 @@
 #include <math.h>
 
 #include "xiwilib.h"
-#include "Common.h"
+#include "common.h"
 #include "layout.h"
 #include "force.h"
 #include "quadtree.h"
@@ -76,13 +76,13 @@ layout_node_t *Map_env_get_layout_node_at(Map_env_t *map_env, double screen_w, d
     return layout_get_node_at(map_env->layout, x, y);
 }
 
-void Map_env_set_papers(Map_env_t *map_env, int num_papers, Common_paper_t *papers, Common_keyword_set_t *kws) {
+void Map_env_set_papers(Map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *kws) {
     map_env->max_num_papers = num_papers;
     map_env->all_papers = papers;
-    map_env->papers = m_renew(Common_paper_t*, map_env->papers, map_env->max_num_papers);
+    map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     map_env->keyword_set = kws;
     for (int i = 0; i < map_env->max_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
 #ifdef ENABLE_TRED
         p->refs_tred_computed = m_new(int, p->num_refs);
 #endif
@@ -94,11 +94,11 @@ void Map_env_set_papers(Map_env_t *map_env, int num_papers, Common_paper_t *pape
 
 void Map_env_random_papers(Map_env_t *map_env, int n) {
     map_env->max_num_papers = n;
-    map_env->all_papers = m_renew(Common_paper_t, map_env->all_papers, n);
-    map_env->papers = m_renew(Common_paper_t*, map_env->papers, map_env->max_num_papers);
+    map_env->all_papers = m_renew(paper_t, map_env->all_papers, n);
+    map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     for (int i = 0; i < n; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
-        Common_paper_init(p, i + 1);
+        paper_t *p = &map_env->all_papers[i];
+        paper_init(p, i + 1);
         p->allcats[0] = random() % CAT_NUMBER_OF;
         p->index = i;
         p->radius = 0.1 + 0.05 / (0.01 + 1.0 * random() / RAND_MAX);
@@ -110,11 +110,11 @@ void Map_env_random_papers(Map_env_t *map_env, int n) {
 void Map_env_papers_test1(Map_env_t *map_env, int n) {
     // the first paper is cited by the rest
     map_env->max_num_papers = n;
-    map_env->all_papers = m_renew(Common_paper_t, map_env->all_papers, n);
-    map_env->papers = m_renew(Common_paper_t*, map_env->papers, map_env->max_num_papers);
+    map_env->all_papers = m_renew(paper_t, map_env->all_papers, n);
+    map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     for (int i = 0; i < n; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
-        Common_paper_init(p, i + 1);
+        paper_t *p = &map_env->all_papers[i];
+        paper_init(p, i + 1);
         p->allcats[0] = 1;
         p->index = i;
         if (i == 0) {
@@ -125,7 +125,7 @@ void Map_env_papers_test1(Map_env_t *map_env, int n) {
         p->radius = sqrt(p->mass / M_PI);
         if (i > 0) {
             p->num_refs = 1;
-            p->refs = m_new(Common_paper_t*, 1);
+            p->refs = m_new(paper_t*, 1);
             p->refs[0] = &map_env->all_papers[0];
         }
     }
@@ -134,10 +134,10 @@ void Map_env_papers_test1(Map_env_t *map_env, int n) {
 void Map_env_papers_test2(Map_env_t *map_env, int n) {
     // the first 2 papers are cited both by the rest
     map_env->max_num_papers = n;
-    map_env->all_papers = m_renew(Common_paper_t, map_env->all_papers, n);
-    map_env->papers = m_renew(Common_paper_t*, map_env->papers, map_env->max_num_papers);
+    map_env->all_papers = m_renew(paper_t, map_env->all_papers, n);
+    map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
     for (int i = 0; i < n; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         p->allcats[0] = 1;
         p->index = i;
         if (i < 2) {
@@ -148,7 +148,7 @@ void Map_env_papers_test2(Map_env_t *map_env, int n) {
         p->radius = sqrt(p->mass / M_PI);
         if (i >= 2) {
             p->num_refs = 2;
-            p->refs = m_new(Common_paper_t*, 2);
+            p->refs = m_new(paper_t*, 2);
             p->refs[0] = &map_env->all_papers[0];
             p->refs[1] = &map_env->all_papers[1];
         }
@@ -319,7 +319,7 @@ void Map_env_rotate_all(Map_env_t *map_env, double angle) {
     layout_rotate_all(map_env->layout, angle);
 }
 
-void Map_env_orient_using_category(Map_env_t *map_env, Common_category_t wanted_cat, double wanted_angle) {
+void Map_env_orient_using_category(Map_env_t *map_env, category_t wanted_cat, double wanted_angle) {
     // must be finest layout and must have at least 1 node
     if (map_env->layout->child_layout != NULL || map_env->layout->num_nodes == 0) {
         return;
@@ -340,17 +340,17 @@ void Map_env_orient_using_category(Map_env_t *map_env, Common_category_t wanted_
 
     // orient papers
     if (mass_cat == 0.0) {
-        printf("could not orient graph using category %s\n", Common_category_enum_to_str(wanted_cat));
+        printf("could not orient graph using category %s\n", category_enum_to_str(wanted_cat));
     } else {
         avg_cat_x /= mass_cat;
         avg_cat_y /= mass_cat;
         double angle = wanted_angle - atan2(avg_cat_y, avg_cat_x);
         layout_rotate_all(map_env->layout, angle);
-        printf("rotated graph by %.2f rad to orient %s at %.2f rad\n", angle, Common_category_enum_to_str(wanted_cat), wanted_angle);
+        printf("rotated graph by %.2f rad to orient %s at %.2f rad\n", angle, category_enum_to_str(wanted_cat), wanted_angle);
     }
 }
 
-void Map_env_orient_using_paper(Map_env_t *map_env, Common_paper_t *wanted_paper, double wanted_angle) {
+void Map_env_orient_using_paper(Map_env_t *map_env, paper_t *wanted_paper, double wanted_angle) {
     // must be finest layout and must have at least 1 node
     if (map_env->layout->child_layout != NULL || map_env->layout->num_nodes == 0 || !wanted_paper->included || !wanted_paper->connected) {
         return;
@@ -398,7 +398,7 @@ void compute_naive_node_node_force(force_params_t *force_params, layout_t *layou
  */
 void attract_disconnected_to_centre_of_category(Map_env_t *map_env) {
     for (int i = 0; i < map_env->num_papers; i++) {
-        Common_paper_t *p = map_env->papers[i];
+        paper_t *p = map_env->papers[i];
         if (!p->connected) {
             for (int j = 0; j < COMMON_PAPER_MAX_CATS && p->allcats[j] != CAT_UNKNOWN; j++) {
                 category_info_t *cat = &map_env->category_info[p->allcats[j]];
@@ -423,12 +423,12 @@ void attract_disconnected_to_centre_of_category(Map_env_t *map_env) {
 }
 
 /* obsolete
-void compute_keyword_force(force_params_t *param, int num_papers, Common_paper_t **papers) {
+void compute_keyword_force(force_params_t *param, int num_papers, paper_t **papers) {
     // reset keyword locations
     for (int i = 0; i < num_papers; i++) {
-        Common_paper_t *p = papers[i];
+        paper_t *p = papers[i];
         for (int j = 0; j < p->num_keywords; j++) {
-            Common_keyword_t *kw = p->keywords[j];
+            keyword_t *kw = p->keywords[j];
             kw->num_papers = 0;
             kw->x = 0;
             kw->y = 0;
@@ -437,10 +437,10 @@ void compute_keyword_force(force_params_t *param, int num_papers, Common_paper_t
 
     // compute keyword locations, by averaging connected papers that have that keyword
     for (int i = 0; i < num_papers; i++) {
-        Common_paper_t *p = papers[i];
+        paper_t *p = papers[i];
         if (p->connected) {
             for (int j = 0; j < p->num_keywords; j++) {
-                Common_keyword_t *kw = p->keywords[j];
+                keyword_t *kw = p->keywords[j];
                 kw->num_papers += 1;
                 kw->x += p->layout_node->x;
                 kw->y += p->layout_node->y;
@@ -448,9 +448,9 @@ void compute_keyword_force(force_params_t *param, int num_papers, Common_paper_t
         }
     }
     for (int i = 0; i < num_papers; i++) {
-        Common_paper_t *p = papers[i];
+        paper_t *p = papers[i];
         for (int j = 0; j < p->num_keywords; j++) {
-            Common_keyword_t *kw = p->keywords[j];
+            keyword_t *kw = p->keywords[j];
             if (kw->num_papers > 0) {
                 kw->x /= kw->num_papers;
                 kw->y /= kw->num_papers;
@@ -461,12 +461,12 @@ void compute_keyword_force(force_params_t *param, int num_papers, Common_paper_t
 
     // compute forces on disconnected papers due to keywords
     for (int i = 0; i < num_papers; i++) {
-        Common_paper_t *p = papers[i];
+        paper_t *p = papers[i];
         if (p->connected) {
             continue;
         }
         for (int j = 0; j < p->num_keywords; j++) {
-            Common_keyword_t *kw = p->keywords[j];
+            keyword_t *kw = p->keywords[j];
 
             double dx = p->x - kw->x;
             double dy = p->y - kw->y;
@@ -496,7 +496,7 @@ static void compute_category_locations(Map_env_t *map_env) {
         cat->x = 0.0;
     }
     for (int i = 0; i < map_env->num_papers; i++) {
-        Common_paper_t *p = map_env->papers[i];
+        paper_t *p = map_env->papers[i];
         category_info_t *cat = &map_env->category_info[p->allcats[0]];
         cat->num += 1;
         cat->x += p->layout_node->x;
@@ -671,7 +671,7 @@ bool Map_env_iterate(Map_env_t *map_env, layout_node_t *hold_still, bool boost_s
     // work out maximum force
     double fmax = 0;
     for (int i = 0; i < map_env->num_papers; i++) {
-        Common_paper_t *p = map_env->papers[i];
+        paper_t *p = map_env->papers[i];
         p->fx /= p->mass;
         p->fy /= p->mass;
         if (fabs(p->fx) > fmax) {
@@ -690,7 +690,7 @@ bool Map_env_iterate(Map_env_t *map_env, layout_node_t *hold_still, bool boost_s
         fmult = 0.5;
     }
     for (int i = 0; i < map_env->num_papers; i++) {
-        Common_paper_t *p = map_env->papers[i];
+        paper_t *p = map_env->papers[i];
         if (p == hold_still) {
             continue;
         }
@@ -739,18 +739,18 @@ void Map_env_inc_num_papers(Map_env_t *map_env, int amt) {
     if (map_env->cur_num_papers > map_env->max_num_papers) {
         map_env->cur_num_papers = map_env->max_num_papers;
     }
-    Common_recompute_num_included_cites(map_env->cur_num_papers, map_env->all_papers);
-    Common_recompute_colours(map_env->cur_num_papers, map_env->all_papers, false);
-    //Common_compute_tred(map_env->cur_num_papers, map_env->all_papers);
+    recompute_num_included_cites(map_env->cur_num_papers, map_env->all_papers);
+    recompute_colours(map_env->cur_num_papers, map_env->all_papers, false);
+    //compute_tred(map_env->cur_num_papers, map_env->all_papers);
     for (int i = 0; i < map_env->cur_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         p->mass = 0.05 + 0.2 * p->num_included_cites;
         p->r = sqrt(p->mass / M_PI);
         p->index2 = i;
     }
     // compute initial position for newly added papers (average of all its references)
     for (int i = old_num_papers; i < map_env->cur_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         if (!p->pos_valid) {
             Map_env_compute_best_start_position_for_paper(map_env, p);
             p->pos_valid = true;
@@ -761,7 +761,7 @@ void Map_env_inc_num_papers(Map_env_t *map_env, int amt) {
     int biggest_col = 0;
     int num_with_biggest_col = 10;
     for (int i = 0; i < map_env->cur_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         if (p->num_with_my_colour > num_with_biggest_col) {
             biggest_col = p->colour;
             num_with_biggest_col = p->num_with_my_colour;
@@ -769,7 +769,7 @@ void Map_env_inc_num_papers(Map_env_t *map_env, int amt) {
     }
     map_env->num_papers = 0;
     for (int i = 0; i < map_env->cur_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         if (p->colour == biggest_col) {
             map_env->papers[map_env->num_papers++] = p;
         }
@@ -784,17 +784,17 @@ void Map_env_inc_num_papers(Map_env_t *map_env, int amt) {
 */
 
 // makes fake links for a paper to the connected part of the graph
-static void make_fake_links_for_paper(Map_env_t *map_env, Common_paper_t *paper) {
+static void make_fake_links_for_paper(Map_env_t *map_env, paper_t *paper) {
     // allocate memory for the fake links
     paper->num_fake_links = 0;
-    paper->fake_links = m_new(Common_paper_t*, paper->num_keywords == 0 ? 1 : paper->num_keywords);
+    paper->fake_links = m_new(paper_t*, paper->num_keywords == 0 ? 1 : paper->num_keywords);
 
     // want to make links only to papers in the same main category
-    Common_category_t want_cat = paper->allcats[0];
+    category_t want_cat = paper->allcats[0];
 
     // go through all the keywords for this paper
     for (int i = 0; i < paper->num_keywords; i++) {
-        Common_keyword_t *want_kw = paper->keywords[i];
+        keyword_t *want_kw = paper->keywords[i];
 
         // found an appropriate paper, so make a fake link
         if (want_kw->paper != NULL) {
@@ -812,9 +812,9 @@ static void make_fake_links_for_paper(Map_env_t *map_env, Common_paper_t *paper)
     // if we couldn't find anything, try just looking for something in the same category
     if (paper->num_fake_links == 0) {
         //printf("for paper %u, resorting to category link (it has %d keywords)\n", paper->id, paper->num_keywords);
-        Common_paper_t *p_found = NULL;
+        paper_t *p_found = NULL;
         for (int i = 0; i < map_env->num_papers; i++) {
-            Common_paper_t *p2 = map_env->papers[i];
+            paper_t *p2 = map_env->papers[i];
             if (p2->included && p2->connected && p2->allcats[0] == want_cat) {
                 if (p_found == NULL || p2->mass > p_found->mass) {
                     p_found = p2;
@@ -827,7 +827,7 @@ static void make_fake_links_for_paper(Map_env_t *map_env, Common_paper_t *paper)
     }
 }
 
-void paper_propagate_connectivity(Common_paper_t *paper) {
+void paper_propagate_connectivity(paper_t *paper) {
     if (paper->included && !paper->connected) {
         paper->connected = true;
         for (int i = 0; i < paper->num_refs; i++) {
@@ -843,7 +843,7 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
     int i_start = map_env->max_num_papers - 1;
     int i_end = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         p->included = false;
         if (p->id >= id_start && p->id <= id_end) {
             if (i < i_start) {
@@ -864,7 +864,7 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
     printf("date range: %u - %u; index %d - %d\n", id_start, id_end, i_start, i_end);
 
     for (int i = i_start; i <= i_end; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         p->included = true;
         p->age = 1.0 * (p->id - id_start) / (id_end - id_start);
     }
@@ -872,7 +872,7 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
     // Disclude papers with only references
     if (map_env->other_links_veto) {
         for (int i = i_start; i <= i_end; i++) {
-            Common_paper_t *p = &map_env->all_papers[i];
+            paper_t *p = &map_env->all_papers[i];
             if (p->included) {
                 // keep only papers that have "other" links, as we intend to ignore normal links
                 bool valid_other_paper = false;
@@ -892,19 +892,19 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
     // CALCULATE CONNECTED
 
     // think this can be placed later, as may not include disconnected papers
-    //Common_recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
+    //recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
     
-    Common_recompute_colours(map_env->max_num_papers, map_env->all_papers, false);
+    recompute_colours(map_env->max_num_papers, map_env->all_papers, false);
 
 #ifdef ENABLE_TRED
-    Common_compute_tred(map_env->max_num_papers, map_env->all_papers);
+    compute_tred(map_env->max_num_papers, map_env->all_papers);
 #endif
 
     // think this can be placed later, as may not include disconnected papers
     
     // recompute mass and radius based on num_included_cites
     //for (int i = 0; i < map_env->max_num_papers; i++) {
-    //    Common_paper_t *p = &map_env->all_papers[i];
+    //    paper_t *p = &map_env->all_papers[i];
     //    p->mass = 0.2 + 0.2 * p->num_included_cites;
     //    p->radius = sqrt(p->mass / M_PI);
     //}
@@ -913,7 +913,7 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
     int biggest_col = 0;
     int num_with_biggest_col = 2;
     for (int i = 0; i < map_env->max_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         if (p->included && p->num_with_my_colour > num_with_biggest_col) {
             biggest_col = p->colour;
             num_with_biggest_col = p->num_with_my_colour;
@@ -923,7 +923,7 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
     // make array of papers that we want to include, first the big connected graph
     map_env->num_papers = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         if (p->included) {
             p->connected = (p->colour == biggest_col);
             map_env->papers[map_env->num_papers++] = p;
@@ -941,9 +941,9 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
     if (map_env->make_fake_links) {
         for (int cat = 0; cat < CAT_NUMBER_OF; cat++) {
             // for each keyword, find the paper in this category that has the largest mass
-            Common_keyword_set_clear_data(map_env->keyword_set);
+            keyword_set_clear_data(map_env->keyword_set);
             for (int i = 0; i < map_env->num_papers; i++) {
-                Common_paper_t *p = map_env->papers[i];
+                paper_t *p = map_env->papers[i];
                 if (p->included && p->connected && p->allcats[0] == cat) {
                     for (int j = 0; j < p->num_keywords; j++) {
                         if (p->keywords[j]->paper == NULL || p->mass > p->keywords[j]->paper->mass) {
@@ -955,7 +955,7 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
 
             // for each disconnected paper, try to connect it
             for (int i = 0; i < map_env->num_papers; i++) {
-                Common_paper_t *p = map_env->papers[i];
+                paper_t *p = map_env->papers[i];
                 if (!p->connected && p->allcats[0] == cat) {
                     // try to connect this paper to the big graph
                     make_fake_links_for_paper(map_env, p);
@@ -976,10 +976,10 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
     int total_not_connected = 0;
     //for (int i = 0; i < map_env->num_papers; i++) {
     for (int i = map_env->num_papers-1; i >= 0; i--) {
-        Common_paper_t *p = map_env->papers[i];
+        paper_t *p = map_env->papers[i];
         if (p->included && !p->connected) {
             if (map_env->make_fake_links) {
-                printf("WARNING: could not connect paper %u with fake links; allcats[0]=%s, keywords=", p->id, Common_category_enum_to_str(p->allcats[0]));
+                printf("WARNING: could not connect paper %u with fake links; allcats[0]=%s, keywords=", p->id, category_enum_to_str(p->allcats[0]));
                 for (int j = 0; j < p->num_keywords; j++) {
                     printf("%s,", p->keywords[j]->keyword);
                 }
@@ -990,10 +990,10 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
             total_not_connected += 1;
 
             // remove this paper from the list
-            //memmove(&map_env->papers[i], &map_env->papers[i + 1], (map_env->num_papers - i - 1) * sizeof(Common_paper_t*));
+            //memmove(&map_env->papers[i], &map_env->papers[i + 1], (map_env->num_papers - i - 1) * sizeof(paper_t*));
             //map_env->num_papers -= 1;
             if (i+1 < map_env->num_papers) {
-                memmove(&map_env->papers[i], &map_env->papers[i + 1], (map_env->num_papers - i - 1) * sizeof(Common_paper_t*));
+                memmove(&map_env->papers[i], &map_env->papers[i + 1], (map_env->num_papers - i - 1) * sizeof(paper_t*));
             }
             map_env->num_papers -= 1;
         }
@@ -1004,10 +1004,10 @@ void Map_env_select_date_range(Map_env_t *map_env, unsigned int id_start, unsign
 
     // RECOMPUTE DIMENSIONS
 
-    Common_recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
+    recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
 
     for (int i = 0; i < map_env->max_num_papers; i++) {
-        Common_paper_t *p = &map_env->all_papers[i];
+        paper_t *p = &map_env->all_papers[i];
         p->mass = 0.2 + 0.2 * p->num_included_cites;
         p->radius = sqrt(p->mass / M_PI);
     }
@@ -1154,7 +1154,7 @@ void Map_env_layout_pos_save_to_json(Map_env_t *map_env, const char *file) {
     vstr_t *vstr = vstr_new();
     vstr_printf(vstr, "[\n");
     for (int i = 0; i < map_env->num_papers; i++) {
-        Common_paper_t *p = map_env->papers[i];
+        paper_t *p = map_env->papers[i];
         int x, y, r;
         layout_node_export_quantities(p->layout_node, &x, &y, &r);
         vstr_printf(vstr, "[%u,%d,%d,%d]", p->id, x, y, r);
@@ -1180,7 +1180,7 @@ void Map_env_layout_link_save_to_json(Map_env_t *map_env, const char *file) {
     vstr_t *vstr = vstr_new();
     vstr_printf(vstr, "[\n");
     for (int i = 0; i < map_env->num_papers; i++) {
-        Common_paper_t *p = map_env->papers[i];
+        paper_t *p = map_env->papers[i];
         vstr_printf(vstr, "[%u,[", p->id);
         layout_node_t *ln = p->layout_node;
         for (int j = 0; j < ln->num_links; j++) {

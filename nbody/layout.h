@@ -1,21 +1,21 @@
 #ifndef _INCLUDED_LAYOUT_H
 #define _INCLUDED_LAYOUT_H
 
-#include "Common.h"
+#include "common.h"
 
 // for layout_node_t.flags (default state is unset)
 #define LAYOUT_NODE_IS_FINEST   (0x0001)
 #define LAYOUT_NODE_POS_VALID   (0x0002)
 #define LAYOUT_NODE_HOLD_STILL  (0x0004)
 
-struct _Common_paper_t;
+struct _paper_t;
 
 typedef struct _layout_node_t {
     unsigned int flags;
     struct _layout_node_t *parent;
     union {
         struct {    // for when this layout is the finest layout
-            struct _Common_paper_t *paper;
+            struct _paper_t *paper;
         };
         struct {    // for when this layout is coarse
             struct _layout_node_t *child1;
@@ -46,7 +46,7 @@ typedef struct _layout_t {
     layout_link_t *links;
 } layout_t;
 
-layout_t *layout_build_from_papers(int num_papers, struct _Common_paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link);
+layout_t *layout_build_from_papers(int num_papers, struct _paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link);
 layout_t *layout_build_reduced_from_layout(layout_t *layout);
 
 void layout_propagate_positions_to_children(layout_t *layout);
