@@ -1,4 +1,5 @@
 *.o
+*.a
 nbody-headless
 nbody-headlessjson
 nbody-gui
