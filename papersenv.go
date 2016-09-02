@@ -9,6 +9,7 @@ import (
     "bytes"
     "log"
     "GoMySQL"
+    //"github.com/yanatan16/GoMySQL"
 )
 
 type PapersEnv struct {
@@ -470,12 +471,9 @@ func parseRefsCitesString(paper *Paper, blob []byte, isRefStr bool) bool {
         return true
     }
 
-    /* uncomment this to disable inspire 999 information
+    /* uncomment this to disable 999 information
     if ((paper.id % 15625) % 4) == 2 {
-        // this is an inspire paper
         if isRefStr {
-            // don't process inspire references
-            // this acts as though we don't have the 999 information
             return true
         }
     }

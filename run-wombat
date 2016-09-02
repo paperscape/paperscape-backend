@@ -4,7 +4,8 @@ TIMESTAMP=`date +"%F-%T"`
 XIWI_ROOT=/opt/pscp
 XIWI_PROG=$XIWI_ROOT/xiwi
 XIWI_LOG=$XIWI_ROOT/logs
+XIWI_META=$XIWI_ROOT/data/meta
 LOG=$XIWI_LOG/wombat.log
 
-$XIWI_PROG/wombat/wombat --fcgi :9100 --log-file $LOG &
+$XIWI_PROG/wombat/wombat --fcgi :9100 --log-file $LOG --meta $XIWI_META &
 disown

@@ -8,15 +8,14 @@ import (
     "net"
     "net/http"
     "net/http/fcgi"
-    //"text/scanner"
     "runtime"
     "time"
     "strings"
     "math/rand"
     "compress/gzip"
     "log"
-    "xiwi" // TODO remove dependence
     "GoMySQL"
+    //"github.com/yanatan16/GoMySQL"
 )
 
 // Current version of my.paperscape.
@@ -42,7 +41,7 @@ var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using 
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
 var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
 var flagTestQueryArxiv = flag.String("test-arxiv", "", "run a test query with arxiv")
-var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
+var flagMetaBaseDir = flag.String("meta", "/opt/pscp/data/meta", "Base directory for meta file data (abstracts etc.)")
 
 func main() {
     // pick random seed (default is Seed(1)...)
@@ -61,12 +60,8 @@ func main() {
         }
     }
 
-    if len(*flagMetaBaseDir) == 0 {
-        *flagMetaBaseDir = "/opt/pscp/data/meta"
-    }
-
     // connect to db
-    db := xiwi.ConnectToDB(*flagDB)
+    db := ConnectToDB(*flagDB)
     if db == nil {
         return
     }
@@ -158,7 +153,7 @@ type MyHTTPHandler struct {
     papers* PapersEnv
 }
 
-// a simple wrapper for http.ResponseWriter that counts number of bytes and stores a log description
+// a simple wrapper for http.ResponseWriter that counts number of bytes and keeps a log description
 type MyResponseWriter struct {
     rw http.ResponseWriter
     bytesWritten int
@@ -271,12 +266,49 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
         fmt.Fprintf(rw, "<html><head></head><body><p>Unknown request</p></body>\n")
     }
 
-    //fmt.Printf("[%s] %s -- %s %s (bytes: %d URL, %d content, %d replied)\n", time.Now().Format(time.RFC3339), req.RemoteAddr, req.Method, req.URL, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
     if rw.logDescription != "" {
         log.Printf("%s -- %s %s -- bytes: %d URL, %d content, %d replied\n", req.RemoteAddr, req.Method, rw.logDescription, len(req.URL.String()), req.ContentLength, rw.bytesWritten)
     }
 
     runtime.GC()
+}
+
+func ConnectToDB(dbConnection string) *mysql.Client {
+    // connect to MySQL database; using a socket is preferred since it's faster
+    var db *mysql.Client
+    var err error
+
+    mysql_host := os.Getenv("PSCP_MYSQL_HOST")
+    mysql_user := os.Getenv("PSCP_MYSQL_USER")
+    mysql_pwd  := os.Getenv("PSCP_MYSQL_PWD")
+    mysql_db   := os.Getenv("PSCP_MYSQL_DB")
+    mysql_sock := os.Getenv("PSCP_MYSQL_SOCKET")
+
+    // if nothing requested, default to something sensible
+    if dbConnection == "" {
+        if fileExists(mysql_sock) {
+            dbConnection = mysql_sock
+        } else {
+            dbConnection = mysql_host
+        }
+    }
+
+    // make the connection
+    if strings.HasSuffix(dbConnection, ".sock") {
+        db, err = mysql.DialUnix(dbConnection, mysql_user, mysql_pwd, mysql_db)
+    } else {
+        db, err = mysql.DialTCP(dbConnection, mysql_user, mysql_pwd, mysql_db)
+    }
+
+
+    if err != nil {
+        fmt.Println("cannot connect to database;", err)
+        return nil
+    } else {
+        fmt.Println("connected to database:", dbConnection)
+        return db
+    }
+    return db
 }
 
 // returns whether the given file or directory exists or not
