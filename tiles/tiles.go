@@ -14,7 +14,6 @@ import (
     "log"
     "time"
     "encoding/json"
-    //"xiwi"
     //"GoMySQL"
     "github.com/yanatan16/GoMySQL"
     "github.com/ungerik/go-cairo"
@@ -31,20 +30,20 @@ var flagDB           = flag.String("db", "", "MySQL database to connect to")
 var flagDBLocSuffix  = flag.String("db-suffix", "", "Suffix of location table in MySQL database: map_data_{suffix}")
 var flagJSONLocFile  = flag.String("json-layout", "", "Read paper locations from JSON file instead of DB")
 
-var flagGrayScale  = flag.Bool("gs", false, "Also make grayscale tiles")
-var flagHeatMap    = flag.Bool("hm", false, "Also make heatmap tiles")
-var flagSubCats    = flag.Bool("sub-cats", false, "Distinguish sub category papers (currently works only for astro-ph)")
-var flagCentreGraph    = flag.Bool("centre", false, "Whether to centre the graph on the total centre of mass")
+var flagSkipTiles    = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
+var flagSkipLabels   = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
+var flagGrayScale    = flag.Bool("gs", false, "Generate grayscale tiles")
+var flagHeatMap      = flag.Bool("hm", false, "Generate heatmap tiles")
 
-var flagDoSingle   = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
-var flagDoPoster   = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
+var flagSubCats      = flag.Bool("sub-cats", false, "Distinguish sub category papers (currently works only for astro-ph)")
+var flagCentreGraph  = flag.Bool("centre", false, "Whether to centre the graph on the total centre of mass")
 
-var flagRegionFile = flag.String("region-file", "regions.json", "JSON file with region labels")
+var flagDoSingle     = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
+var flagDoPoster     = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
 
-var flagSkipNormalTiles  = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
-var flagSkipLabels = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
+var flagRegionFile   = flag.String("region-file", "regions.json", "JSON file with region labels")
 
-var flagMaxCores = flag.Int("cores", -1, "Max number of system cores to use, default is all of them")
+var flagMaxCores     = flag.Int("cores", -1, "Max number of system cores to use, default is all of them")
 
 func main() {
     // parse command line options
@@ -1212,7 +1211,7 @@ func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, 
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
             // Draw normal tile
-            if !*flagSkipNormalTiles {
+            if !*flagSkipTiles {
                 filename = fmt.Sprintf("%s/tiles/%d/%d/%d", outPrefix, depth, xi, yi)
                 DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_NORMAL)
             }
@@ -1444,7 +1443,7 @@ func DrawPoster(graph *Graph, surfWidthInt, surfHeightInt int, filename string, 
     //surf.Fill()
 
     // load and paint our logo
-    surfLogo := cairo.NewSurfaceFromPNG("../../poster/paperscapeTransparent.png")
+    surfLogo := cairo.NewSurfaceFromPNG("poster/paperscapeTransparent.png")
     surf.IdentityMatrix()
     scale := 0.2 * surfWidth / float64(surfLogo.GetWidth())
     surf.Scale(scale, scale)
@@ -1452,7 +1451,7 @@ func DrawPoster(graph *Graph, surfWidthInt, surfHeightInt int, filename string, 
     surf.Paint()
 
     // load and draw the text
-    surfText := cairo.NewSurfaceFromPNG("../../poster/postertext.png")
+    surfText := cairo.NewSurfaceFromPNG("poster/postertext.png")
     surfText.SetOperator(cairo.OPERATOR_IN)
     //surfText.SetSourceRGBA(1, 1, 1, 1) // text colour
     //surfText.Paint() // colour the text
