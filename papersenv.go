@@ -145,20 +145,23 @@ func (papers *PapersEnv) QueryFull(query string) bool {
 }
 
 func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
-    // perform query
-    // TODO use prepared statements
     var query string
-    if id != 0 {
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE id = %d", id)
-    } else if len(arxiv) > 0 {
-        // security issue: should make sure arxiv string is sanitised
-        // NOTE: currently only checking for consistent characters, including '-' and '.'
-        query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE arxiv = '%s'", arxiv)
-    } else {
-        return nil
-    }
-    row := papers.QuerySingleRow(query)
 
+    if id == 0 {
+        if len(arxiv) == 0 {
+            return nil
+        } else {
+            // given an arxiv string, so properly sanitise 
+            query = fmt.Sprintf("SELECT id FROM meta_data WHERE arxiv = ?")
+            stmt := papers.StatementBegin(query,arxiv)
+            if !papers.StatementBindSingleRow(stmt,&id) {
+                return nil
+            }
+        }
+    }
+
+    query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE id = %d", id)
+    row := papers.QuerySingleRow(query)
     papers.QueryEnd()
 
     if row == nil { return nil }

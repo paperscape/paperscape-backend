@@ -434,6 +434,12 @@ func (h *MyHTTPHandler) ResponseMyPscp(rw *MyResponseWriter, req *http.Request) 
             descSaveHash = "<new>"
         }
         rw.logDescription = fmt.Sprintf("lsave %s",descSaveHash)
+    } else if req.Form["snp"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
+        // *OBSOLETE*
+        // search-new-papers: search papers between given id range
+        // f = from, t = to
+        h.SearchNewPapers(req.Form["f"][0], req.Form["t"][0], rw)
+        rw.logDescription = fmt.Sprintf("snp (%s,%s)", req.Form["f"][0], req.Form["t"][0])
     } else {
         requestFound = false
     }
@@ -444,48 +450,38 @@ func (h *MyHTTPHandler) ResponseMyPscp(rw *MyResponseWriter, req *http.Request) 
 /****************************************************************/
 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
-    
     success = false
 
-    // perform query
-    if !h.papers.QueryBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5") {
+    query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5"
+
+    stmt := h.papers.StatementBegin(query)
+
+    if stmt == nil {
+        fmt.Println("MySQL statement error; empty")
         return
     }
 
-    defer h.papers.QueryEnd()
-
-    // get result set  
-    result, err := h.papers.db.UseResult()
-    if err != nil {
-        fmt.Println("MySQL use result error;", err)
-        return
-    }
-
+    var daysAgo,id uint64
+    stmt.BindResult(&daysAgo,&id)
+    defer h.papers.StatementEnd(stmt) 
+    
     fmt.Fprintf(rw, "{\"v\":\"%s\",",VERSION_MYPSCP)
-    // get each row from the result and create the JSON object
     numResults := 0
     for {
-        // get the row
-        row := result.FetchRow()
-        if row == nil {
+        eof, err := stmt.Fetch()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
             break
-        }
-
-        // parse the row
-        var ok bool
-        var daysAgo uint64
-        var id uint64
-        if daysAgo, ok = row[0].(uint64); !ok { continue }
-        if id, ok = row[1].(uint64); !ok {
-            id = 0
-        }
-
-        // print the result
+        } else if eof { break }
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
         fmt.Fprintf(rw, "\"d%d\":%d", daysAgo, id)
         numResults += 1
+    }
+    err := stmt.FreeResult()
+    if err != nil {
+        fmt.Println("MySQL statement error;", err)
     }
     fmt.Fprintf(rw, "}")
     success = true
@@ -1256,3 +1252,57 @@ func (h *MyHTTPHandler) LinkSave(modcode string, notesIn string, notesInHash str
     // We succeeded
     fmt.Fprintf(rw, "{\"code\":\"%s\",\"mkey\":\"%s\"}",code,modcode)
 }
+
+
+// searches for all new papers within the id range
+// returns id,allcats,numCites,refs for up to 500 results
+func (h *MyHTTPHandler) SearchNewPapers(idFrom string, idTo string, rw http.ResponseWriter) {
+    // sanity check of id numbers
+    if !sanityCheckId(idFrom) {
+        return
+    }
+    if !sanityCheckId(idTo) {
+        return
+    }
+
+    // a top of 0 means infinitely far into the future
+    if idTo == "0" {
+        idTo = "4000000000";
+    }
+
+    query := "SELECT meta_data.id,meta_data.allcats,pcite.numCites FROM meta_data,pcite WHERE meta_data.id >= ? AND meta_data.id <= ? AND meta_data.id = pcite.id LIMIT 500"
+
+    stmt := h.papers.StatementBegin(query,idFrom,idTo)
+
+    if stmt == nil {
+        fmt.Println("MySQL statement error; empty")
+        fmt.Fprintf(rw, "[]")
+        return
+    }
+
+    var id, numCites uint64
+    var allcats string
+    stmt.BindResult(&id,&allcats,&numCites)
+    defer h.papers.StatementEnd(stmt) 
+    
+    fmt.Fprintf(rw, "[")
+    numResults := 0
+    for {
+        eof, err := stmt.Fetch()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
+            break
+        } else if eof { break }
+        if numResults > 0 {
+            fmt.Fprintf(rw, ",")
+        }
+        fmt.Fprintf(rw, "{\"id\":%d,\"cat\":\"%s\",\"nc\":%d}", id, allcats, numCites)
+        numResults += 1
+    }
+    err := stmt.FreeResult()
+    if err != nil {
+        fmt.Println("MySQL statement error;", err)
+    }
+    fmt.Fprintf(rw, "]")
+}
+

@@ -151,11 +151,6 @@ func (h *MyHTTPHandler) ResponsePscpGeneral(rw *MyResponseWriter, req *http.Requ
         }
         h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", fId, tId, uint(fd), uint(td), rw)
         rw.logDescription = fmt.Sprintf("sca \"%s\" (%s,%s,%d,%d)", req.Form["sca"][0], fId,tId,fd,td)
-    } else if req.Form["snp"] != nil && req.Form["f"] != nil && req.Form["t"] != nil {
-        // search-new-papers: search papers between given id range
-        // f = from, t = to
-        h.SearchNewPapers(req.Form["f"][0], req.Form["t"][0], rw)
-        rw.logDescription = fmt.Sprintf("snp (%s,%s)", req.Form["f"][0], req.Form["t"][0])
     } else if req.Form["str[]"] != nil {
         // search-trending: search papers that are "trending"
         h.SearchTrending(req.Form["str[]"], rw)
@@ -458,7 +453,6 @@ func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWrite
     fmt.Fprintf(rw, "]")
 }
 
-// TODO use prepared statements to gaurd against sql injection
 func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
     // turn authors into boolean search terms
     // add surrounding double quotes for each author in case they have initials with them
@@ -484,11 +478,11 @@ func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
         searchString.WriteRune('"')
     }
 
+    whereClause := "MATCH (authors) AGAINST (? IN BOOLEAN MODE)"
     // do the search
-    h.SearchGeneric("MATCH (authors) AGAINST ('" + searchString.String() + "' IN BOOLEAN MODE)", rw)
+    h.SearchGeneric(rw, whereClause, searchString.String())
 }
 
-// TODO use prepared statements to gaurd against sql injection
 func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
     // turn title words into boolean search terms
     newWord := true
@@ -506,9 +500,9 @@ func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
             searchString.WriteRune(r)
         }
     }
-
+    whereClause := "MATCH (title) AGAINST (? IN BOOLEAN MODE)"
     // do the search
-    h.SearchGeneric("MATCH (title) AGAINST ('" + searchString.String() + "' IN BOOLEAN MODE)", rw)
+    h.SearchGeneric(rw, whereClause, searchString.String())
 }
 
 func sanityCheckId(id string) bool {
@@ -529,7 +523,6 @@ func sanityCheckId(id string) bool {
     return true
 }
 
-// TODO use prepared statements to gaurd against sql injection
 // searches for all papers within the id range, with main category as given
 // returns id, numCites, refs for up to 500 results
 func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, idFrom string, idTo string, daysagoFrom uint, daysagoTo uint, rw http.ResponseWriter) {
@@ -538,18 +531,16 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
 
     // choose the type of MySQL query based on whether we want cross-lists or not
     var catQueryStart string
-    var catQueryEnd string
     if includeCrossLists {
         // include cross lists; check "allcats" column for any occurrence of the wanted category string
-        catQueryStart = "meta_data.allcats LIKE '%%"
-        catQueryEnd = "%%'"
+        catQueryStart = "meta_data.allcats LIKE ?"
     } else {
         // no cross lists; "maincat" column must match the wanted category exactly
-        catQueryStart = "meta_data.maincat='"
-        catQueryEnd = "'"
+        catQueryStart = "meta_data.maincat=?"
     }
 
-    var catQuery bytes.Buffer
+    var categories []string
+    var catQuery,catName bytes.Buffer
     catQuery.WriteString("(")
     catQuery.WriteString(catQueryStart)
     catChars := 0
@@ -559,12 +550,14 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
                 // bad category
                 return
             }
-            catQuery.WriteString(catQueryEnd)
+            // store category name as input
+            categories = append(categories,catName.String())
+            catName.Reset()
             catQuery.WriteString(" OR ")
             catQuery.WriteString(catQueryStart)
             catChars = 0
         } else if unicode.IsLower(r) || r == '-' {
-            catQuery.WriteRune(r)
+            catName.WriteRune(r)
             catChars += 1
         } else {
             // illegal character
@@ -575,20 +568,18 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
         // bad category
         return
     }
-    catQuery.WriteString(catQueryEnd)
+    categories = append(categories,catName.String())
     catQuery.WriteString(")")
 
     if (daysagoFrom <= 0 && daysagoFrom > 31) { daysagoFrom = 0 }
     if (daysagoTo <= 0 && daysagoTo > 31) { daysagoTo = 0 }
-    
+   
     // if given non-trivial "daysago" number to lookup
     if daysagoFrom > daysagoTo {
         stmt := h.papers.StatementBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo = ? OR daysAgo = ?",daysagoFrom,daysagoTo)
-
         var id uint64
         var results [2]uint64
         var daysAgo uint
-        
         if stmt != nil {
             stmt.BindResult(&daysAgo,&id)
             for i, _ := range results {
@@ -628,125 +619,61 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
         idTo = "4000000000"
     }
 
+    // create interface of arguments for statement
+    argsInterface := make([]interface{},len(categories)+2)
+    argsInterface[0] = idFrom
+    argsInterface[1] = idTo
+    for i, cat := range categories {
+        catStr := h.papers.db.Escape(cat)
+        if includeCrossLists {
+            // padding for the LIKE query
+            catStr = "%%" + catStr + "%%"
+        }
+        argsInterface[i+2] = interface{}(catStr)
+    }
+
+    whereClause := "meta_data.id >= ? AND meta_data.id <= ? AND " + catQuery.String()
     // do the search
-    h.SearchGeneric("meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND " + catQuery.String(), rw)
+    h.SearchGeneric(rw, whereClause, argsInterface...)
 }
 
-// searches for papers using the given where-clause
+// searches for papers using the given where-clause and associated statement inputs
 // builds a JSON list with id, numCites, refs for up to 500 results
-func (h *MyHTTPHandler) SearchGeneric(whereClause string, rw http.ResponseWriter) {
-    // build basic query
+func (h *MyHTTPHandler) SearchGeneric(rw http.ResponseWriter, whereClause string, params ...interface{}) {
+
     query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id=pcite.id AND (" + whereClause + ")"
-
-    // don't include results that we have no way of uniquely identifying (ie must have arxiv or publ info)
     query += " AND (meta_data.arxiv IS NOT NULL OR meta_data.publ IS NOT NULL)"
-
-    // limit 500 results
     query += " LIMIT 500"
 
-    // do the query
-    if !h.papers.QueryBegin(query) {
+    stmt := h.papers.StatementBegin(query,params...)
+
+    if stmt == nil {
+        fmt.Println("MySQL statement error; empty")
         fmt.Fprintf(rw, "[]")
         return
     }
 
-    defer h.papers.QueryEnd()
-
-    // get result set  
-    result, err := h.papers.db.UseResult()
-    if err != nil {
-        fmt.Println("MySQL use result error;", err)
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-
-    // get each row from the result and create the JSON object
+    var id, numCites uint64
+    stmt.BindResult(&id,&numCites)
+    defer h.papers.StatementEnd(stmt) 
+    
     fmt.Fprintf(rw, "[")
     numResults := 0
     for {
-        row := result.FetchRow()
-        if row == nil {
+        eof, err := stmt.Fetch()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
             break
-        }
-
-        var ok bool
-        var id uint64
-        var numCites uint64
-        //var refStr []byte
-        if id, ok = row[0].(uint64); !ok { continue }
-        if numCites, ok = row[1].(uint64); !ok { numCites = 0 }
-        //if refStr, ok = row[2].([]byte); !ok { /* refStr is empty, that's okay */ }
-
+        } else if eof { break }
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
-        //fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d,\"ref\":", id, numCites)
-        //ParseRefsCitesStringToJSONListOfIds(refStr, rw)
-        //fmt.Fprintf(rw, "}")
         fmt.Fprintf(rw, "{\"id\":%d,\"nc\":%d}", id, numCites)
         numResults += 1
     }
-    fmt.Fprintf(rw, "]")
-}
-
-// searches for all new papers within the id range
-// returns id,allcats,numCites,refs for up to 500 results
-func (h *MyHTTPHandler) SearchNewPapers(idFrom string, idTo string, rw http.ResponseWriter) {
-    // sanity check of id numbers
-    if !sanityCheckId(idFrom) {
-        return
-    }
-    if !sanityCheckId(idTo) {
-        return
-    }
-
-    // a top of 0 means infinitely far into the future
-    if idTo == "0" {
-        idTo = "4000000000";
-    }
-
-    if !h.papers.QueryBegin("SELECT meta_data.id,meta_data.allcats,pcite.numCites FROM meta_data,pcite WHERE meta_data.id >= " + idFrom + " AND meta_data.id <= " + idTo + " AND meta_data.id = pcite.id LIMIT 500") {
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-
-    defer h.papers.QueryEnd()
-
-    // get result set  
-    result, err := h.papers.db.UseResult()
+    err := stmt.FreeResult()
     if err != nil {
-        fmt.Println("MySQL use result error;", err)
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-
-    // get each row from the result and create the JSON object
-    fmt.Fprintf(rw, "[")
-    numResults := 0
-    for {
-        row := result.FetchRow()
-        if row == nil {
-            break
-        }
-
-        var ok bool
-        var id uint64
-        var allcats string
-        var numCites uint64
-        //var refStr []byte
-        if id, ok = row[0].(uint64); !ok { continue }
-        if allcats, ok = row[1].(string); !ok { continue }
-        if numCites, ok = row[2].(uint64); !ok { numCites = 0 }
-        //if refStr, ok = row[3].([]byte); !ok { }
-
-        if numResults > 0 {
-            fmt.Fprintf(rw, ",")
-        }
-        //fmt.Fprintf(rw, "{\"id\":%d,\"cat\":\"%s\",\"nc\":%d,\"ref\":", id, allcats, numCites)
-        //ParseRefsCitesStringToJSONListOfIds(refStr, rw)
-        //fmt.Fprintf(rw, "}")
-        fmt.Fprintf(rw, "{\"id\":%d,\"cat\":\"%s\",\"nc\":%d}", id, allcats, numCites)
-        numResults += 1
+        fmt.Println("MySQL statement error;", err)
     }
     fmt.Fprintf(rw, "]")
 }
@@ -977,48 +904,38 @@ func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivString string, tableSuffix 
 }
 
 func (h *MyHTTPHandler) GetDateMapsVersion(rw http.ResponseWriter) (success bool) {
-    
     success = false
 
-    // perform query
-    if !h.papers.QueryBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo = 0") {
+    query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo = 0"
+
+    stmt := h.papers.StatementBegin(query)
+
+    if stmt == nil {
+        fmt.Println("MySQL statement error; empty")
         return
     }
 
-    defer h.papers.QueryEnd()
-
-    // get result set  
-    result, err := h.papers.db.UseResult()
-    if err != nil {
-        fmt.Println("MySQL use result error;", err)
-        return
-    }
-
+    var daysAgo,id uint64
+    stmt.BindResult(&daysAgo,&id)
+    defer h.papers.StatementEnd(stmt) 
+    
     fmt.Fprintf(rw, "{\"v\":\"%s\",",VERSION_PSCPMAP)
-    // get each row from the result and create the JSON object
     numResults := 0
     for {
-        // get the row
-        row := result.FetchRow()
-        if row == nil {
+        eof, err := stmt.Fetch()
+        if err != nil {
+            fmt.Println("MySQL statement error;", err)
             break
-        }
-
-        // parse the row
-        var ok bool
-        var daysAgo uint64
-        var id uint64
-        if daysAgo, ok = row[0].(uint64); !ok { continue }
-        if id, ok = row[1].(uint64); !ok {
-            id = 0
-        }
-
-        // print the result
+        } else if eof { break }
         if numResults > 0 {
             fmt.Fprintf(rw, ",")
         }
         fmt.Fprintf(rw, "\"d%d\":%d", daysAgo, id)
         numResults += 1
+    }
+    err := stmt.FreeResult()
+    if err != nil {
+        fmt.Println("MySQL statement error;", err)
     }
     fmt.Fprintf(rw, "}")
     success = true
