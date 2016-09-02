@@ -8,8 +8,8 @@ import (
     "encoding/json"
     "bytes"
     "log"
-    "GoMySQL"
-    //"github.com/yanatan16/GoMySQL"
+    //"GoMySQL"
+    "github.com/yanatan16/GoMySQL"
 )
 
 type PapersEnv struct {

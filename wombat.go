@@ -14,8 +14,8 @@ import (
     "math/rand"
     "compress/gzip"
     "log"
-    "GoMySQL"
-    //"github.com/yanatan16/GoMySQL"
+    //"GoMySQL"
+    "github.com/yanatan16/GoMySQL"
 )
 
 // Current version of my.paperscape.
