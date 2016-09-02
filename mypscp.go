@@ -354,11 +354,6 @@ func SendPscpMail(message string, usermail string) {
         return
     }
 
-    //auth := smtp.PlainAuth("", "email", "password","smtp.foo.com")
-    //err := smtp.SendMail("smtp.foo.com:25", auth,"noreply@paperscape.org", []string{usermail}, w.Bytes())
-    //if err != nil {
-    //  fmt.Println("ERROR: ProfileRequestResetPassword sendmail:", err)
-    //}
 }
 
 /****************************************************************/
