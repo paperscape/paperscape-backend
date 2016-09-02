@@ -1,2 +1,0 @@
-- Harden against sql injection by using prepared statements everywhere where user input involved.
-  Especially in QueryPaper for arXiv input
