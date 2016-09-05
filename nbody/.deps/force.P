@@ -1,2 +1,0 @@
-force.o force.P : force.c util/xiwilib.h common.h cats.h layout.h force.h \
- quadtree.h

@@ -1,3 +1,4 @@
+.deps/*
 *.o
 *.a
 nbody-headless
@@ -9,5 +10,3 @@ data/*
 out-*
 local-*
 *.pyc
-
-

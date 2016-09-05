@@ -1,4 +1,0 @@
-mapcairo.o mapcairo.P : mapcairo.c /usr/include/cairo/cairo.h \
- /usr/include/cairo/cairo-version.h /usr/include/cairo/cairo-features.h \
- /usr/include/cairo/cairo-deprecated.h util/xiwilib.h common.h cats.h \
- layout.h force.h quadtree.h map.h mapcairo.h
