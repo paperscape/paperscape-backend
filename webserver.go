@@ -41,7 +41,7 @@ var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using 
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
 var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
 var flagTestQueryArxiv = flag.String("test-arxiv", "", "run a test query with arxiv")
-var flagMetaBaseDir = flag.String("meta", "/opt/pscp/data/meta", "Base directory for meta file data (abstracts etc.)")
+var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
 
 func main() {
     // pick random seed (default is Seed(1)...)

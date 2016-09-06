@@ -1,12 +1,10 @@
 #!/bin/bash
 
 TIMESTAMP=`date +"%F-%T"`
-XIWI_ROOT=/opt/pscp
-XIWI_WEBSERVER=$XIWI_ROOT/paperscape-webserver
-XIWI_PROG=$XIWI_ROOT/xiwi
-XIWI_LOG=$XIWI_ROOT/logs
 XIWI_META=$XIWI_ROOT/data/meta
+XIWI_LOG=$XIWI_ROOT/logs
+XIWI_SERVER=$XIWI_ROOT/paperscape-webserver
 LOG=$XIWI_LOG/wombat.log
 
-$XIWI_WEBSERVER/paperscape-webserver --fcgi :9100 --log-file $LOG --meta $XIWI_META &
+$WEBSERVER/paperscape-webserver --fcgi :9100 --log-file $LOG --meta $XIWI_META &
 disown
