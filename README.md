@@ -75,7 +75,7 @@ _Only relevant fields listed_
 | title      | varchar(500)     | Paper title                                   |
 | authors    | text             | Paper authors                                 |
 
-The `id` field is ordered by publication date (version 1) as follows:
+The _id_ field is ordered by publication date (version 1) as follows:
 ```
 ymdh = (year - 1800) * 10000000
        + (month - 1) * 625000
