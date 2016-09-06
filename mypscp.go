@@ -15,7 +15,8 @@ import (
     "sort"
     "net/smtp"
     "log"
-    "bitbucket.org/kardianos/osext"
+    //"bitbucket.org/kardianos/osext"
+    "github.com/kardianos/osext"
 )
 
 

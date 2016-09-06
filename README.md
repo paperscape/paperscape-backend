@@ -9,8 +9,8 @@ Installation and Usage
 ----------------------
 
 The web server is written in [Go](https://golang.org).
-It has one external dependency, the [GoMySQL](https://github.com/yanatan16/GoMySQL) package, which must be installed to a location referred to by the environment variable `GOPATH` (see this [introduction to go tool](https://golang.org/doc/code.html)).
-Once this dependency has been met, the web server can be built with the command
+It has two external dependencies, the Go packages [GoMySQL](https://github.com/yanatan16/GoMySQL) and [osext](https://github.com/kardianos/osext), which must be installed to a location referred to by the environment variable `GOPATH` (see this [introduction to go tool](https://golang.org/doc/code.html)).
+Once these dependencies have been met, the web server can be built with the command
 
 ```shell
 go build
