@@ -1,40 +1,115 @@
 Paperscape Map Generation
 =========================
 
-This is the source code for the backend map generation of the <a href="http://paperscape.org">Paperscape</a> map project.
+This is the source code of the backend map generation for the [Paperscape map](http://paperscape.org).
+The source code of the [browser-based map client](https://github.com/paperscape/paperscape-mapclient) and [web server](https://github.com/paperscape/paperscape-webserver), as well as [Paperscape data](https://github.com/paperscape/paperscape-data), are also available on Github. 
+For more details and progress on Paperscape please visit the [development blog](http://blog.paperscape.org).
 
-For details and progress on Paperscape refer to the <a href="http://blog.paperscape.org">development blog</a>.
+**NOTE:** while the code is fully functional, this README is still a work in progress.
 
-Input data formats
-==================
+Map generation using N-body simulation
+--------------------------------------
 
-Mysql tables
+#### Compilation ####
+
+The n-body map generation source code is located in the `nbody/` directory. 
+It is written in C.
+The map generator can be run with a gui, which is useful for tuning the map, or without one (headless), which is useful for incremental updates on a server.
+The corresponding programs that can be built are _nbody-gui_, _nbody-headless_ and _nbody-headlessjson_.
+The first two programs read their input data from a MySQL database, while the latter reads in data from a Json file.
+
+**Dependencies:** the MySql C library is required by _nbody-gui_ and _nbody-headless_, while _nbody-gui_ also depends on [Cairo 2D graphics](https://cairographics.org/) and Gtk+ 3.
+
+Before building the nbody programs the utility library _xiwilib_ must first be built by running `make` in the `nbody/util/` directory.
+
+To build the nbody program of your choice, run `make <nbody-program>` in the `nbody/` directory.
+That is, choose from
+
+```shell
+make nbody-gui
+make nbody-headless
+make nbody-headlessjson
+```
+
+or simply run `make` to build them all.
+
+#### Basic usage ####
+
+Run any of the nbody programs with the `--help` command-line flag to see a list of command-line options eg
+
+```shell
+./nbody-gui --help
+```
+
+Running _nbody-gui_ with no command-line options,
+
+```shell
+./nbody-gui
+```
+
+defaults to loading all available arXiv papers from the database and starts building a new map.
+Keyboard shortcuts for controlling the map in the gui are printed to the terminal.
+
+Tile and label generation for map
+---------------------------------
+
+#### Compilation and basic usage ####
+
+The tile generator source code is located in the `tiles/` directory and is written in [Go](https://golang.org).
+It has two external dependencies, the Go packages [go-cairo](github.com/ungerik/go-cairo) and [GoMySQL](https://github.com/yanatan16/GoMySQL), which must be installed to a location referred to by the environment variable `GOPATH` (see this [introduction to go tool](https://golang.org/doc/code.html)).
+Once these dependencies have been met, the web server can be built by running the following command in the `tiles/` directory
+
+```shell
+go build
+```
+
+This should create the binary _tiles_, named after its parent directory.
+
+By default _tiles_ will load a paper graph from the *map_data* MySQL table and generate tiles for it.
+The only command-line argument that needs to be specified is an output directory, for example
+
+```shell
+./tiles <output_dir>
+```
+
+To see a full list of command-line arguments run
+
+```shell
+./tiles --help
+```
+
+Data formats
 ------------
 
-If loading from MySQL, both nbody and tiles need the following environment variables set:
+#### MySQL database access ####
 
-| Environment variable | Description                                         |
-| -------------------- | --------------------------------------------------- |
-| `PSCP_MYSQL_HOST`    | Hostname of the MySQL server e.g. `localhost`       |     
-| `PSCP_MYSQL_SOCKET`  | Path to MySQL socket e.g. `/run/mysqld/mysqld.sock` |
-| `PSCP_MYSQL_DB`      | Name of the database to use                         |
-| `PSCP_MYSQL_USER`    | Username                                            |
-| `PSCP_MYSQL_PWD`     | Password                                            |
+Access to the MySQL database requires the following environment variables to be set:
+
+| Environment variable | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `PSCP_MYSQL_HOST`    | Hostname of the MySQL server e.g. `localhost`           |
+| `PSCP_MYSQL_SOCKET`  | Path to MySQL socket e.g. `/var/run/mysqld/mysqld.sock` |
+| `PSCP_MYSQL_DB`      | Name of the database to use                             |
+| `PSCP_MYSQL_USER`    | Username                                                |
+| `PSCP_MYSQL_PWD`     | Password                                                |
 
 If both a socket and hostname are specified, the socket is used.
 
-### meta_data ###
-__Only relevant fields listed__
+#### meta_data table ####
+
+This table can be used as input by both the n-body map generator and the tile generator.
+
+_Only relevant fields listed_
 
 | Field      | Type             | Description                                   |
 | ---------- |----------------- | --------------------------------------------- |
-| id         | int(10) unsigned | Unique identifier (see below)                 |
+| id         | int(10) unsigned | Unique paper identifier                       |
 | allcats    | varchar(130)     | List of categories (comma separated)          |
 | keywords   | text             | List of keywords (comma separated)            |
 | title      | varchar(500)     | Paper title (for gui display only)            |
 | authors    | text             | Paper authors (for gui display only)          |
 
-The `id` field is ordered by publication date as follows:
+The `id` field is ordered by publication date (version 1) as follows:
 ```
 ymdh = (year - 1800) * 10000000
        + (month - 1) * 625000
@@ -45,58 +120,73 @@ unique_id = ymdh + 4*num
 Categories and keywords are used for creating fake links between disconnected graphs.
 Categories are also used for colouring papers in the gui display.
 
-### pcite ###
-__Only relevant fields listed__
+#### pcite table ####
+
+This table can be used as input by both the n-body map generator and the tile generator.
+
+_Only relevant fields listed_
 
 | Field      | Type             | Description                                   |
 | ---------- | ---------------- | --------------------------------------------- |
-| id         | int(10) unsigned | Unique identifier (see above)                 |
-| refs       | blob             | Binary blob encoding references (see below)   |
+| id         | int(10) unsigned | Unique paper identifier                       |
+| refs       | blob             | Binary blob encoding references               |
 
-The `refs` field encodes a list of references in binary, with each reference represented by 10 bytes as follows:
+For a given paper (A), a _reference_ is a paper (B) that paper (A) refers to in its text, while a _citation_ is a paper (C) that refers to paper (A) ie a reverse _reference_.
+
+The _refs_ field encodes a list of references in binary, with each reference represented by 10 bytes as follows:
+
+| Reference fields                         | Encoding                                     |
+| ---------------------------------------- | -------------------------------------------- |
+| id of referenced paper (B)               | unsigned little-endian 32-bit int -> 4 bytes |
+| order of (B) in bibliography of (A)      | unsigned little-endian 16-bit int -> 2 bytes |
+| frequency - how often (B) appears in (A) | unsigned little-endian 16-bit int -> 2 bytes |
+| number of citations referenced paper (B) | unsigned little-endian 16-bit int -> 2 bytes |
+
+#### map_data table ####
+
+This table can be created as output by the n-body map generator, and used as input to the tile generator.
+
+| Field      | Type             | Description                                   |
+| ---------- | ---------------- | --------------------------------------------- |
+| id         | int(10) unsigned | Unique paper identifier                       |
+| x          | int(11)          | X coordinate in map                           |
+| y          | int(11)          | X coordinate in map                           |
+| r          | int(11)          | Circle radius in map                          |
+
+#### Json reference data ####
+
+This file format can be used as input by the n-body map generator.
+The following Json format is used:
+
+```json
+[
+{"id":input-id,"allcats":"input-category,...","refs":[[input-ref-id,input-ref-freq],...]},
+...
+]
 ```
-4 bytes <- id
-2 bytes <- reference order in bibliography
-2 bytes <- reference frequency  (how often it appears)
-2 bytes <- number of citations of referenced paper 
+
+where _input-id_, _input-ref-id_ and _input-ref-freq_ are integers, and _input-category_ is a string.
+
+
+#### Json map data ####
+
+This file format can be created as output by the n-body map generator, and used as input to the tile generator.
+The following Json format is used:
+
+```json
+[
+[input-id,input-x,input-y,input-r],
+...
+]
 ```
 
-JSON file
----------
-
-TODO: json input format used
-
-Map generation using a N-body simulation
-========================================
-
-Installation
-------------
-
-Usage
------
+where _input-id_, _input-x_, _input-y_, and _input-r_ are integers.
 
 
-Tile and label generation for map
-=================================
+About the Paperscape map
+------------------------
 
-Installation
-------------
-
-The following external Go packages dependencies need to be installed to a `GOPATH` location:
-```
-github.com/yanatan16/GoMySQL
-github.com/ungerik/go-cairo
-```
-
-
-Usage
------
-
-
-About Paperscape
-================
-
-Paperscape is an interactive map that visualises the arXiv, an open, online repository for scientific research papers. 
+Paperscape is an interactive map that visualises the [arXiv](http://arxiv.org/), an open, online repository for scientific research papers. 
 The map, which can be explored by panning and zooming, currently includes all of the papers from the arXiv and is updated daily.
 
 Each scientific paper is represented in the map by a circle whose size is determined by the number of times that paper has been cited by others.
@@ -112,7 +202,7 @@ Clicking on a paper reveals its meta data, such as title, authors, journal and a
 It is also possible to view the references or citations for a paper as a star-like background on the map.
 
 Copyright
-=========
+---------
 
 The MIT License (MIT)
 Copyright (C) 2011-2016 Damien P. George and Robert Knegjens
