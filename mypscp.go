@@ -362,7 +362,13 @@ func (h *MyHTTPHandler) ResponseMyPscp(rw *MyResponseWriter, req *http.Request) 
     
     requestFound = true
 
-    if req.Form["pchal"] != nil {
+    if req.Form["gdb"] != nil {
+        // get-date-boundaries
+        success := h.GetDateBoundaries(rw)
+        if !success {
+            rw.logDescription = fmt.Sprintf("gdb")
+        }
+    } else if req.Form["pchal"] != nil {
         // profile-challenge: authenticate request (send user a new "challenge")
         giveSalt := false
         giveVersion := false
@@ -440,6 +446,12 @@ func (h *MyHTTPHandler) ResponseMyPscp(rw *MyResponseWriter, req *http.Request) 
         // f = from, t = to
         h.SearchNewPapers(req.Form["f"][0], req.Form["t"][0], rw)
         rw.logDescription = fmt.Sprintf("snp (%s,%s)", req.Form["f"][0], req.Form["t"][0])
+    } else if req.Form["chids"] != nil && (req.Form["arx[]"] != nil ||  req.Form["doi[]"] != nil || req.Form["jrn[]"] != nil) {
+        // convert-human-ids: convert human IDs to internal IDs
+        // arx: list of arxiv IDs
+        // jrn: list of journal IDs
+        h.ConvertHumanToInternalIds(req.Form["arx[]"],req.Form["doi[]"],req.Form["jrn[]"], rw)
+        rw.logDescription = fmt.Sprintf("chids (%d,%d,%d)",len(req.Form["arx[]"]),len(req.Form["doi[]"]),len(req.Form["jrn[]"]))
     } else {
         requestFound = false
     }

@@ -1,4 +1,3 @@
+paperscape-webserver
 wombat
-wombat.log
-wombat-loc.log
-wombat-loc.err
+*.log

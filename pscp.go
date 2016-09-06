@@ -71,13 +71,7 @@ func (h *MyHTTPHandler) ResponsePscpGeneral(rw *MyResponseWriter, req *http.Requ
 
     requestFound = true
 
-    if req.Form["gdb"] != nil {
-        // get-date-boundaries
-        success := h.GetDateBoundaries(rw)
-        if !success {
-            rw.logDescription = fmt.Sprintf("gdb")
-        }
-    } else if req.Form["gdata[]"] != nil && req.Form["flags[]"] != nil {
+    if req.Form["gdata[]"] != nil && req.Form["flags[]"] != nil {
         var ids, flags []uint
         for _, strId := range req.Form["gdata[]"] {
             if preId, er := strconv.ParseUint(strId, 10, 0); er == nil {
@@ -96,12 +90,6 @@ func (h *MyHTTPHandler) ResponsePscpGeneral(rw *MyResponseWriter, req *http.Requ
         }
         h.GetDataForIDs(ids,flags,rw)
         rw.logDescription = fmt.Sprintf("gdata (%d)",len(req.Form["gdata[]"]))
-    } else if req.Form["chids"] != nil && (req.Form["arx[]"] != nil ||  req.Form["doi[]"] != nil || req.Form["jrn[]"] != nil) {
-        // convert-human-ids: convert human IDs to internal IDs
-        // arx: list of arxiv IDs
-        // jrn: list of journal IDs
-        h.ConvertHumanToInternalIds(req.Form["arx[]"],req.Form["doi[]"],req.Form["jrn[]"], rw)
-        rw.logDescription = fmt.Sprintf("chids (%d,%d,%d)",len(req.Form["arx[]"]),len(req.Form["doi[]"]),len(req.Form["jrn[]"]))
     } else if req.Form["sge"] != nil {
         // search-general: do fulltext search of authors and titles
         h.SearchGeneral(req.Form["sge"][0], rw)
