@@ -6,5 +6,5 @@ XIWI_LOG=$XIWI_ROOT/logs
 XIWI_SERVER=$XIWI_ROOT/paperscape-webserver
 LOG=$XIWI_LOG/wombat.log
 
-$WEBSERVER/paperscape-webserver --fcgi :9100 --log-file $LOG --meta $XIWI_META &
+$XIWI_SERVER/paperscape-webserver --fcgi :9100 --log-file $LOG --meta $XIWI_META &
 disown
