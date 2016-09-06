@@ -158,7 +158,7 @@ This table can be created as output by the n-body map generator, and used as inp
 This file format can be used as input by the n-body map generator.
 The following Json format is used:
 
-```json
+```
 [
 {"id":input-id,"allcats":"input-category,...","refs":[[input-ref-id,input-ref-freq],...]},
 ...
@@ -173,7 +173,7 @@ where _input-id_, _input-ref-id_ and _input-ref-freq_ are integers, and _input-c
 This file format can be created as output by the n-body map generator, and used as input to the tile generator.
 The following Json format is used:
 
-```json
+```
 [
 [input-id,input-x,input-y,input-r],
 ...
