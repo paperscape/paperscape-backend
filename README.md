@@ -65,18 +65,34 @@ go build
 
 This should create the binary _tiles_, named after its parent directory.
 
-By default _tiles_ will load a paper graph from the *map_data* MySQL table and generate tiles for it.
-The only command-line argument that needs to be specified is an output directory, for example
-
-```shell
-./tiles <output_dir>
-```
-
 To see a full list of command-line arguments run
 
 ```shell
 ./tiles --help
 ```
+
+The _tiles_ program requires an output directory to be specified, and by default it will load a paper graph from the *map_data* MySQL table and generate standard tiles and labels for it:
+
+```shell
+./tiles <output_dir>
+```
+
+The generated tiles are saved in PNG format and can be optimized slightly to reduce disk space with the _optitiles_ script.
+This script can be run on the chosen output directory:
+
+```shell
+./optitiles <output_dir>
+```
+
+The generated labels are saved as Json files.
+A Json file called _world_index.json_ is also generated at the base of the chosen output directory.
+It describes the dimensions and location paths of the tiles and labels created for the browser-based map client, which reads this file statically.
+To reduce the size of both _world_index.json_ and the generated labels the _gzipjson_ script can be run on the output directory:
+
+```shell
+./gzipjson <output_dir>
+```
+
 
 Data formats
 ------------
