@@ -884,3 +884,4 @@ bool json_load_other_links(const char *filename, int num_papers, paper_t *papers
 
     return true;
 }
+

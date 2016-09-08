@@ -8,6 +8,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "config.h"
 #include "layout.h"
 #include "force.h"
 #include "quadtree.h"
@@ -38,6 +39,7 @@ map_env_t *map_env_new() {
     map_env->do_tred = false;
     map_env->draw_grid = false;
     map_env->draw_paper_links = false;
+    map_env->ids_time_ordered = true;
 
     map_env->tr_scale = 4;
     map_env->tr_x0 = 280;
@@ -55,6 +57,16 @@ map_env_t *map_env_new() {
     map_env->keyword_set = NULL;
 
     return map_env;
+}
+
+void map_env_set_init_config(map_env_t *map_env, config_t *init_config) {
+    map_env->ids_time_ordered = init_config->ids_time_ordered;
+    map_env->force_params.close_repulsion_a = init_config->force_close_repulsion_a;
+    map_env->force_params.close_repulsion_b = init_config->force_close_repulsion_b;
+    map_env->force_params.close_repulsion_c = init_config->force_close_repulsion_c;
+    map_env->force_params.close_repulsion_d = init_config->force_close_repulsion_d;
+    map_env->force_params.link_strength = init_config->force_link_strength;
+    map_env->force_params.anti_gravity_falloff_rsq = init_config->force_anti_gravity_falloff_rsq;
 }
 
 void map_env_world_to_screen(map_env_t *map_env, double *x, double *y) {

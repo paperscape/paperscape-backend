@@ -5,6 +5,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "config.h"
 #include "layout.h"
 #include "map.h"
 #include "mapauto.h"
@@ -28,6 +29,7 @@ static int usage(const char *progname) {
 int main(int argc, char *argv[]) {
 
     // parse command line arguments
+    const char *arg_settings = NULL;
     const char *arg_pscp_refs = NULL;
     const char *arg_other_links = NULL;
     const char *arg_write_pos = NULL;
@@ -37,7 +39,13 @@ int main(int argc, char *argv[]) {
     bool other_links_veto = false;
     bool no_fake_links = false;
     for (int a = 1; a < argc; a++) {
-        if (streq(argv[a], "--pscp-refs") || streq(argv[a], "--pr")) {
+        if (streq(argv[a], "--settings")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_settings = argv[a];
+        } else if (streq(argv[a], "--pscp-refs") || streq(argv[a], "--pr")) {
             if (++a >= argc) {
                 return usage(argv[0]);
             }
@@ -76,6 +84,16 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // load settings from json file
+    const char *settings_file = "settings.json";
+    if (arg_settings != NULL) {
+        settings_file = arg_settings;
+    }
+    config_t *init_config = NULL;
+    if (!config_new(settings_file,&init_config)) {
+        return 1;
+    }
+
     //if (arg_pscp_refs == NULL || arg_other_links == NULL) {
     if (arg_pscp_refs == NULL) {
         //printf("--pscp-refs and --other-links must be specified\n");
@@ -98,6 +116,11 @@ int main(int argc, char *argv[]) {
 
     // create the map object
     map_env_t *map_env = map_env_new();
+
+    // set initial configuration
+    if (init_config != NULL) {
+        map_env_set_init_config(map_env,init_config);
+    }
 
     // whether to create fake links for disconnected papers
     map_env_set_make_fake_links(map_env,!no_fake_links);

@@ -5,6 +5,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "config.h"
 #include "layout.h"
 #include "map.h"
 #include "mapmysql.h"
@@ -31,14 +32,21 @@ int main(int argc, char *argv[]) {
 
     // parse command line arguments
     bool arg_start_afresh = false;
-    const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
+    //const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
     bool arg_write_db = false;
     bool arg_write_json = false;
     double arg_link_strength = -1;
     int arg_yearsago = -1; // for timelapse (-1 means no timelapse)
+    const char *arg_settings = NULL;
     const char *arg_layout_json = NULL;
     for (int a = 1; a < argc; a++) {
-        if (streq(argv[a], "--start-afresh")) {
+        if (streq(argv[a], "--settings")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_settings = argv[a];
+        } else if (streq(argv[a], "--start-afresh")) {
             arg_start_afresh = true;
             arg_write_json = true;
         } else if (streq(argv[a], "--layout-json")) {
@@ -48,7 +56,8 @@ int main(int argc, char *argv[]) {
             }
             arg_layout_json = argv[a];
         } else if (streq(argv[a], "--whole-arxiv")) {
-            where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
+            // TODO remove this flag from autoupdate scripts
+            //where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
         } else if (streq(argv[a], "--write-db")) {
             arg_write_db = true;
         } else if (streq(argv[a], "--write-json")) {
@@ -71,19 +80,34 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // load settings from json file
+    const char *settings_file = "settings.json";
+    if (arg_settings != NULL) {
+        settings_file = arg_settings;
+    }
+    config_t *init_config = NULL;
+    if (!config_new(settings_file,&init_config)) {
+        return 1;
+    }
+
     // print info about the where clause being used
-    printf("using where clause: %s\n", where_clause);
+    printf("using where clause: %s\n", init_config->query_extra_clause);
 
     // load the papers from the DB
     int num_papers;
     paper_t *papers;
     keyword_set_t *keyword_set;
-    if (!mysql_load_papers(where_clause, false, &num_papers, &papers, &keyword_set)) {
+    if (!mysql_load_papers(init_config, false, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
 
     // create the map object
     map_env_t *map_env = map_env_new();
+
+    // set initial configuration
+    if (init_config != NULL) {
+        map_env_set_init_config(map_env,init_config);
+    }
 
     // set parameters
     if (arg_link_strength > 0) {

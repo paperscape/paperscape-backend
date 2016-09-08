@@ -8,6 +8,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "config.h"
 #include "layout.h"
 #include "map.h"
 #include "mysql.h"
@@ -213,7 +214,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_J) {
         // write map to JSON
         vstr_reset(vstr);
-        vstr_printf(vstr, "map-%06u.json", map_env_get_num_papers(map_env));
+        vstr_printf(vstr, "out-map_%06u.json", map_env_get_num_papers(map_env));
         map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
 
     } else if (event->keyval == GDK_KEY_j) {
@@ -237,7 +238,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_toggle_use_ref_freq(map_env);
 
     } else if (event->keyval == GDK_KEY_w) {
-        draw_to_png(map_env, 1000, 1000, "out.png", NULL);
+        vstr_reset(vstr);
+        vstr_printf(vstr, "out-map_%06u.png", map_env_get_num_papers(map_env));
+        draw_to_png(map_env, 1000, 1000, vstr_str(vstr), NULL);
 
     } else if (event->keyval == GDK_KEY_z) {
         map_env_centre_view(map_env);
@@ -515,6 +518,7 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
+    printf("    --settings <file>    load settings from given JSON file\n");
     printf("    --rsq <num>          r-star squared distance\n");
     printf("    --link <num>         link strength\n");
     printf("    --layout-db          load layout from DB\n");
@@ -533,9 +537,16 @@ int main(int argc, char *argv[]) {
     int arg_yearsago = -1; // for timelapse (-1 means no timelapse)
     bool arg_layout_db = false;
     bool no_fake_links = false;
+    const char *arg_settings = NULL;
     const char *arg_layout_json = NULL;
     for (int a = 1; a < argc; a++) {
-        if (streq(argv[a], "--rsq")) {
+        if (streq(argv[a], "--settings")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_settings = argv[a];
+        } else if (streq(argv[a], "--rsq")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
@@ -568,7 +579,16 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    //const char *where_clause = NULL;
+    // load settings from json file
+    const char *settings_file = "settings.json";
+    if (arg_settings != NULL) {
+        settings_file = arg_settings;
+    }
+    config_t *init_config = NULL;
+    if (!config_new(settings_file,&init_config)) {
+        return 1;
+    }
+
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR arxiv IS NULL)";
     //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc') AND id >= 2115000000";
@@ -580,18 +600,23 @@ int main(int argc, char *argv[]) {
     //const char *where_clause = "(maincat='astro-ph' OR maincat='cond-mat' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='hep-ph' OR maincat='hep-th' OR maincat='math-ph' OR maincat='nlin' OR maincat='nucl-ex' OR maincat='nucl-th' OR maincat='physics' OR maincat='quant-ph') AND id >= 1900000000";
     //const char *where_clause = "(maincat='cs') AND id >= 2090000000";
     //const char *where_clause = "(maincat='math') AND id >= 1900000000";
-    const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
+    //const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
 
     // load the papers from the DB
     int num_papers;
     paper_t *papers;
     keyword_set_t *keyword_set;
-    if (!mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
+    if (!mysql_load_papers(init_config, true, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
 
     // create the map object
     map_env_t *map_env = map_env_new();
+
+    // set initial configuration
+    if (init_config != NULL) {
+        map_env_set_init_config(map_env,init_config);
+    }
 
     // whether to create fake links for disconnected papers
     map_env_set_make_fake_links(map_env,!no_fake_links);
@@ -643,7 +668,7 @@ int main(int argc, char *argv[]) {
     // init gtk
     gtk_init(&argc, &argv);
 
-    build_gui(map_env, where_clause);
+    build_gui(map_env, init_config->query_extra_clause);
 
     // start the main loop and block until the application is closed
     gtk_main();

@@ -5,6 +5,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "util/jsmn.h"
 
 void paper_init(paper_t *p, unsigned int id) {
     // all entries have initial state which is 0x00
@@ -12,6 +13,7 @@ void paper_init(paper_t *p, unsigned int id) {
     // set the paper id
     p->id = id;
 }
+
 
 // the keyword pool is a linked list of hash tables, each one bigger than the previous
 typedef struct _keyword_pool_t {
@@ -433,3 +435,5 @@ void compute_tred(int num_papers, paper_t *papers) {
         }
     }
 }
+
+

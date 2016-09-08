@@ -1,0 +1,18 @@
+{
+"description":"Default Paperscape settings",
+"ids_time_ordered":true,
+"forces":{
+    "close_repulsion_a":1e9,
+    "close_repulsion_b":1e14,
+    "close_repulsion_c":1.1,
+    "close_repulsion_d":0.6,
+    "link_strength":1.17,
+    "anti_gravity_falloff_rsq":1e6
+},
+"query_extra_clause":"WHERE (arxiv IS NOT NULL AND status != 'WDN')",
+"refsblob":{
+    "ref_order":true,
+    "ref_freq":true,
+    "ref_cites":true
+}
+}

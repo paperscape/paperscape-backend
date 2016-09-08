@@ -84,4 +84,5 @@ void recompute_num_included_cites(int num_papers, paper_t *papers);
 void recompute_colours(int num_papers, paper_t *papers, int verbose);
 void compute_tred(int num_papers, paper_t *papers);
 
+
 #endif // _INCLUDED_COMMON_H

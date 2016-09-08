@@ -6,6 +6,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "config.h"
 #include "layout.h"
 #include "mysql.h"
 
@@ -142,7 +143,7 @@ static int paper_cmp_id(const void *in1, const void *in2) {
     }
 }
 
-static bool env_load_ids(env_t *env, const char *where_clause, bool load_authors_and_titles) {
+static bool env_load_ids(env_t *env, const char *extra_clause, bool load_authors_and_titles) {
     // TODO sanity checks when allcats or authors or title is null (need to create such entries in DB to test)
 
     MYSQL_RES *result;
@@ -173,8 +174,8 @@ static bool env_load_ids(env_t *env, const char *where_clause, bool load_authors
         vstr_printf(vstr, "SELECT id,allcats FROM meta_data");
         num_fields = 2;
     }
-    if (where_clause != NULL && where_clause[0] != 0) {
-        vstr_printf(vstr, " WHERE (%s)", where_clause);
+    if (extra_clause != NULL && extra_clause[0] != 0) {
+        vstr_printf(vstr, " %s", extra_clause);
     }
     if (vstr_had_error(vstr)) {
         return false;
@@ -256,7 +257,7 @@ static paper_t *env_get_paper_by_id(env_t *env, unsigned int id) {
     return NULL;
 }
 
-static bool env_load_refs(env_t *env) {
+static bool env_load_refs(env_t *env, config_t *init_config) {
     MYSQL_RES *result;
     MYSQL_ROW row;
     unsigned long *lens;
@@ -274,6 +275,14 @@ static bool env_load_refs(env_t *env) {
         return false;
     }
 
+    // find length of a single ref blob
+    unsigned int len_blob = 10;
+    if (init_config != NULL) {
+        if (!init_config->refsblob_ref_order) len_blob -= 2;
+        if (!init_config->refsblob_ref_freq)  len_blob -= 2;
+        if (!init_config->refsblob_ref_cites) len_blob -= 2;
+    }
+
     int total_refs = 0;
     while ((row = mysql_fetch_row(result))) {
         lens = mysql_fetch_lengths(result);
@@ -286,20 +295,20 @@ static bool env_load_refs(env_t *env) {
                 paper->refs_ref_freq = NULL;
                 paper->refs_other_weight = NULL;
             } else {
-                if (len % 10 != 0) {
-                    printf("length of refs blob should be a multiple of 10; got %lu\n", len);
+                if (len % len_blob != 0) {
+                    printf("length of refs blob should be a multiple of %u; got %lu\n", len_blob,len);
                     mysql_free_result(result);
                     return false;
                 }
-                paper->refs = m_new(paper_t*, len / 10);
-                paper->refs_ref_freq = m_new(byte, len / 10);
+                paper->refs = m_new(paper_t*, len / len_blob);
+                paper->refs_ref_freq = m_new(byte, len / len_blob);
                 paper->refs_other_weight = NULL;
                 if (paper->refs == NULL || paper->refs_ref_freq == NULL) {
                     mysql_free_result(result);
                     return false;
                 }
                 paper->num_refs = 0;
-                for (int i = 0; i < len; i += 10) {
+                for (int i = 0; i < len; i += len_blob) {
                     byte *buf = (byte*)row[1] + i;
                     unsigned int id = decode_le32(buf + 0);
                     if (id == paper->id) {
@@ -309,9 +318,18 @@ static bool env_load_refs(env_t *env) {
                     paper->refs[paper->num_refs] = env_get_paper_by_id(env, id);
                     if (paper->refs[paper->num_refs] != NULL) {
                         paper->refs[paper->num_refs]->num_cites += 1;
-                        unsigned short ref_freq = decode_le16(buf + 6);
-                        if (ref_freq > 255) {
-                            ref_freq = 255;
+                        unsigned short ref_freq = 1;
+                        if (init_config == NULL || init_config->refsblob_ref_freq) {
+                            // refs blob contains reference frequency info
+                            int buf_index = 6;
+                            if (init_config != NULL && !init_config->refsblob_ref_order) {
+                                // refs blob doesn't contain reference order info
+                                buf_index -= 2;
+                            }
+                            ref_freq = decode_le16(buf + buf_index);
+                            if (ref_freq > 255) {
+                                ref_freq = 255;
+                            }
                         }
                         paper->refs_ref_freq[paper->num_refs] = ref_freq;
                         paper->num_refs++;
@@ -406,7 +424,7 @@ static bool env_load_keywords(env_t *env) {
     return true;
 }
 
-bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
+bool mysql_load_papers(config_t *init_config, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
@@ -415,10 +433,10 @@ bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, i
     }
 
     // load the DB
-    if (!env_load_ids(&env, where_clause, load_authors_and_titles)) {
+    if (!env_load_ids(&env, init_config->query_extra_clause, load_authors_and_titles)) {
         return false;
     }
-    if (!env_load_refs(&env)) {
+    if (!env_load_refs(&env,init_config)) {
         return false;
     }
     if (!env_load_keywords(&env)) {
