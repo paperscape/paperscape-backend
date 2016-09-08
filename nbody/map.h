@@ -1,6 +1,7 @@
 #ifndef _INCLUDED_MAP_H
 #define _INCLUDED_MAP_H
 
+#include "util/hashmap.h"
 #include "common.h"
 #include "quadtree.h"
 #include "layout.h"
@@ -48,7 +49,7 @@ typedef struct _map_env_t {
     layout_t *layout;
 
     // info for keywords
-    keyword_set_t *keyword_set;
+    hashmap_t *keyword_set;
 
     // info for each category
     category_info_t category_info[CAT_NUMBER_OF];
@@ -56,7 +57,7 @@ typedef struct _map_env_t {
 
 map_env_t *map_env_new();
 
-void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *keyword_set);
+void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, hashmap_t *keyword_set);
 void map_env_random_papers(map_env_t *map_env, int n);
 void map_env_papers_test1(map_env_t *map_env, int n);
 void map_env_papers_test2(map_env_t *map_env, int n);

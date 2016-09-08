@@ -76,7 +76,7 @@ layout_node_t *map_env_get_layout_node_at(map_env_t *map_env, double screen_w, d
     return layout_get_node_at(map_env->layout, x, y);
 }
 
-void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *kws) {
+void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, hashmap_t *kws) {
     map_env->max_num_papers = num_papers;
     map_env->all_papers = papers;
     map_env->papers = m_renew(paper_t*, map_env->papers, map_env->max_num_papers);
@@ -794,7 +794,7 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
 
     // go through all the keywords for this paper
     for (int i = 0; i < paper->num_keywords; i++) {
-        keyword_t *want_kw = paper->keywords[i];
+        keyword_entry_t *want_kw = paper->keywords[i];
 
         // found an appropriate paper, so make a fake link
         if (want_kw->paper != NULL) {
@@ -941,7 +941,7 @@ void map_env_select_date_range(map_env_t *map_env, unsigned int id_start, unsign
     if (map_env->make_fake_links) {
         for (int cat = 0; cat < CAT_NUMBER_OF; cat++) {
             // for each keyword, find the paper in this category that has the largest mass
-            keyword_set_clear_data(map_env->keyword_set);
+            hashmap_clear_all_values(map_env->keyword_set, 0);
             for (int i = 0; i < map_env->num_papers; i++) {
                 paper_t *p = map_env->papers[i];
                 if (p->included && p->connected && p->allcats[0] == cat) {

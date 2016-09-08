@@ -20,7 +20,7 @@ typedef struct _env_t {
     MYSQL mysql;
     int num_papers;
     paper_t *papers;
-    keyword_set_t *keyword_set;
+    hashmap_t *keyword_set;
 } env_t;
 
 static bool have_error(env_t *env) {
@@ -44,7 +44,7 @@ static bool env_set_up(env_t* env) {
     env->close_mysql = false;
     env->num_papers = 0;
     env->papers = NULL;
-    env->keyword_set = keyword_set_new();
+    env->keyword_set = hashmap_new();
 
     // initialise the connection object
     if (mysql_init(&env->mysql) == NULL) {
@@ -72,7 +72,7 @@ static void env_finish(env_t* env, bool free_keyword_set) {
     }
 
     if (free_keyword_set) {
-        keyword_set_free(env->keyword_set);
+        hashmap_free(env->keyword_set);
         env->keyword_set = NULL;
     }
 }
@@ -373,7 +373,7 @@ static bool env_load_keywords(env_t *env) {
                 }
 
                 // allocate memory
-                paper->keywords = m_new(keyword_t*, num_keywords);
+                paper->keywords = m_new(keyword_entry_t*, num_keywords);
                 if (paper->keywords == NULL) {
                     mysql_free_result(result);
                     return false;
@@ -386,7 +386,7 @@ static bool env_load_keywords(env_t *env) {
                     while (kw_end < kws_end && *kw_end != ',') {
                         kw_end++;
                     }
-                    keyword_t *unique_keyword = keyword_set_lookup_or_insert(env->keyword_set, kw, kw_end - kw);
+                    keyword_entry_t *unique_keyword = (keyword_entry_t*)hashmap_lookup_or_insert(env->keyword_set, kw, kw_end - kw);
                     if (unique_keyword != NULL) {
                         paper->keywords[paper->num_keywords++] = unique_keyword;
                     }
@@ -401,12 +401,12 @@ static bool env_load_keywords(env_t *env) {
     }
     mysql_free_result(result);
 
-    printf("read %d unique, %d total keywords\n", keyword_set_get_total(env->keyword_set), total_keywords);
+    printf("read %d unique, %d total keywords\n", (int)hashmap_get_total(env->keyword_set), total_keywords);
 
     return true;
 }
 
-bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
+bool mysql_load_papers(const char *where_clause, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {

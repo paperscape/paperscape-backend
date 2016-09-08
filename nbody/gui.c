@@ -585,7 +585,7 @@ int main(int argc, char *argv[]) {
     // load the papers from the DB
     int num_papers;
     paper_t *papers;
-    keyword_set_t *keyword_set;
+    hashmap_t *keyword_set;
     if (!mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
         return 1;
     }
