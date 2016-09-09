@@ -227,6 +227,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_r) {
         map_env_toggle_do_close_repulsion(map_env);
 
+    } else if (event->keyval == GDK_KEY_c) {
+        map_env_toggle_draw_categories(map_env);
+
     } else if (event->keyval == GDK_KEY_t) {
         map_env_toggle_do_tred(map_env);
 

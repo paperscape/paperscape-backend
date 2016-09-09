@@ -38,6 +38,7 @@ map_env_t *map_env_new() {
     map_env->do_tred = false;
     map_env->draw_grid = false;
     map_env->draw_paper_links = false;
+    map_env->draw_categories  = true;
     map_env->ids_time_ordered = true;
 
     map_env->tr_scale = 4;
@@ -242,6 +243,10 @@ void map_env_toggle_draw_grid(map_env_t *map_env) {
 
 void map_env_toggle_draw_paper_links(map_env_t *map_env) {
     map_env->draw_paper_links = !map_env->draw_paper_links;
+}
+
+void map_env_toggle_draw_categories(map_env_t *map_env) {
+    map_env->draw_categories = !map_env->draw_categories;
 }
 
 void map_env_toggle_do_close_repulsion(map_env_t *map_env) {

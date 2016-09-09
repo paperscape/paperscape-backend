@@ -31,6 +31,7 @@ typedef struct _map_env_t {
     bool do_tred;
     bool draw_grid;
     bool draw_paper_links;
+    bool draw_categories;
     bool ids_time_ordered;
 
     // transformation matrix
@@ -85,6 +86,7 @@ void map_env_set_link_strength(map_env_t *map_env, double val);
 void map_env_toggle_do_tred(map_env_t *map_env);
 void map_env_toggle_draw_grid(map_env_t *map_env);
 void map_env_toggle_draw_paper_links(map_env_t *map_env);
+void map_env_toggle_draw_categories(map_env_t *map_env);
 void map_env_toggle_do_close_repulsion(map_env_t *map_env);
 void map_env_toggle_use_ref_freq(map_env_t *map_env);
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt);

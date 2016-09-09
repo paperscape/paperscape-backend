@@ -82,6 +82,7 @@ static void draw_paper_text(cairo_t *cr, map_env_t *map_env, paper_t *p) {
     }
 }
 
+/*
 static void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
@@ -111,6 +112,7 @@ static void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
         }
     }
 }
+*/
 
 static void draw_category_labels(cairo_t *cr, map_env_t *map_env) {
     for (int i = 0; i < CAT_NUMBER_OF; i++) {
@@ -295,12 +297,16 @@ static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
     }
 
     // big labels
-    cairo_set_source_rgb(cr, 0, 0, 0);
-    cairo_set_font_size(cr, 16);
-    draw_big_labels(cr, map_env);
+    //cairo_set_source_rgb(cr, 0, 0, 0);
+    //cairo_set_font_size(cr, 16);
+    //draw_big_labels(cr, map_env);
 
     // category labels
-    draw_category_labels(cr, map_env);
+    if (map_env->draw_categories) {
+        cairo_set_source_rgb(cr, 1, 1, 1);
+        cairo_set_font_size(cr, 12);
+        draw_category_labels(cr, map_env);
+    }
 }
 
 void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t* vstr_info) {
