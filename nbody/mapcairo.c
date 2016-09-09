@@ -44,44 +44,26 @@ static void draw_paper_bg(cairo_t *cr, map_env_t *map_env, paper_t *p) {
 */
 
 static void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
-    /*
-    double h = w * 1.41;
-    cairo_set_source_rgba(cr, 0.9, 0.9, 0.8, 0.9);
-    cairo_rectangle(cr, x-0.5*w, y-0.5*h, w, h);
-    cairo_fill(cr);
-    cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
-    cairo_rectangle(cr, x-0.5*w, y-0.5*h, w, h);
-    cairo_stroke(cr);
-    */
     layout_node_t *l = p->layout_node;
     double x = l->x;
     double y = l->y;
     double w = p->radius;
-    double age = p->age;
-    /*
-    if (p->id == 1992546899 || p->id == 1993234723) {
-        cairo_set_source_rgba(cr, 0.8, 0.8, 0, 0.7);
-    } else if (p->allcats[0] == 1) {
-        cairo_set_source_rgba(cr, 0, 0, 0.8, 0.7);
-    } else if (p->allcats[0] == 2) {
-        cairo_set_source_rgba(cr, 0.8, 0, 0, 0.7);
-    } else {
-        cairo_set_source_rgba(cr, 0, 0.8, 0, 0.7);
-    }
-    */
 
     // basic colour of paper
     double r, g, b;
     paper_colour(p, &r, &g, &b);
 
-    // older papers are more saturated in colour
-    double saturation = 0.6 * (1 - age);
+    if (map_env->ids_time_ordered) {
+        double age = p->age;
+        // older papers are more saturated in colour
+        double saturation = 0.6 * (1 - age);
 
-    // compute and set final colour; newer papers tend towards red
-    age = age * age * age * age;
-    r = saturation + (r * (1 - age) + age) * (1 - saturation);
-    g = saturation + (g * (1 - age)      ) * (1 - saturation);
-    b = saturation + (b * (1 - age)      ) * (1 - saturation);
+        // compute and set final colour; newer papers tend towards red
+        age = age * age * age * age;
+        r = saturation + (r * (1 - age) + age) * (1 - saturation);
+        g = saturation + (g * (1 - age)      ) * (1 - saturation);
+        b = saturation + (b * (1 - age)      ) * (1 - saturation);
+    }
     cairo_set_source_rgb(cr, r, g, b);
 
     cairo_arc(cr, x, y, w, 0, 2 * M_PI);
