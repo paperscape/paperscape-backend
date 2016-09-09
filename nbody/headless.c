@@ -10,18 +10,24 @@
 #include "mapmysql.h"
 #include "mapauto.h"
 #include "mysql.h"
+#include "json.h"
 
 static int usage(const char *progname) {
     printf("\n");
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    --start-afresh       start the graph layout afresh (default is to process only new papers); enabling this enables --write-json\n");
-    printf("    --layout-json <file> load layout from given JSON file\n");
-    printf("    --whole-arxiv        process all papers from the arxiv (default is to process only a small, test subset)\n");
+    printf("    --start-afresh       start the graph layout afresh (default is to process\n");
+    printf("                         only new papers); enabling this enables --write-json\n");
+    printf("    --layout-json <file> load layout from given JSON file (default is from DB)\n");
+    printf("    --refs-json <file>   load reference data from JSON file (default is from DB)\n");
+    printf("    --whole-arxiv        process all papers from the arxiv (default is to\n");
+    printf("                         process only a small, test subset)\n");
     printf("    --write-db           write positions to DB (default is not to)\n");
     printf("    --write-json         write positions to json file (default is not to)\n");
+    printf("    --no-fake-links      don't create fake links; --start-afresh must also be set\n");
     printf("    --link <num>         link strength\n");
+    printf("    --rsq <num>          r-star squared distance for anti-gravity\n");
     printf("\n");
     return 1;
 }
@@ -31,10 +37,13 @@ int main(int argc, char *argv[]) {
     // parse command line arguments
     bool arg_start_afresh = false;
     const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
-    bool arg_write_db = false;
-    bool arg_write_json = false;
-    double arg_link_strength = -1;
+    bool arg_write_db           = false;
+    bool arg_write_json         = false;
+    bool arg_no_fake_links      = false;
+    double arg_anti_grav_rsq    = -1;
+    double arg_link_strength    = -1;
     const char *arg_layout_json = NULL;
+    const char *arg_refs_json   = NULL;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "--start-afresh")) {
             arg_start_afresh = true;
@@ -45,18 +54,32 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_layout_json = argv[a];
+        } else if (streq(argv[a], "--refs-json")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_refs_json = argv[a];
         } else if (streq(argv[a], "--whole-arxiv")) {
             where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
         } else if (streq(argv[a], "--write-db")) {
             arg_write_db = true;
         } else if (streq(argv[a], "--write-json")) {
             arg_write_json = true;
+        } else if (streq(argv[a], "--rsq")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_anti_grav_rsq = strtod(argv[a], NULL);
         } else if (streq(argv[a], "--link")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
+        } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "--nfl")) {
+            arg_no_fake_links = true;
         } else {
             return usage(argv[0]);
         }
@@ -65,18 +88,33 @@ int main(int argc, char *argv[]) {
     // print info about the where clause being used
     printf("using where clause: %s\n", where_clause);
 
-    // load the papers from the DB
     int num_papers;
     paper_t *papers;
     hashmap_t *keyword_set;
-    if (!mysql_load_papers(where_clause, false, &num_papers, &papers, &keyword_set)) {
-        return 1;
+    if (arg_refs_json == NULL) {
+        // load the papers from the DB
+        if (!mysql_load_papers(where_clause, false, &num_papers, &papers, &keyword_set)) {
+            return 1;
+        }
+    } else {
+        // load the papers from JSON file
+        if (!json_load_papers(arg_refs_json, &num_papers, &papers, &keyword_set)) {
+            return 1;
+        }
     }
 
     // create the map object
     map_env_t *map_env = map_env_new();
 
+    if (arg_start_afresh && arg_no_fake_links) {
+        // if starting afresh, allow user to disable fake link generation
+        map_env_set_make_fake_links(map_env,!arg_no_fake_links);
+    }
+
     // set parameters
+    if (arg_anti_grav_rsq > 0) {
+        map_env_set_anti_gravity(map_env, arg_anti_grav_rsq);
+    }
     if (arg_link_strength > 0) {
         map_env_set_link_strength(map_env, arg_link_strength);
     }

@@ -9,6 +9,7 @@ SRC_COMMON = \
 	layout.c \
 	quadtree.c \
 	force.c \
+	json.c \
 	map.c \
 	mapauto.c \
 
@@ -20,7 +21,6 @@ SRC_HEADLESS = \
 	headless.c \
 
 SRC_HEADLESSJSON = \
-	json.c \
 	headlessjson.c \
 
 SRC_GUI = \

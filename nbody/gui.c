@@ -11,6 +11,7 @@
 #include "layout.h"
 #include "map.h"
 #include "mysql.h"
+#include "json.h"
 #include "mapmysql.h"
 #include "mapcairo.h"
 #include "cairohelper.h"
@@ -33,10 +34,6 @@ double mouse_last_x = 0, mouse_last_y = 0;
 layout_node_t *mouse_layout_node_held = NULL;
 layout_node_t *mouse_layout_node_prev = NULL;
 
-/* obsolete
-unsigned int id_range_start = 2050000000;
-unsigned int id_range_end = 2060000000;
-*/
 
 static int iterate_counter = 0;
 static double iters_per_sec = 1.; 
@@ -47,7 +44,6 @@ static gboolean map_env_update(map_env_t *map_env) {
     int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
     for (int i = 1; i <= 5; i++) {
         iterate_counter += 1;
-        //printf("nbody iteration %d", iterate_counter);
         if (map_env_iterate(map_env, mouse_layout_node_held, boost_step_size > 0, false)) {
             converged_counter += 1;
         } else {
@@ -60,13 +56,6 @@ static gboolean map_env_update(map_env_t *map_env) {
             gettimeofday(&tp, NULL);
             int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
             iters_per_sec = 5.0 * 1000.0 / (end_time - start_time);
-            //if (iters_per_sec > 1) {
-            //    printf("; %.2f iterations per second\n", iters_per_sec);
-            //} else {
-            //    printf("; %.2f seconds per iteration\n", 1.0 / iters_per_sec);
-            //}
-        //} else {
-        //    printf("\n");
         }
     }
 
@@ -515,12 +504,13 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    --rsq <num>          r-star squared distance\n");
-    printf("    --link <num>         link strength\n");
     printf("    --layout-db          load layout from DB\n");
     printf("    --layout-json <file> load layout from given JSON file\n");
+    printf("    --refs-json <file>   load reference data from JSON file (default is from DB)\n");
+    printf("                         this omits author and title data\n");
     printf("    --no-fake-links      don't create fake links\n");
-    printf("    --years-ago <num>    perform timelapse\n");
+    printf("    --link <num>         link strength\n");
+    printf("    --rsq <num>          r-star squared distance for anti-gravity\n");
     printf("\n");
     return 1;
 }
@@ -528,12 +518,12 @@ static int usage(const char *progname) {
 int main(int argc, char *argv[]) {
 
     // parse command line arguments
-    double arg_anti_grav_rsq = -1;
-    double arg_link_strength = -1;
-    int arg_yearsago = -1; // for timelapse (-1 means no timelapse)
-    bool arg_layout_db = false;
-    bool no_fake_links = false;
+    double arg_anti_grav_rsq    = -1;
+    double arg_link_strength    = -1;
+    bool arg_layout_db          = false;
+    bool arg_no_fake_links      = false;
     const char *arg_layout_json = NULL;
+    const char *arg_refs_json   = NULL;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "--rsq")) {
             a += 1;
@@ -547,12 +537,6 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
-        } else if (streq(argv[a], "--years-ago")) {
-            a += 1;
-            if (a >= argc) {
-                return usage(argv[0]);
-            }
-            arg_yearsago = atoi(argv[a]);
         } else if (streq(argv[a], "--layout-db")) {
             arg_layout_db = true;
         } else if (streq(argv[a], "--layout-json")) {
@@ -561,8 +545,14 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_layout_json = argv[a];
+        } else if (streq(argv[a], "--refs-json")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_refs_json = argv[a];
         } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "--nfl")) {
-            no_fake_links = true;
+            arg_no_fake_links = true;
         } else {
             return usage(argv[0]);
         }
@@ -586,15 +576,24 @@ int main(int argc, char *argv[]) {
     int num_papers;
     paper_t *papers;
     hashmap_t *keyword_set;
-    if (!mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
-        return 1;
+    if (arg_refs_json == NULL) {
+        // load the papers from the DB
+        if (!mysql_load_papers(where_clause, true, &num_papers, &papers, &keyword_set)) {
+            return 1;
+        }
+    } else {
+        // load the papers from a JSON file
+        // NOTE: this does not load authors and titles
+        if (!json_load_papers(arg_refs_json, &num_papers, &papers, &keyword_set)) {
+            return 1;
+        }
     }
 
     // create the map object
     map_env_t *map_env = map_env_new();
 
     // whether to create fake links for disconnected papers
-    map_env_set_make_fake_links(map_env,!no_fake_links);
+    map_env_set_make_fake_links(map_env,!arg_no_fake_links);
 
     // set parameters
     if (arg_anti_grav_rsq > 0) {
@@ -624,11 +623,6 @@ int main(int argc, char *argv[]) {
         id_range_start = id_min; id_range_end = id_max; // full range
 
         //id_range_end = id_max - 120000000; // minus 2 years
-
-        if (arg_yearsago > 0) {
-            id_range_end = (unsigned int)2150000000 - arg_yearsago * 10000000;
-        }
-
         map_env_select_date_range(map_env, id_range_start, id_range_end);
     }
 
