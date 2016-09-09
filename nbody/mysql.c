@@ -142,7 +142,7 @@ static int paper_cmp_id(const void *in1, const void *in2) {
     }
 }
 
-static bool env_load_ids(env_t *env, const char *extra_clause, bool load_authors_and_titles) {
+static bool env_load_ids(env_t *env, init_config_t *init_config, bool load_authors_and_titles) {
     // TODO sanity checks when allcats or authors or title is null (need to create such entries in DB to test)
 
     MYSQL_RES *result;
@@ -166,6 +166,9 @@ static bool env_load_ids(env_t *env, const char *extra_clause, bool load_authors
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     int num_fields;
+    if (load_authors_and_titles && !init_config->sql_authors_titles) {
+        load_authors_and_titles = false;
+    }
     if (load_authors_and_titles) {
         vstr_printf(vstr, "SELECT id,allcats,authors,title FROM meta_data");
         num_fields = 4;
@@ -173,6 +176,7 @@ static bool env_load_ids(env_t *env, const char *extra_clause, bool load_authors
         vstr_printf(vstr, "SELECT id,allcats FROM meta_data");
         num_fields = 2;
     }
+    const char *extra_clause = init_config->sql_extra_clause;
     if (extra_clause != NULL && extra_clause[0] != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
@@ -277,9 +281,9 @@ static bool env_load_refs(env_t *env, init_config_t *init_config) {
     // find length of a single ref blob
     unsigned int len_blob = 10;
     if (init_config != NULL) {
-        if (!init_config->refsblob_ref_order) len_blob -= 2;
-        if (!init_config->refsblob_ref_freq)  len_blob -= 2;
-        if (!init_config->refsblob_ref_cites) len_blob -= 2;
+        if (!init_config->sql_rblob_ref_order) len_blob -= 2;
+        if (!init_config->sql_rblob_ref_freq)  len_blob -= 2;
+        if (!init_config->sql_rblob_ref_cites) len_blob -= 2;
     }
 
     int total_refs = 0;
@@ -318,10 +322,10 @@ static bool env_load_refs(env_t *env, init_config_t *init_config) {
                     if (paper->refs[paper->num_refs] != NULL) {
                         paper->refs[paper->num_refs]->num_cites += 1;
                         unsigned short ref_freq = 1;
-                        if (init_config == NULL || init_config->refsblob_ref_freq) {
+                        if (init_config == NULL || init_config->sql_rblob_ref_freq) {
                             // refs blob contains reference frequency info
                             int buf_index = 6;
-                            if (init_config != NULL && !init_config->refsblob_ref_order) {
+                            if (init_config != NULL && !init_config->sql_rblob_ref_order) {
                                 // refs blob doesn't contain reference order info
                                 buf_index -= 2;
                             }
@@ -432,13 +436,14 @@ bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles,
     }
 
     // load the DB
-    if (!env_load_ids(&env, init_config->query_extra_clause, load_authors_and_titles)) {
+    if (!env_load_ids(&env, init_config, load_authors_and_titles)) {
         return false;
     }
-    if (!env_load_refs(&env,init_config)) {
+    if (!env_load_refs(&env, init_config)) {
         return false;
     }
-    if (!env_load_keywords(&env)) {
+    if (init_config->sql_keywords && !env_load_keywords(&env)) {
+        // we have keywords but failed to load them
         return false;
     }
     if (!build_citation_links(env.num_papers, env.papers)) {

@@ -18,10 +18,12 @@ typedef enum {
 // Initial configuration
 typedef struct _init_config_t {
     // MySQL config
-    const char *query_extra_clause;
-    bool refsblob_ref_freq;
-    bool refsblob_ref_order;
-    bool refsblob_ref_cites;
+    const char *sql_extra_clause;
+    bool sql_authors_titles;
+    bool sql_keywords;
+    bool sql_rblob_ref_freq;
+    bool sql_rblob_ref_order;
+    bool sql_rblob_ref_cites;
     // Map Environment initial configuration
     bool   ids_time_ordered;
     double force_close_repulsion_a;

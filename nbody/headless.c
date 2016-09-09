@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
     }
 
     // print info about the where clause being used
-    printf("using where clause: %s\n", init_config->query_extra_clause);
+    printf("using where clause: %s\n", init_config->sql_extra_clause);
 
     int num_papers;
     paper_t *papers;

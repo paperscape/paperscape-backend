@@ -672,7 +672,7 @@ int main(int argc, char *argv[]) {
     // init gtk
     gtk_init(&argc, &argv);
 
-    build_gui(map_env, init_config->query_extra_clause);
+    build_gui(map_env, init_config->sql_extra_clause);
 
     // start the main loop and block until the application is closed
     gtk_main();

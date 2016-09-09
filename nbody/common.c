@@ -85,10 +85,31 @@ bool init_config_new(const char *filename, init_config_t **config) {
     (*config)->force_link_strength = link_val.real;
     (*config)->force_anti_gravity_falloff_rsq = anti_grav_val.real;
 
-    // ### look for member: refsblob
+    // ### look for member: sql 
+    jsmn_env_token_value_t sql_val;
+    jsmntok_t *sql_tok;
+    if(!jsmn_env_get_object_member(&jsmn_env, jsmn_env.js_tok, "sql", &sql_tok, &sql_val) 
+        || sql_val.kind != JSMN_VALUE_OBJECT) {
+        return false;
+    }
+    // ###### look for member: authors_titles
+    jsmn_env_token_value_t authors_titles_val;
+    if(!jsmn_env_get_object_member(&jsmn_env, sql_tok, "authors_titles", NULL, &authors_titles_val) 
+        || (authors_titles_val.kind != JSMN_VALUE_TRUE && authors_titles_val.kind != JSMN_VALUE_FALSE)) {
+        return false;
+    }
+    (*config)->sql_authors_titles = (authors_titles_val.kind == JSMN_VALUE_TRUE);
+    // ###### look for member: keywords
+    jsmn_env_token_value_t keywords_val;
+    if(!jsmn_env_get_object_member(&jsmn_env, sql_tok, "keywords", NULL, &keywords_val) 
+        || (keywords_val.kind != JSMN_VALUE_TRUE && keywords_val.kind != JSMN_VALUE_FALSE)) {
+        return false;
+    }
+    (*config)->sql_keywords = (keywords_val.kind == JSMN_VALUE_TRUE);
+    // ###### look for member: refsblob
     jsmn_env_token_value_t refsblob_val;
     jsmntok_t *refsblob_tok;
-    if(!jsmn_env_get_object_member(&jsmn_env, jsmn_env.js_tok, "refsblob", &refsblob_tok, &refsblob_val) 
+    if(!jsmn_env_get_object_member(&jsmn_env, sql_tok, "refsblob", &refsblob_tok, &refsblob_val) 
         || refsblob_val.kind != JSMN_VALUE_OBJECT) {
         return false;
     }
@@ -105,17 +126,16 @@ bool init_config_new(const char *filename, init_config_t **config) {
         || (ref_cites_val.kind != JSMN_VALUE_TRUE && ref_cites_val.kind != JSMN_VALUE_FALSE)) {
         return false;
     }
-    (*config)->refsblob_ref_order = (ref_order_val.kind == JSMN_VALUE_TRUE);
-    (*config)->refsblob_ref_freq  = (ref_freq_val.kind  == JSMN_VALUE_TRUE);
-    (*config)->refsblob_ref_cites = (ref_cites_val.kind == JSMN_VALUE_TRUE);
-
-    // ### look for member: query_extra_clause
+    (*config)->sql_rblob_ref_order = (ref_order_val.kind == JSMN_VALUE_TRUE);
+    (*config)->sql_rblob_ref_freq  = (ref_freq_val.kind  == JSMN_VALUE_TRUE);
+    (*config)->sql_rblob_ref_cites = (ref_cites_val.kind == JSMN_VALUE_TRUE);
+    // ###### look for member: extra_clause
     jsmn_env_token_value_t query_val;
-    if(!jsmn_env_get_object_member(&jsmn_env, jsmn_env.js_tok, "query_extra_clause", NULL, &query_val) 
+    if(!jsmn_env_get_object_member(&jsmn_env, sql_tok, "extra_clause", NULL, &query_val) 
         || query_val.kind != JSMN_VALUE_STRING) {
         return false;
     }
-    (*config)->query_extra_clause = query_val.str;
+    (*config)->sql_extra_clause = query_val.str;
 
     // finish up
     jsmn_env_finish(&jsmn_env);
