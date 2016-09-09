@@ -6,19 +6,20 @@
 
 #include "util/xiwilib.h"
 #include "util/jsmnenv.h"
+#include "util/hashmap.h"
 #include "common.h"
 #include "layout.h"
 
 typedef struct _json_data_t {
     int num_papers;
     paper_t *papers;
-    keyword_set_t *keyword_set;
+    hashmap_t *keyword_set;
 } json_data_t;
 
 static void json_data_setup(json_data_t* data) {
     data->num_papers = 0;
     data->papers = NULL;
-    data->keyword_set = keyword_set_new();
+    data->keyword_set = hashmap_new();
 }
 
 static int paper_cmp_id(const void *in1, const void *in2) {
@@ -348,7 +349,7 @@ static bool env_load_keywords(jsmn_env_t *env) {
 }
 #endif
 
-bool json_load_papers(const char *filename, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
+bool json_load_papers(const char *filename, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
     // set up environment
     jsmn_env_t env;
     if (!jsmn_env_set_up(&env, filename)) {
@@ -551,7 +552,7 @@ bool json_load_other_links(const char *filename, int num_papers, paper_t *papers
     // pull down the environment 
     jsmn_env_finish(&env);
     // free keyword set
-    keyword_set_free(data.keyword_set);
+    hashmap_free(data.keyword_set);
     data.keyword_set = NULL;
 
     return true;

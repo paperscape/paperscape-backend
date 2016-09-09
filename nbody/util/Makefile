@@ -10,6 +10,7 @@ SRC = \
 	vstrmysql.c \
 	jsmn.c \
 	jsmnenv.c \
+	hashmap.c \
 
 OBJ = $(SRC:.c=.o)
 LIB = xiwilib.a

@@ -36,7 +36,7 @@ static void layout_combine_duplicate_links(layout_t *layout) {
     }
 }
 
-layout_t *layout_build_from_papers(int num_papers, paper_t **papers, bool age_weaken, double factor_ref_freq, double factor_other_link) {
+layout_t *layout_build_from_papers(int num_papers, paper_t **papers, bool age_weaken, double factor_ref_link, double factor_other_link) {
     // allocate memory for the nodes
     int num_nodes = num_papers;
     layout_node_t *nodes = m_new(layout_node_t, num_nodes);
@@ -96,13 +96,13 @@ layout_t *layout_build_from_papers(int num_papers, paper_t **papers, bool age_we
             // compute the weight of the link
             int ref_freq = paper->refs_ref_freq[j];
             //double weight = ref_freq; // ref_freq standard
-            double weight = factor_ref_freq * ref_freq * ref_freq; // ref_freq squared
+            double weight = factor_ref_link * ref_freq * ref_freq; // ref_freq squared
             if (age_weaken) {
                 //weight *= 1.0 - 0.5 * fabs(paper->age - paper->refs[j]->age);
                 weight *= 0.4 + 0.6 * exp(-pow(1e-7 * paper->id - 1e-7 * paper->refs[j]->id, 2));
             }
             if (paper->refs_other_weight != NULL) {
-                //weight = factor_ref_freq * weight + factor_other_link * paper->refs_other_weight[j];
+                //weight = factor_ref_link * weight + factor_other_link * paper->refs_other_weight[j];
                 weight += factor_other_link * paper->refs_other_weight[j];
             }
 
