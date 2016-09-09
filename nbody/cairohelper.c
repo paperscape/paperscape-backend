@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <cairo.h>
 
 #include "util/xiwilib.h"
@@ -22,4 +23,29 @@ void cairo_helper_draw_text_lines(cairo_t *cr, double x, double y, vstr_t *vstr)
             s1 += 1;
         }
     }
+}
+
+void cairo_helper_draw_horizontal_scale(cairo_t *cr, double x, double y, double length, const char *label, bool right_aligned) {
+    double xmin, xmax;
+    if (right_aligned) {
+        xmax = x;
+        xmin = x - length;
+    } else {
+        xmin = x;
+        xmax = x + length;
+    }
+    cairo_move_to(cr, xmin, y);
+    cairo_line_to (cr, xmax, y);
+    cairo_move_to(cr, xmin, y+5);
+    cairo_line_to (cr, xmin, y-5);
+    cairo_move_to(cr, xmax, y+5);
+    cairo_line_to (cr, xmax, y-5);
+    cairo_stroke (cr);
+    cairo_set_font_size(cr, 10);
+    if (right_aligned) {
+        cairo_move_to(cr, xmax - 5*strnlen(label,100), y-10);
+    } else {
+        cairo_move_to(cr, xmin, y-10);
+    }
+    cairo_show_text(cr, label);
 }

@@ -203,6 +203,10 @@ double map_env_get_link_strength(map_env_t *map_env) {
     return map_env->force_params.link_strength;
 }
 
+double map_env_get_anti_gravity(map_env_t *map_env) {
+    return map_env->force_params.anti_gravity_falloff_rsq;
+}
+
 void map_env_set_step_size(map_env_t *map_env, double value) {
     map_env->step_size = value;
 }

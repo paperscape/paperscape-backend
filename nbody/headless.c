@@ -17,6 +17,7 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
+    printf("    --settings, -s <file>     load settings from given JSON file\n");
     printf("    --start-afresh            start the graph layout afresh (default is to process\n");
     printf("                              only new papers); enabling this enables --write-json\n");
     printf("    --layout-json <file>      load layout from given JSON file (default is from DB)\n");
@@ -26,7 +27,7 @@ static int usage(const char *progname) {
     printf("                              process only a small, test subset)\n");
     printf("    --write-db                write positions to DB (default is not to)\n");
     printf("    --write-json              write positions to json file (default is not to)\n");
-    printf("    --no-fake-links           don't create fake links; --start-afresh must also be set\n");
+    printf("    --no-fake-links, -nf      don't create fake links; --start-afresh must also be set\n");
     printf("    --link <num>              link strength\n");
     printf("    --rsq <num>               r-star squared distance for anti-gravity\n");
     printf("    --factor-ref-link <num>   factor to use for reference links (default 1)\n");
@@ -52,7 +53,7 @@ int main(int argc, char *argv[]) {
     double arg_factor_ref_link   = 1;
     double arg_factor_other_link = 0;
     for (int a = 1; a < argc; a++) {
-        if (streq(argv[a], "--settings")) {
+        if (streq(argv[a], "--settings") || streq(argv[a], "-s")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
@@ -73,7 +74,7 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_refs_json = argv[a];
-        } else if (streq(argv[a], "--other-links") || streq(argv[a], "--ol")) {
+        } else if (streq(argv[a], "--other-links")) {
             if (++a >= argc) {
                 return usage(argv[0]);
             }
@@ -97,14 +98,14 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
-        } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "--nfl")) {
+        } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "-nf")) {
             arg_no_fake_links = true;
-        } else if (streq(argv[a], "--factor-ref-link") || streq(argv[a], "--frl")) {
+        } else if (streq(argv[a], "--factor-ref-link") || streq(argv[a], "-fr")) {
             if (++a >= argc) {
                 return usage(argv[0]);
             }
             arg_factor_ref_link = strtod(argv[a], NULL);;
-        } else if (streq(argv[a], "--factor-other-link") || streq(argv[a], "--fol")) {
+        } else if (streq(argv[a], "--factor-other-link") || streq(argv[a], "-fo")) {
             if (++a >= argc) {
                 return usage(argv[0]);
             }

@@ -134,6 +134,14 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
     vstr_printf(vstr, "\n");
     vstr_printf(vstr, "number of iterations: %d (%.1f/sec)\n", iterate_counter,iters_per_sec);
 
+    // draw a scale for anti-gravity radius r*
+    double rstar = sqrt(map_env_get_anti_gravity(map_env)), dummy_y = 0;
+    map_env_world_to_screen(map_env, &rstar, &dummy_y);
+    cairo_identity_matrix(cr);
+    cairo_set_source_rgb(cr, 1, 1, 1);
+    cairo_set_line_width (cr, 1.5);
+    cairo_helper_draw_horizontal_scale(cr,width-20,height-20,rstar,"r* scale",true);
+
     // draw info to canvas
     cairo_identity_matrix(cr);
     cairo_set_source_rgb(cr, 1, 1, 1);
@@ -397,7 +405,7 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
     // give it a title
-    gtk_window_set_title(GTK_WINDOW(window), "Map generator");
+    gtk_window_set_title(GTK_WINDOW(window), "Papercape map generator");
 
     // create the outer box
     GtkWidget *box_outer = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -506,14 +514,14 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    --settings <file>    load settings from given JSON file\n");
-    printf("    --layout-db          load layout from DB\n");
-    printf("    --layout-json <file> load layout from given JSON file\n");
-    printf("    --refs-json <file>   load reference data from JSON file (default is from DB)\n");
-    printf("                         this omits author and title data\n");
-    printf("    --no-fake-links      don't create fake links\n");
-    printf("    --link <num>         link strength\n");
-    printf("    --rsq <num>          r-star squared distance for anti-gravity\n");
+    printf("    --settings, -s <file>   load settings from given JSON file\n");
+    printf("    --layout-db             load layout from DB\n");
+    printf("    --layout-json <file>    load layout from given JSON file\n");
+    printf("    --refs-json <file>      load reference data from JSON file (default is from DB)\n");
+    printf("                            this omits author and title data\n");
+    printf("    --no-fake-links, -nf    don't create fake links\n");
+    printf("    --link <num>            link strength\n");
+    printf("    --rsq <num>             r-star squared distance for anti-gravity\n");
     printf("\n");
     return 1;
 }
@@ -529,7 +537,7 @@ int main(int argc, char *argv[]) {
     const char *arg_layout_json = NULL;
     const char *arg_refs_json   = NULL;
     for (int a = 1; a < argc; a++) {
-        if (streq(argv[a], "--settings")) {
+        if (streq(argv[a], "--settings") || streq(argv[a], "-s")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
@@ -561,7 +569,7 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_refs_json = argv[a];
-        } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "--nfl")) {
+        } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "-nf")) {
             arg_no_fake_links = true;
         } else {
             return usage(argv[0]);
