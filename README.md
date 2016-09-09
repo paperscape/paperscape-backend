@@ -15,10 +15,9 @@ Map generation using N-body simulation
 The n-body map generation source code is located in the `nbody/` directory. 
 It is written in C.
 The map generator can be run with a gui, which is useful for tuning the map, or without one (headless), which is useful for incremental updates on a server.
-The corresponding programs that can be built are _nbody-gui_, _nbody-headless_ and _nbody-headlessjson_.
-The first two programs read their input data from a MySQL database, while the latter reads in data from a Json file.
+The corresponding programs that can be built are _nbody-gui_ and _nbody-headless_, respectively.
 
-**Dependencies:** the MySql C library is required by _nbody-gui_ and _nbody-headless_, while _nbody-gui_ also depends on [Cairo 2D graphics](https://cairographics.org/) and Gtk+ 3.
+**Dependencies:** the MySql C library is required by both _nbody-gui_ and _nbody-headless_, while _nbody-gui_ also depends on [Cairo 2D graphics](https://cairographics.org/) and Gtk+ 3.
 
 Before building the nbody programs the utility library _xiwilib_ must first be built by running `make` in the `nbody/util/` directory.
 
@@ -28,7 +27,6 @@ That is, choose from
 ```shell
 make nbody-gui
 make nbody-headless
-make nbody-headlessjson
 ```
 
 or simply run `make` to build them all.
@@ -182,7 +180,7 @@ The following Json format is used:
 ```
 
 where _input-id_, _input-ref-id_ and _input-ref-freq_ are integers, and _input-category_ is a string.
-
+Reading in _keywords_, _title_ and _author_ are currently not supported.
 
 #### Json map data ####
 

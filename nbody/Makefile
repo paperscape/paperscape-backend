@@ -20,9 +20,6 @@ SRC_MYSQL = \
 SRC_HEADLESS = \
 	headless.c \
 
-SRC_HEADLESSJSON = \
-	headlessjson.c \
-
 SRC_GUI = \
 	cairohelper.c \
 	mapcairo.c \
@@ -32,31 +29,24 @@ SRC_ALL = \
 	$(SRC_COMMON) \
 	$(SRC_MYSQL) \
 	$(SRC_HEADLESS) \
-	$(SRC_HEADLESSJSON) \
 	$(SRC_GUI) \
 
 OBJ_COMMON = $(SRC_COMMON:.c=.o)
 OBJ_MYSQL = $(SRC_MYSQL:.c=.o)
 OBJ_HEADLESS = $(SRC_HEADLESS:.c=.o)
-OBJ_HEADLESSJSON = $(SRC_HEADLESSJSON:.c=.o)
 OBJ_GUI = $(SRC_GUI:.c=.o)
 
 LIB_COMMON = -lm -lpthread util/xiwilib.a
 LIB_MYSQL  = -lmysqlclient
 
 PROG_HEADLESS = nbody-headless
-PROG_HEADLESSJSON = nbody-headlessjson
 PROG_GUI = nbody-gui
 
-all: $(PROG_HEADLESS) $(PROG_HEADLESSJSON) $(PROG_GUI)
+all: $(PROG_HEADLESS) $(PROG_GUI)
 
 $(PROG_HEADLESS): CFLAGS = $(CFLAGS_COMMON)
 $(PROG_HEADLESS): $(OBJ_COMMON) $(OBJ_MYSQL) $(OBJ_HEADLESS)
 	$(CC) -o $@ $(OBJ_COMMON) $(OBJ_MYSQL) $(OBJ_HEADLESS) $(LIB_COMMON) $(LIB_MYSQL) $(LDFLAGS)
-
-$(PROG_HEADLESSJSON): CFLAGS = $(CFLAGS_COMMON)
-$(PROG_HEADLESSJSON): $(OBJ_COMMON) $(OBJ_HEADLESSJSON)
-	$(CC) -o $@ $(OBJ_COMMON) $(OBJ_HEADLESSJSON) $(LIB_COMMON) $(LIB_MYSQL) $(LDFLAGS)
 
 $(PROG_GUI): CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_GUI)
 $(PROG_GUI): $(OBJ_COMMON) $(OBJ_MYSQL) $(OBJ_GUI)
@@ -80,6 +70,6 @@ clean:
 	/bin/rm -f $(SRC_ALL:%.c=%.o) $(SRC_ALL:%.c=%.d) $(SRC_ALL:%.c=$(DEPDIR)/%.P)
 
 #clean:
-#	/bin/rm $(OBJ_COMMON) $(OBJ_HEADLESS) $(OBJ_HEADLESSJSON) $(OBJ_GUI)
+#	/bin/rm $(OBJ_COMMON) $(OBJ_HEADLESS) $(OBJ_GUI)
 
 .PHONY: all clean

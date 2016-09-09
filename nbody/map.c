@@ -1014,9 +1014,9 @@ void map_env_select_date_range(map_env_t *map_env, unsigned int id_start, unsign
 
 }
 
-void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link) {
+void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_link, double factor_other_link) {
     // make the layouts, each one coarser than the previous
-    layout_t *l = layout_build_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_freq, factor_other_link);
+    layout_t *l = layout_build_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_link, factor_other_link);
     for (int i = 0; i < num_coarsenings && l->num_links > 1; i++) {
         l = layout_build_reduced_from_layout(l);
     }

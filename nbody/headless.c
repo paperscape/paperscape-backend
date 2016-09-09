@@ -17,17 +17,20 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    --start-afresh       start the graph layout afresh (default is to process\n");
-    printf("                         only new papers); enabling this enables --write-json\n");
-    printf("    --layout-json <file> load layout from given JSON file (default is from DB)\n");
-    printf("    --refs-json <file>   load reference data from JSON file (default is from DB)\n");
-    printf("    --whole-arxiv        process all papers from the arxiv (default is to\n");
-    printf("                         process only a small, test subset)\n");
-    printf("    --write-db           write positions to DB (default is not to)\n");
-    printf("    --write-json         write positions to json file (default is not to)\n");
-    printf("    --no-fake-links      don't create fake links; --start-afresh must also be set\n");
-    printf("    --link <num>         link strength\n");
-    printf("    --rsq <num>          r-star squared distance for anti-gravity\n");
+    printf("    --start-afresh            start the graph layout afresh (default is to process\n");
+    printf("                              only new papers); enabling this enables --write-json\n");
+    printf("    --layout-json <file>      load layout from given JSON file (default is from DB)\n");
+    printf("    --refs-json <file>        load reference data from JSON file (default is from DB)\n");
+    printf("    --other-links <file>      load additional links from JSON file\n");
+    printf("    --whole-arxiv             process all papers from the arxiv (default is to\n");
+    printf("                              process only a small, test subset)\n");
+    printf("    --write-db                write positions to DB (default is not to)\n");
+    printf("    --write-json              write positions to json file (default is not to)\n");
+    printf("    --no-fake-links           don't create fake links; --start-afresh must also be set\n");
+    printf("    --link <num>              link strength\n");
+    printf("    --rsq <num>               r-star squared distance for anti-gravity\n");
+    printf("    --factor-ref-link <num>   factor to use for reference links (default 1)\n");
+    printf("    --factor-other-link <num> factor to use for other links (default 0)\n");
     printf("\n");
     return 1;
 }
@@ -37,13 +40,16 @@ int main(int argc, char *argv[]) {
     // parse command line arguments
     bool arg_start_afresh = false;
     const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN' AND id > 2130000000 AND maincat='hep-th')";
-    bool arg_write_db           = false;
-    bool arg_write_json         = false;
-    bool arg_no_fake_links      = false;
-    double arg_anti_grav_rsq    = -1;
-    double arg_link_strength    = -1;
-    const char *arg_layout_json = NULL;
-    const char *arg_refs_json   = NULL;
+    bool arg_write_db            = false;
+    bool arg_write_json          = false;
+    bool arg_no_fake_links       = false;
+    double arg_anti_grav_rsq     = -1;
+    double arg_link_strength     = -1;
+    const char *arg_layout_json  = NULL;
+    const char *arg_refs_json    = NULL;
+    const char *arg_other_links  = NULL;
+    double arg_factor_ref_link   = 1;
+    double arg_factor_other_link = 0;
     for (int a = 1; a < argc; a++) {
         if (streq(argv[a], "--start-afresh")) {
             arg_start_afresh = true;
@@ -60,6 +66,11 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_refs_json = argv[a];
+        } else if (streq(argv[a], "--other-links") || streq(argv[a], "--ol")) {
+            if (++a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_other_links = argv[a];
         } else if (streq(argv[a], "--whole-arxiv")) {
             where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
         } else if (streq(argv[a], "--write-db")) {
@@ -80,6 +91,16 @@ int main(int argc, char *argv[]) {
             arg_link_strength = strtod(argv[a], NULL);
         } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "--nfl")) {
             arg_no_fake_links = true;
+        } else if (streq(argv[a], "--factor-ref-link") || streq(argv[a], "--frl")) {
+            if (++a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_factor_ref_link = strtod(argv[a], NULL);;
+        } else if (streq(argv[a], "--factor-other-link") || streq(argv[a], "--fol")) {
+            if (++a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_factor_other_link = strtod(argv[a], NULL);;
         } else {
             return usage(argv[0]);
         }
@@ -99,6 +120,12 @@ int main(int argc, char *argv[]) {
     } else {
         // load the papers from JSON file
         if (!json_load_papers(arg_refs_json, &num_papers, &papers, &keyword_set)) {
+            return 1;
+        }
+    }
+    if (arg_start_afresh && arg_other_links != NULL) {
+        // f starting afresh, allow loading other links from JSON file
+        if (!json_load_other_links(arg_other_links, num_papers, papers)) {
             return 1;
         }
     }
@@ -130,8 +157,8 @@ int main(int argc, char *argv[]) {
     map_env_select_date_range(map_env, id_min, id_max);
 
     if (arg_start_afresh) {
-        // create a new layout with 10 levels of coarsening, using only ref_freq as weight
-        map_env_layout_new(map_env, 10, 1, 0);
+        // create a new layout with 10 levels of coarsening
+        map_env_layout_new(map_env, 10, arg_factor_ref_link, arg_factor_other_link);
         // do the layout
         map_env_do_complete_layout(map_env, 2000, 6000);
     } else {
@@ -172,7 +199,12 @@ int main(int argc, char *argv[]) {
     }
 
     // align the map in a fixed direction
-    map_env_orient_using_category(map_env, CAT_hep_ph, 4.2);
+    if (!arg_start_afresh) {
+        // TODO currently hardcoded for Paperscape
+        map_env_orient_using_category(map_env, CAT_hep_ph, 4.2);
+    } else if (num_papers > 0) {
+        map_env_orient_using_paper(map_env, &papers[0], 0);
+    }
 
     // write the new positions to the DB (never do this for timelapse)
     if (arg_write_db) {
