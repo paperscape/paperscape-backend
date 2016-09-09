@@ -7,7 +7,7 @@
 #include "common.h"
 #include "util/jsmnenv.h"
 
-bool config_new(const char *filename, init_config_t **config) {
+bool init_config_new(const char *filename, init_config_t **config) {
     // create new config
     *config = m_new(init_config_t,1);
 

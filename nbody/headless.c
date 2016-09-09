@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
         settings_file = arg_settings;
     }
     init_config_t *init_config = NULL;
-    if (!config_new(settings_file,&init_config)) {
+    if (!init_config_new(settings_file,&init_config)) {
         return 1;
     }
 
