@@ -7,5 +7,5 @@ nbody-gui
 *.png
 data/*
 out-*
-local-*
-*.pyc
+loc-*
+*.json

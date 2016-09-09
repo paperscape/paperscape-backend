@@ -39,89 +39,99 @@ bool init_config_new(const char *filename, init_config_t **config) {
     printf("Reading in settings for: %s\n",descr_val.str);
 
     // look for member: ids_time_ordered
+    // =================================
+    // set defaults
+    (*config)->ids_time_ordered = true;
+    // attempt to set from JSON file
     jsmn_env_token_value_t ito_val;
     if(jsmn_env_get_object_member_boolean(&jsmn_env, jsmn_env.js_tok, "ids_time_ordered", NULL, &ito_val)) {
-        (*config)->ids_time_ordered = true;
+        (*config)->ids_time_ordered = (ito_val.kind == JSMN_VALUE_TRUE);
     }
 
-    // ### look for member: forces
+    // look for member: forces
+    // =======================
+    // set defaults
+    (*config)->force_close_repulsion_a        = 1e9;
+    (*config)->force_close_repulsion_b        = 1e14;
+    (*config)->force_close_repulsion_c        = 1.1;
+    (*config)->force_close_repulsion_d        = 0.6;
+    (*config)->force_link_strength            = 1.17;
+    (*config)->force_use_ref_freq             = true;
+    (*config)->force_anti_gravity_falloff_rsq = 1e6;
+    (*config)->force_initial_close_repulsion  = false;
+    // attempt to set from JSON file
     jsmn_env_token_value_t forces_val;
     jsmntok_t *forces_tok;
-    if(!jsmn_env_get_object_member_of_type(&jsmn_env, jsmn_env.js_tok, "forces", JSMN_VALUE_OBJECT, &forces_tok, &forces_val)) {
-        return false;
-    } else {
-        jsmn_env_token_value_t cr_a_val, cr_b_val, cr_c_val, cr_d_val, link_val, anti_grav_val;
-        if(!jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "close_repulsion_a", JSMN_VALUE_REAL, NULL, &cr_a_val)) {
-            return false;
+    if(jsmn_env_get_object_member_of_type(&jsmn_env, jsmn_env.js_tok, "forces", JSMN_VALUE_OBJECT, &forces_tok, &forces_val)) {
+        jsmn_env_token_value_t do_cr_val, use_rf_val, cr_a_val, cr_b_val, cr_c_val, cr_d_val, link_val, anti_grav_val;
+        if(jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "close_repulsion_a", JSMN_VALUE_REAL, NULL, &cr_a_val)) {
+            (*config)->force_close_repulsion_a        = cr_a_val.real;
         }
-        if(!jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "close_repulsion_b", JSMN_VALUE_REAL, NULL, &cr_b_val)) {
-            return false;
+        if(jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "close_repulsion_b", JSMN_VALUE_REAL, NULL, &cr_b_val)) {
+            (*config)->force_close_repulsion_b        = cr_b_val.real;
         }
-        if(!jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "close_repulsion_c", JSMN_VALUE_REAL, NULL, &cr_c_val)) {
-            return false;
+        if(jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "close_repulsion_c", JSMN_VALUE_REAL, NULL, &cr_c_val)) {
+            (*config)->force_close_repulsion_c        = cr_c_val.real;
         }
-        if(!jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "close_repulsion_d", JSMN_VALUE_REAL, NULL, &cr_d_val)) {
-            return false;
+        if(jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "close_repulsion_d", JSMN_VALUE_REAL, NULL, &cr_d_val)) {
+            (*config)->force_close_repulsion_d        = cr_d_val.real;
         }
-        if(!jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "link_strength", JSMN_VALUE_REAL, NULL, &link_val)) {
-            return false;
+        if(jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "link_strength", JSMN_VALUE_REAL, NULL, &link_val)) {
+            (*config)->force_link_strength            = link_val.real;
         }
-        if(!jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "anti_gravity_falloff_rsq", JSMN_VALUE_REAL, NULL, &anti_grav_val)) {
-            return false;
+        if(jsmn_env_get_object_member_boolean(&jsmn_env, forces_tok, "use_ref_freq", NULL, &use_rf_val)) {
+            (*config)->force_use_ref_freq             = use_rf_val.real;
         }
-        (*config)->force_close_repulsion_a = cr_a_val.real;
-        (*config)->force_close_repulsion_b = cr_b_val.real;
-        (*config)->force_close_repulsion_c = cr_c_val.real;
-        (*config)->force_close_repulsion_d = cr_d_val.real;
-        (*config)->force_link_strength = link_val.real;
-        (*config)->force_anti_gravity_falloff_rsq = anti_grav_val.real;
+        if(jsmn_env_get_object_member_of_type(&jsmn_env, forces_tok, "anti_gravity_falloff_rsq", JSMN_VALUE_REAL, NULL, &anti_grav_val)) {
+            (*config)->force_anti_gravity_falloff_rsq = anti_grav_val.real;
+        }
+        if(jsmn_env_get_object_member_boolean(&jsmn_env, forces_tok, "initial_close_repulsion", NULL, &do_cr_val)) {
+            (*config)->force_initial_close_repulsion  = do_cr_val.real;
+        }
     }
 
-    // ### look for member: sql 
+    // look for member: sql 
+    // ====================
+    // set defaults
+    (*config)->sql_extra_clause    = "WHERE (arxiv IS NOT NULL AND status != 'WDN')";
+    (*config)->sql_authors_titles  = true;
+    (*config)->sql_keywords        = true;
+    (*config)->sql_rblob_ref_order = true;
+    (*config)->sql_rblob_ref_freq  = true;
+    (*config)->sql_rblob_ref_cites = true;
+    // attempt to set from JSON file
     jsmn_env_token_value_t sql_val;
     jsmntok_t *sql_tok;
-    if(!jsmn_env_get_object_member_of_type(&jsmn_env, jsmn_env.js_tok, "sql", JSMN_VALUE_OBJECT, &sql_tok, &sql_val)) {
-        printf("No 'sql' block found, loading from DB disabled\n");
-        (*config)->sql_enabled = false;
-    } else {
-        (*config)->sql_enabled = true;
-        // ###### look for member: authors_titles
+    if(jsmn_env_get_object_member_of_type(&jsmn_env, jsmn_env.js_tok, "sql", JSMN_VALUE_OBJECT, &sql_tok, &sql_val)) {
+        // look for member: authors_titles
         jsmn_env_token_value_t authors_titles_val;
-        if(!jsmn_env_get_object_member_boolean(&jsmn_env, sql_tok, "authors_titles", NULL, &authors_titles_val)) {
-            return false;
+        if(jsmn_env_get_object_member_boolean(&jsmn_env, sql_tok, "authors_titles", NULL, &authors_titles_val)) {
+            (*config)->sql_authors_titles = (authors_titles_val.kind == JSMN_VALUE_TRUE);
         }
-        (*config)->sql_authors_titles = (authors_titles_val.kind == JSMN_VALUE_TRUE);
-        // ###### look for member: keywords
+        // look for member: keywords
         jsmn_env_token_value_t keywords_val;
-        if(!jsmn_env_get_object_member_boolean(&jsmn_env, sql_tok, "keywords", NULL, &keywords_val)) { 
-            return false;
+        if(jsmn_env_get_object_member_boolean(&jsmn_env, sql_tok, "keywords", NULL, &keywords_val)) { 
+            (*config)->sql_keywords = (keywords_val.kind == JSMN_VALUE_TRUE);
         }
-        (*config)->sql_keywords = (keywords_val.kind == JSMN_VALUE_TRUE);
-        // ###### look for member: extra_clause
+        // look for member: extra_clause
         jsmn_env_token_value_t query_val;
-        if(!jsmn_env_get_object_member_of_type(&jsmn_env, sql_tok, "extra_clause", JSMN_VALUE_STRING, NULL, &query_val)) {
-            return false;
+        if(jsmn_env_get_object_member_of_type(&jsmn_env, sql_tok, "extra_clause", JSMN_VALUE_STRING, NULL, &query_val)) {
+            (*config)->sql_extra_clause = query_val.str;
         }
-        (*config)->sql_extra_clause = query_val.str;
-        // ###### look for member: refsblob
+        // look for member: refsblob
         jsmn_env_token_value_t refsblob_val;
         jsmntok_t *refsblob_tok;
-        if(!jsmn_env_get_object_member_of_type(&jsmn_env, sql_tok, "refsblob", JSMN_VALUE_OBJECT, &refsblob_tok, &refsblob_val)) {
-            return false;
-        } else {
+        if(jsmn_env_get_object_member_of_type(&jsmn_env, sql_tok, "refsblob", JSMN_VALUE_OBJECT, &refsblob_tok, &refsblob_val)) {
             jsmn_env_token_value_t ref_freq_val, ref_order_val, ref_cites_val;
-            if(!jsmn_env_get_object_member_boolean(&jsmn_env, refsblob_tok, "ref_order", NULL, &ref_order_val)) {
-                return false;
+            if(jsmn_env_get_object_member_boolean(&jsmn_env, refsblob_tok, "ref_order", NULL, &ref_order_val)) {
+                (*config)->sql_rblob_ref_order = (ref_order_val.kind == JSMN_VALUE_TRUE);
             }
-            if(!jsmn_env_get_object_member_boolean(&jsmn_env, refsblob_tok, "ref_freq", NULL, &ref_freq_val)) {
-                return false;
+            if(jsmn_env_get_object_member_boolean(&jsmn_env, refsblob_tok, "ref_freq", NULL, &ref_freq_val)) {
+                (*config)->sql_rblob_ref_freq  = (ref_freq_val.kind  == JSMN_VALUE_TRUE);
             }
-            if(!jsmn_env_get_object_member_boolean(&jsmn_env, refsblob_tok, "ref_cites", NULL, &ref_cites_val)) {
-                return false;
+            if(jsmn_env_get_object_member_boolean(&jsmn_env, refsblob_tok, "ref_cites", NULL, &ref_cites_val)) {
+                (*config)->sql_rblob_ref_cites = (ref_cites_val.kind == JSMN_VALUE_TRUE);
             }
-            (*config)->sql_rblob_ref_order = (ref_order_val.kind == JSMN_VALUE_TRUE);
-            (*config)->sql_rblob_ref_freq  = (ref_freq_val.kind  == JSMN_VALUE_TRUE);
-            (*config)->sql_rblob_ref_cites = (ref_cites_val.kind == JSMN_VALUE_TRUE);
         }
     }
 

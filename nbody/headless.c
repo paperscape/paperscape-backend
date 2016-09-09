@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
     }
 
     // load settings from json file
-    const char *settings_file = "settings.json";
+    const char *settings_file = "settings/default.json";
     if (arg_settings != NULL) {
         settings_file = arg_settings;
     }

@@ -1,0 +1,24 @@
+{
+"description":"Hyperwall settings",
+"ids_time_ordered":false,
+"forces":{
+    "link_strength":1.17,
+    "anti_gravity_falloff_rsq":1e6,
+    "close_repulsion_a":1e9,
+    "close_repulsion_b":1e14,
+    "close_repulsion_c":1.1,
+    "close_repulsion_d":0.6,
+    "use_ref_freq":false,
+    "initial_close_repulsion":false
+},
+"sql":{
+    "extra_clause":"WHERE (maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'dx' OR maincat = 'dw') ORDER BY rand() LIMIT 500000",
+    "authors_titles":false,
+    "keywords":false,
+    "refsblob":{
+        "ref_order":false,
+        "ref_freq":false,
+        "ref_cites":true
+    }
+}
+}
