@@ -35,11 +35,11 @@ map_env_t *map_env_new() {
     //map_env->force_params.link_strength = 0.77;
     map_env->force_params.link_strength = 1.17;
 
+    map_env->ids_time_ordered = false;
     map_env->do_tred = false;
     map_env->draw_grid = false;
     map_env->draw_paper_links = false;
     map_env->draw_categories  = true;
-    map_env->ids_time_ordered = true;
 
     map_env->tr_scale = 4;
     map_env->tr_x0 = 280;

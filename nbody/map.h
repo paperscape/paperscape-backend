@@ -28,11 +28,11 @@ typedef struct _map_env_t {
 
     force_params_t force_params;
 
+    bool ids_time_ordered;
     bool do_tred;
     bool draw_grid;
     bool draw_paper_links;
     bool draw_categories;
-    bool ids_time_ordered;
 
     // transformation matrix
     double tr_scale;

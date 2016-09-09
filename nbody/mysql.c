@@ -428,6 +428,11 @@ static bool env_load_keywords(env_t *env) {
 }
 
 bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
+    // check sql settings loaded
+    if (!init_config->sql_enabled) {
+        return false;
+    }
+
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {

@@ -613,7 +613,7 @@ int main(int argc, char *argv[]) {
         }
     } else {
         // load the papers from a JSON file
-        // NOTE: this does not load authors and titles
+        // NOTE: this does not load authors and titles or keywords
         if (!json_load_papers(arg_refs_json, &num_papers, &papers, &keyword_set)) {
             return 1;
         }

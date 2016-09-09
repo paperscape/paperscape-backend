@@ -6,7 +6,7 @@
 #include "jsmnenv.h"
 
 bool jsmn_env_error(jsmn_env_t *jsmn_env, const char *msg) {
-    printf("JSON error: %s\n", msg);
+    printf("JSON: %s\n", msg);
     return false;
 }
 
@@ -32,11 +32,11 @@ bool jsmn_env_open_json_file(jsmn_env_t* jsmn_env, const char *filename) {
     // open the JSON file
     jsmn_env->fp = fopen(filename, "r");
     if (jsmn_env->fp == NULL) {
-        printf("can't open JSON file '%s' for reading\n", filename);
+        printf("JSON error: can't open file '%s' for reading\n", filename);
         return false;
     }
 
-    printf("opened JSON file '%s'\n", filename);
+    printf("JSON: opened file '%s'\n", filename);
 
     return true;
 }
@@ -311,5 +311,33 @@ bool jsmn_env_get_object_member(jsmn_env_t *jsmn_env, jsmntok_t *object, const c
     }
 
     // not found
-    return jsmn_env_error(jsmn_env, "object does not have member");
+    vstr_t *msg = vstr_new();
+    vstr_add_str(msg,"object does not have member: ");
+    vstr_add_str(msg,wanted_member);
+    jsmn_env_error(jsmn_env, vstr_str(msg));
+    vstr_free(msg);
+    return false;
 }
+
+// same as jsmn_env_get_object_member, but must match given type
+bool jsmn_env_get_object_member_of_type(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmn_env_value_kind_t wanted_type, jsmntok_t **found_token, jsmn_env_token_value_t *found_value) {
+    if(!jsmn_env_get_object_member(jsmn_env,object,wanted_member,found_token,found_value)) {
+        return false;
+    }
+    if (found_value->kind != wanted_type) {
+        return jsmn_env_error(jsmn_env, "received value of wrong type");
+    }
+    return true;
+}
+
+// same as jsmn_env_get_object_member, but must be boolean
+bool jsmn_env_get_object_member_boolean(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntok_t **found_token, jsmn_env_token_value_t *found_value) {
+    if(!jsmn_env_get_object_member(jsmn_env,object,wanted_member,found_token,found_value)) {
+        return false;
+    }
+    if (found_value->kind != JSMN_VALUE_TRUE && found_value->kind != JSMN_VALUE_FALSE) {
+        return jsmn_env_error(jsmn_env, "received value of non-boolean type");
+    }
+    return true;
+}
+

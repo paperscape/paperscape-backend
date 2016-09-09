@@ -43,8 +43,10 @@ void jsmn_env_finish(jsmn_env_t* jsmn_env);
 bool jsmn_env_open_json_file(jsmn_env_t* jsmn_env, const char *filename);
 bool jsmn_env_next_object(jsmn_env_t *jsmn_env, bool *more_objects);
 bool jsmn_env_get_array_member(jsmn_env_t *jsmn_env, jsmntok_t *array, int wanted_member, jsmntok_t **found_token, jsmn_env_token_value_t *found_value);
-bool jsmn_env_get_object_member(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntok_t **found_token, jsmn_env_token_value_t *found_value);
 bool jsmn_env_get_num_entries(jsmn_env_t *env, int *num_entries);
 bool jsmn_env_error(jsmn_env_t *jsmn_env, const char *msg);
+bool jsmn_env_get_object_member(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntok_t **found_token, jsmn_env_token_value_t *found_value);
+bool jsmn_env_get_object_member_of_type(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmn_env_value_kind_t wanted_type, jsmntok_t **found_token, jsmn_env_token_value_t *found_value);
+bool jsmn_env_get_object_member_boolean(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntok_t **found_token, jsmn_env_token_value_t *found_value);
 
 #endif /* __JSMNENV_H_ */

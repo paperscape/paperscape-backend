@@ -18,6 +18,7 @@ typedef enum {
 // Initial configuration
 typedef struct _init_config_t {
     // MySQL config
+    bool sql_enabled;
     const char *sql_extra_clause;
     bool sql_authors_titles;
     bool sql_keywords;
