@@ -2,7 +2,6 @@
 #define _INCLUDED_MAP_H
 
 #include "common.h"
-#include "config.h"
 #include "quadtree.h"
 #include "layout.h"
 #include "force.h"
@@ -58,7 +57,7 @@ typedef struct _map_env_t {
 
 map_env_t *map_env_new();
 
-void map_env_set_init_config(map_env_t *map_env, config_t *init_config);
+void map_env_set_init_config(map_env_t *map_env, init_config_t *init_config);
 
 void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, keyword_set_t *keyword_set);
 void map_env_random_papers(map_env_t *map_env, int n);

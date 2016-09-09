@@ -8,7 +8,6 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
-#include "config.h"
 #include "layout.h"
 #include "map.h"
 #include "mysql.h"
@@ -584,7 +583,7 @@ int main(int argc, char *argv[]) {
     if (arg_settings != NULL) {
         settings_file = arg_settings;
     }
-    config_t *init_config = NULL;
+    init_config_t *init_config = NULL;
     if (!config_new(settings_file,&init_config)) {
         return 1;
     }

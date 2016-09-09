@@ -15,6 +15,23 @@ typedef enum {
 
 #define COMMON_PAPER_MAX_CATS (4)
 
+// Initial configuration
+typedef struct _init_config_t {
+    // MySQL config
+    const char *query_extra_clause;
+    bool refsblob_ref_freq;
+    bool refsblob_ref_order;
+    bool refsblob_ref_cites;
+    // Map Environment initial configuration
+    bool   ids_time_ordered;
+    double force_close_repulsion_a;
+    double force_close_repulsion_b;
+    double force_close_repulsion_c;
+    double force_close_repulsion_d;
+    double force_link_strength;
+    double force_anti_gravity_falloff_rsq;
+} init_config_t;
+
 typedef struct _paper_t {
     // stuff loaded from the DB
     unsigned int id;
@@ -63,6 +80,8 @@ typedef struct _keyword_t {
 } keyword_t;
 
 typedef struct _keyword_set_t keyword_set_t;
+
+bool config_new(const char *filename, init_config_t **config);
 
 void paper_init(paper_t *p, unsigned int id);
 

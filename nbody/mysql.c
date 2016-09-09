@@ -6,7 +6,6 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
-#include "config.h"
 #include "layout.h"
 #include "mysql.h"
 
@@ -257,7 +256,7 @@ static paper_t *env_get_paper_by_id(env_t *env, unsigned int id) {
     return NULL;
 }
 
-static bool env_load_refs(env_t *env, config_t *init_config) {
+static bool env_load_refs(env_t *env, init_config_t *init_config) {
     MYSQL_RES *result;
     MYSQL_ROW row;
     unsigned long *lens;
@@ -424,7 +423,7 @@ static bool env_load_keywords(env_t *env) {
     return true;
 }
 
-bool mysql_load_papers(config_t *init_config, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
+bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, keyword_set_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {

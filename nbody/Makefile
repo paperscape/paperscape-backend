@@ -11,7 +11,6 @@ SRC_COMMON = \
 	force.c \
 	map.c \
 	mapauto.c \
-	config.c \
 
 SRC_MYSQL = \
 	mysql.c \

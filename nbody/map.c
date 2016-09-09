@@ -8,7 +8,6 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
-#include "config.h"
 #include "layout.h"
 #include "force.h"
 #include "quadtree.h"
@@ -59,7 +58,7 @@ map_env_t *map_env_new() {
     return map_env;
 }
 
-void map_env_set_init_config(map_env_t *map_env, config_t *init_config) {
+void map_env_set_init_config(map_env_t *map_env, init_config_t *init_config) {
     map_env->ids_time_ordered = init_config->ids_time_ordered;
     map_env->force_params.close_repulsion_a = init_config->force_close_repulsion_a;
     map_env->force_params.close_repulsion_b = init_config->force_close_repulsion_b;
