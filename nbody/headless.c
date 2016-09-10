@@ -120,8 +120,8 @@ int main(int argc, char *argv[]) {
     if (arg_settings != NULL) {
         settings_file = arg_settings;
     }
-    init_config_t *init_config = NULL;
-    if (!init_config_new(settings_file,&init_config)) {
+    init_config_t *init_config = init_config_new(settings_file);
+    if (init_config == NULL) {
         return 1;
     }
 
@@ -152,10 +152,8 @@ int main(int argc, char *argv[]) {
     // create the map object
     map_env_t *map_env = map_env_new();
 
-    if (init_config != NULL) {
-        // set initial configuration
-        map_env_set_init_config(map_env,init_config);
-    }
+    // set initial configuration
+    map_env_set_init_config(map_env,init_config);
     
     if (arg_start_afresh && arg_no_fake_links) {
         // if starting afresh, allow user to disable fake link generation

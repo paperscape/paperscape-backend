@@ -584,8 +584,8 @@ int main(int argc, char *argv[]) {
     if (arg_settings != NULL) {
         settings_file = arg_settings;
     }
-    init_config_t *init_config = NULL;
-    if (!init_config_new(settings_file,&init_config)) {
+    init_config_t *init_config = init_config_new(settings_file);
+    if (init_config == NULL) {
         return 1;
     }
 
@@ -623,9 +623,7 @@ int main(int argc, char *argv[]) {
     map_env_t *map_env = map_env_new();
 
     // set initial configuration
-    if (init_config != NULL) {
-        map_env_set_init_config(map_env,init_config);
-    }
+    map_env_set_init_config(map_env,init_config);
 
     // whether to create fake links for disconnected papers
     map_env_set_make_fake_links(map_env,!arg_no_fake_links);
