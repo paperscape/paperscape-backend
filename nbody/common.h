@@ -4,21 +4,12 @@
 // uncomment this to enable tredding option
 //#define ENABLE_TRED (1)
 
-typedef enum {
-    CAT_UNKNOWN = 0,
-    CAT_INSPIRE = 1,
-#   define CAT(id, str) CAT_##id,
-#   include "cats.h"
-#   undef CAT
-    CAT_NUMBER_OF,
-} category_t;
-
 #define COMMON_PAPER_MAX_CATS (4)
 
 typedef struct _paper_t {
     // stuff loaded from the DB
     unsigned int id;
-    byte allcats[COMMON_PAPER_MAX_CATS]; // store fixed number of categories; more efficient than having a tiny, dynamic array; unused entries are CAT_UNKNOWN
+    byte allcats[COMMON_PAPER_MAX_CATS]; // store fixed number of categories; more efficient than having a tiny, dynamic array; unused entries are UNKNOWN
     short num_refs;
     short num_cites;
     struct _paper_t **refs;     // array of referenced/linked papers
@@ -64,10 +55,6 @@ typedef struct _keyword_entry_t {
 } keyword_entry_t;
 
 void paper_init(paper_t *p, unsigned int id);
-
-const char *category_enum_to_str(category_t cat);
-category_t category_str_to_enum(const char *str);
-category_t category_strn_to_enum(const char *str, size_t n);
 
 unsigned int date_to_unique_id(int y, int m, int d);
 void unique_id_to_date(unsigned int id, int *y, int *m, int *d);

@@ -8,6 +8,7 @@
 #include "util/jsmn.h"
 #include "util/hashmap.h"
 #include "common.h"
+#include "category.h"
 #include "layout.h"
 
 #define JS_TOK_MAX (4000) // need lots for papers with lots of references
@@ -20,6 +21,7 @@ typedef struct _env_t {
     jsmn_parser js_parser;
 
     // graph data
+    category_set_t *category_set;
     int num_papers;
     paper_t *papers;
     hashmap_t *keyword_set;
@@ -34,6 +36,7 @@ static bool env_set_up(env_t* env, const char *filename) {
     env->fp = NULL;
     env->js_buf = vstr_new();
 
+    env->category_set = NULL;
     env->num_papers = 0;
     env->papers = NULL;
     env->keyword_set = hashmap_new();
@@ -371,6 +374,73 @@ bool jsmn_get_object_member(env_t *env, jsmntok_t *object, const char *wanted_me
     return have_error(env, "object does not have member");
 }
 
+static bool env_load_categories(env_t *env) {
+    printf("reading categories from JSON file\n");
+
+    // start the JSON stream
+    bool more_objects;
+    if (!js_reset(env, &more_objects)) {
+        return false;
+    }
+
+    // iterate through the JSON stream
+    int n_cats = 0;
+    while (more_objects) {
+        if (!js_next_object(env, &more_objects)) {
+            return false;
+        }
+
+        // look for the cat member
+        jsmn_token_value_t cat_val;
+        if (!jsmn_get_object_member(env, env->js_tok, "cat", NULL, &cat_val)) {
+            return false;
+        }
+
+        // check the cat is a string
+        if (cat_val.kind != JSMN_VALUE_STRING) {
+            return have_error(env, "expecting a string for cat");
+        }
+
+        // look for the col member
+        jsmntok_t *col_tok;
+        if (!jsmn_get_object_member(env, env->js_tok, "col", &col_tok, NULL)) {
+            return false;
+        }
+
+        // check the col is an array of length 3
+        if (col_tok->type != JSMN_ARRAY || col_tok->size != 3) {
+            return have_error(env, "expecting an array");
+        }
+
+        // parse the r,g,b values
+        float rgb[3];
+        for (int i = 0; i < 3; i++) {
+            // get current element
+            jsmn_token_value_t elem_val;
+            if (!jsmn_get_array_member(env, col_tok, i, NULL, &elem_val)) {
+                return false;
+            }
+
+            // check the element is a number
+            if (elem_val.kind == JSMN_VALUE_UINT) {
+                rgb[i] = elem_val.uint;
+            } else if (elem_val.kind == JSMN_VALUE_REAL) {
+                rgb[i] = elem_val.real;
+            } else {
+                return have_error(env, "expecting a number");
+            }
+        }
+
+        // add the new category to the set
+        category_set_add_category(env->category_set, cat_val.str, strlen(cat_val.str), rgb);
+        n_cats += 1;
+    }
+
+    printf("read %d categories\n", n_cats);
+
+    return true;
+}
+
 static bool env_load_ids(env_t *env) {
     printf("reading ids from JSON file\n");
 
@@ -432,12 +502,17 @@ static bool env_load_ids(env_t *env) {
         int cat_num = 0;
         for (const char *start = allcats_val.str, *cur = allcats_val.str; cat_num < COMMON_PAPER_MAX_CATS; cur++) {
             if (*cur == ',' || *cur == '\0') {
-                category_t cat = category_strn_to_enum(start, cur - start);
-                if (cat == CAT_UNKNOWN) {
-                    // print unknown categories; for adding to cats.h
-                    printf("%.*s\n", (int)(cur - start), start);
+                category_info_t *cat = category_set_get_by_name(env->category_set, start, cur - start);
+                if (cat == NULL) {
+                    // print unknown categories; for adding to input JSON file
+                    printf("unknown category: %.*s\n", (int)(cur - start), start);
                 } else {
-                    paper->allcats[cat_num++] = cat;
+                    if (cat->cat_id > 255) {
+                        // we use a byte to store the cat id, so it must be small enough
+                        printf("error: too many categories to store as a byte\n");
+                        exit(1);
+                    }
+                    paper->allcats[cat_num++] = cat->cat_id;
                 }
                 if (*cur == '\0') {
                     break;
@@ -447,7 +522,7 @@ static bool env_load_ids(env_t *env) {
         }
         // fill in unused entries in allcats with UNKNOWN category
         for (; cat_num < COMMON_PAPER_MAX_CATS; cat_num++) {
-            paper->allcats[cat_num] = CAT_UNKNOWN;
+            paper->allcats[cat_num] = CATEGORY_UNKNOWN_ID;
         }
 
         /*
@@ -686,13 +761,44 @@ static bool env_load_keywords(env_t *env) {
 }
 #endif
 
-bool json_load_papers(const char *filename, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
+bool json_load_categories(const char *filename, category_set_t **category_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env, filename)) {
         env_finish(&env, true);
         return false;
     }
+
+    // set the category set for reference later
+    env.category_set = category_set_new();
+
+    // load our data
+    if (!env_open_json_file(&env, filename)) {
+        return false;
+    }
+    if (!env_load_categories(&env)) {
+        return false;
+    }
+
+    // pull down the environment (doesn't free the papers or keywords)
+    env_finish(&env, false);
+
+    // return the category set
+    *category_set_out = env.category_set;
+
+    return true;
+}
+
+bool json_load_papers(const char *filename, category_set_t *category_set, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
+    // set up environment
+    env_t env;
+    if (!env_set_up(&env, filename)) {
+        env_finish(&env, true);
+        return false;
+    }
+
+    // set the category set for reference later
+    env.category_set = category_set;
 
     // load our data
     if (!env_open_json_file(&env, filename)) {

@@ -12,20 +12,11 @@
 #include "map.h"
 #include "mapcairo.h"
 
-static void paper_colour(paper_t *p, double *r, double *g, double *b) {
-    category_t c = p->allcats[0];
-    if (c == CAT_hep_th) { *r = 0.0; *g = 0.0; *b = 1.0; } // blue
-    else if (c == CAT_hep_ph) { *r = 0.0; *g = 1.0; *b = 0.0; } // green
-    else if (c == CAT_hep_ex) { *r = 1.0; *g = 1.0; *b = 0.0; } // yellow
-    else if (c == CAT_gr_qc || c == CAT_INSPIRE) { *r = 0.0; *g = 1.0; *b = 1.0; } // cyan
-    else if (c == CAT_astro_ph_GA) { *r = 1.0; *g = 0.0; *b = 1.0; } // purple
-    else if (c == CAT_hep_lat) { *r = 0.70; *g = 0.36; *b = 0.20; } // tan brown
-    else if (c == CAT_astro_ph_HE) { *r = 0.62; *g = 0.86; *b = 0.24; } // lime green
-    else if (CAT_astro_ph <= c && c <= CAT_astro_ph_SR) { *r = 0.89; *g = 0.53; *b = 0.60; } // skin pink
-    else if (c == CAT_cond_mat) { *r = 0.6; *g = 0.4; *b = 0.4; }
-    else if (c == CAT_quant_ph) { *r = 0.4; *g = 0.7; *b = 0.7; }
-    else if (CAT_physics_acc_ph <= c && c <= CAT_physics_space_ph) { *r = 0.0; *g = 0.5; *b = 0.0; } // dark green
-    else { *r = 0.7; *g = 1.0; *b = 0.3; }
+static void paper_colour(paper_t *p, category_set_t *cats, double *r, double *g, double *b) {
+    category_info_t *c = category_set_get_by_id(cats, p->allcats[0]);
+    *r = c->r;
+    *g = c->g;
+    *b = c->b;
 }
 
 /* unused function
@@ -72,7 +63,7 @@ static void draw_paper(cairo_t *cr, map_env_t *map_env, paper_t *p) {
 
     // basic colour of paper
     double r, g, b;
-    paper_colour(p, &r, &g, &b);
+    paper_colour(p, map_env->category_set, &r, &g, &b);
 
     // older papers are more saturated in colour
     double saturation = 0.6 * (1 - age);
@@ -131,10 +122,10 @@ static void draw_big_labels(cairo_t *cr, map_env_t *map_env) {
 }
 
 static void draw_category_labels(cairo_t *cr, map_env_t *map_env) {
-    for (int i = 0; i < CAT_NUMBER_OF; i++) {
-        category_info_t *cat = &map_env->category_info[i];
+    for (int i = 0; i < category_set_get_num(map_env->category_set); i++) {
+        category_info_t *cat = category_set_get_by_id(map_env->category_set, i);
         if (cat->num > 0) {
-            const char *str = category_enum_to_str(i);
+            const char *str = cat->cat_name;
             double x = cat->x;
             double y = cat->y;
             map_env_world_to_screen(map_env, &x, &y);

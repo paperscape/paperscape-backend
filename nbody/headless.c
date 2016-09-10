@@ -19,6 +19,7 @@ static int usage(const char *progname) {
     printf("options:\n");
     printf("    --start-afresh            start the graph layout afresh (default is to process\n");
     printf("                              only new papers); enabling this enables --write-json\n");
+    printf("    --cats-json <file>        load categories from given JSON file (default is no cats)\n");
     printf("    --layout-json <file>      load layout from given JSON file (default is from DB)\n");
     printf("    --refs-json <file>        load reference data from JSON file (default is from DB)\n");
     printf("    --other-links <file>      load additional links from JSON file\n");
@@ -45,6 +46,7 @@ int main(int argc, char *argv[]) {
     bool arg_no_fake_links       = false;
     double arg_anti_grav_rsq     = -1;
     double arg_link_strength     = -1;
+    const char *arg_cats_json    = NULL;
     const char *arg_layout_json  = NULL;
     const char *arg_refs_json    = NULL;
     const char *arg_other_links  = NULL;
@@ -54,6 +56,12 @@ int main(int argc, char *argv[]) {
         if (streq(argv[a], "--start-afresh")) {
             arg_start_afresh = true;
             arg_write_json = true;
+        } else if (streq(argv[a], "--cats-json")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_cats_json = argv[a];
         } else if (streq(argv[a], "--layout-json")) {
             a += 1;
             if (a >= argc) {
@@ -109,17 +117,27 @@ int main(int argc, char *argv[]) {
     // print info about the where clause being used
     printf("using where clause: %s\n", where_clause);
 
+    // load the categories from JSON file
+    category_set_t *category_set;
+    if (arg_cats_json == NULL) {
+        category_set = category_set_new();
+    } else {
+        if (!json_load_categories(arg_cats_json, &category_set)) {
+            return 1;
+        }
+    }
+
     int num_papers;
     paper_t *papers;
     hashmap_t *keyword_set;
     if (arg_refs_json == NULL) {
         // load the papers from the DB
-        if (!mysql_load_papers(where_clause, false, &num_papers, &papers, &keyword_set)) {
+        if (!mysql_load_papers(where_clause, false, category_set, &num_papers, &papers, &keyword_set)) {
             return 1;
         }
     } else {
         // load the papers from JSON file
-        if (!json_load_papers(arg_refs_json, &num_papers, &papers, &keyword_set)) {
+        if (!json_load_papers(arg_refs_json, category_set, &num_papers, &papers, &keyword_set)) {
             return 1;
         }
     }
@@ -131,7 +149,7 @@ int main(int argc, char *argv[]) {
     }
 
     // create the map object
-    map_env_t *map_env = map_env_new();
+    map_env_t *map_env = map_env_new(category_set);
 
     if (arg_start_afresh && arg_no_fake_links) {
         // if starting afresh, allow user to disable fake link generation
@@ -201,7 +219,8 @@ int main(int argc, char *argv[]) {
     // align the map in a fixed direction
     if (!arg_start_afresh) {
         // TODO currently hardcoded for Paperscape
-        map_env_orient_using_category(map_env, CAT_hep_ph, 4.2);
+        category_info_t *c = category_set_get_by_name(category_set, "hep-ph", strlen("hep-ph"));
+        map_env_orient_using_category(map_env, c, 4.2);
     } else if (num_papers > 0) {
         map_env_orient_using_paper(map_env, &papers[0], 0);
     }

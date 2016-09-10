@@ -13,7 +13,7 @@
 #include "quadtree.h"
 #include "map.h"
 
-map_env_t *map_env_new() {
+map_env_t *map_env_new(category_set_t *cats) {
     map_env_t *map_env = m_new(map_env_t, 1);
     map_env->max_num_papers = 0;
     map_env->all_papers = NULL;
@@ -53,6 +53,7 @@ map_env_t *map_env_new() {
     map_env->y_sd = 1;
 
     map_env->keyword_set = NULL;
+    map_env->category_set = cats;
 
     return map_env;
 }
@@ -99,7 +100,7 @@ void map_env_random_papers(map_env_t *map_env, int n) {
     for (int i = 0; i < n; i++) {
         paper_t *p = &map_env->all_papers[i];
         paper_init(p, i + 1);
-        p->allcats[0] = random() % CAT_NUMBER_OF;
+        p->allcats[0] = random() % map_env->category_set->num_cats;
         p->index = i;
         p->radius = 0.1 + 0.05 / (0.01 + 1.0 * random() / RAND_MAX);
         if (p->radius > 4) { p->radius = 4; }
@@ -319,7 +320,7 @@ void map_env_rotate_all(map_env_t *map_env, double angle) {
     layout_rotate_all(map_env->layout, angle);
 }
 
-void map_env_orient_using_category(map_env_t *map_env, category_t wanted_cat, double wanted_angle) {
+void map_env_orient_using_category(map_env_t *map_env, category_info_t *wanted_cat, double wanted_angle) {
     // must be finest layout and must have at least 1 node
     if (map_env->layout->child_layout != NULL || map_env->layout->num_nodes == 0) {
         return;
@@ -331,7 +332,7 @@ void map_env_orient_using_category(map_env_t *map_env, category_t wanted_cat, do
     double mass_cat = 0.0;
     for (int i = 0; i < map_env->layout->num_nodes; i++) {
         layout_node_t *n = &map_env->layout->nodes[i];
-        if (n->paper->allcats[0] == wanted_cat) {
+        if (n->paper->allcats[0] == wanted_cat->cat_id) {
             avg_cat_x += n->mass * n->x;
             avg_cat_y += n->mass * n->y;
             mass_cat += n->mass;
@@ -340,13 +341,13 @@ void map_env_orient_using_category(map_env_t *map_env, category_t wanted_cat, do
 
     // orient papers
     if (mass_cat == 0.0) {
-        printf("could not orient graph using category %s\n", category_enum_to_str(wanted_cat));
+        printf("could not orient graph using category %s\n", wanted_cat->cat_name);
     } else {
         avg_cat_x /= mass_cat;
         avg_cat_y /= mass_cat;
         double angle = wanted_angle - atan2(avg_cat_y, avg_cat_x);
         layout_rotate_all(map_env->layout, angle);
-        printf("rotated graph by %.2f rad to orient %s at %.2f rad\n", angle, category_enum_to_str(wanted_cat), wanted_angle);
+        printf("rotated graph by %.2f rad to orient %s at %.2f rad\n", angle, wanted_cat->cat_name, wanted_angle);
     }
 }
 
@@ -400,8 +401,8 @@ void attract_disconnected_to_centre_of_category(map_env_t *map_env) {
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
         if (!p->connected) {
-            for (int j = 0; j < COMMON_PAPER_MAX_CATS && p->allcats[j] != CAT_UNKNOWN; j++) {
-                category_info_t *cat = &map_env->category_info[p->allcats[j]];
+            for (int j = 0; j < COMMON_PAPER_MAX_CATS && p->allcats[j] != CATEGORY_UNKNOWN_ID; j++) {
+                category_info_t *cat = category_set_get_by_id(map_env->category_set, p->allcats[j]);
 
                 double dx = p->layout_node->x - cat->x;
                 double dy = p->layout_node->y - cat->y;
@@ -489,21 +490,21 @@ void compute_keyword_force(force_params_t *param, int num_papers, paper_t **pape
 */
 
 static void compute_category_locations(map_env_t *map_env) {
-    for (int i = 0; i < CAT_NUMBER_OF; i++) {
-        category_info_t *cat = &map_env->category_info[i];
+    for (int i = 0; i < category_set_get_num(map_env->category_set); i++) {
+        category_info_t *cat = category_set_get_by_id(map_env->category_set, i);
         cat->num = 0;
         cat->y = 0.0;
         cat->x = 0.0;
     }
     for (int i = 0; i < map_env->num_papers; i++) {
         paper_t *p = map_env->papers[i];
-        category_info_t *cat = &map_env->category_info[p->allcats[0]];
+        category_info_t *cat = category_set_get_by_id(map_env->category_set, p->allcats[0]);
         cat->num += 1;
         cat->x += p->layout_node->x;
         cat->y += p->layout_node->y;
     }
-    for (int i = 0; i < CAT_NUMBER_OF; i++) {
-        category_info_t *cat = &map_env->category_info[i];
+    for (int i = 0; i < category_set_get_num(map_env->category_set); i++) {
+        category_info_t *cat = category_set_get_by_id(map_env->category_set, i);
         if (cat->num > 0) {
             cat->x /= cat->num;
             cat->y /= cat->num;
@@ -790,7 +791,7 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
     paper->fake_links = m_new(paper_t*, paper->num_keywords == 0 ? 1 : paper->num_keywords);
 
     // want to make links only to papers in the same main category
-    category_t want_cat = paper->allcats[0];
+    size_t want_cat = paper->allcats[0];
 
     // go through all the keywords for this paper
     for (int i = 0; i < paper->num_keywords; i++) {
@@ -939,7 +940,7 @@ void map_env_select_date_range(map_env_t *map_env, unsigned int id_start, unsign
     int total_fake_papers = 0;
     int total_fake_links = 0;
     if (map_env->make_fake_links) {
-        for (int cat = 0; cat < CAT_NUMBER_OF; cat++) {
+        for (int cat = 0; cat < category_set_get_num(map_env->category_set); cat++) {
             // for each keyword, find the paper in this category that has the largest mass
             hashmap_clear_all_values(map_env->keyword_set, 0);
             for (int i = 0; i < map_env->num_papers; i++) {
@@ -979,7 +980,7 @@ void map_env_select_date_range(map_env_t *map_env, unsigned int id_start, unsign
         paper_t *p = map_env->papers[i];
         if (p->included && !p->connected) {
             if (map_env->make_fake_links) {
-                printf("WARNING: could not connect paper %u with fake links; allcats[0]=%s, keywords=", p->id, category_enum_to_str(p->allcats[0]));
+                printf("WARNING: could not connect paper %u with fake links; allcats[0]=%s, keywords=", p->id, category_set_get_by_id(map_env->category_set, p->allcats[0])->cat_name);
                 for (int j = 0; j < p->num_keywords; j++) {
                     printf("%s,", p->keywords[j]->keyword);
                 }
