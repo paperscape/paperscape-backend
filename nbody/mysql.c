@@ -202,14 +202,22 @@ static bool env_load_ids(env_t *env, init_config_t *init_config, bool load_autho
         paper_init(paper, id);
 
         // parse categories
+        float def_col[3] = {1,1,1};
         int cat_num = 0;
         for (char *start = row[1], *cur = row[1]; cat_num < COMMON_PAPER_MAX_CATS; cur++) {
             if (*cur == ',' || *cur == '\0') {
                 category_info_t *cat = category_set_get_by_name(env->category_set, start, cur - start);
                 if (cat == NULL) {
-                    // print unknown categories; for adding to input JSON file
-                    printf("%.*s\n", (int)(cur - start), start);
-                } else {
+                    if (load_authors_and_titles) {
+                        // 'load_authors_and_titles' indicated we're in gui mode (could be renamed)
+                        // in this case print unknown categories; for adding to input JSON file
+                        printf("warning: no colour for category %.*s\n", (int)(cur - start), start);
+                    }
+                    // include it in category set anyway, as it may still be needed to make fake links
+                    category_set_add_category(env->category_set, start, cur - start, def_col);  
+                    cat = category_set_get_by_name(env->category_set, start, cur - start);
+                } 
+                if (cat != NULL) {
                     if (cat->cat_id > 255) {
                         // we use a byte to store the cat id, so it must be small enough
                         printf("error: too many categories to store as a byte\n");
