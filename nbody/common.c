@@ -149,14 +149,6 @@ void paper_init(paper_t *p, unsigned int id) {
     p->id = id;
 }
 
-static const char *category_string[] = {
-    "unknown",
-    "inspire",
-#define CAT(id, str) str,
-#include "cats.h"
-#undef CAT
-};
-
 unsigned int date_to_unique_id(int y, int m, int d) {
     return ((unsigned int)y - 1800) * 10000000 + (unsigned int)m * 625000 + (unsigned int)d * 15625;
 }
@@ -165,28 +157,6 @@ void unique_id_to_date(unsigned int id, int *y, int *m, int *d) {
     *y = id / 10000000 + 1800;
     *m = ((id % 10000000) / 625000) + 1;
     *d = ((id % 625000) / 15625) + 1;
-}
-
-const char *category_enum_to_str(category_t cat) {
-    return category_string[cat];
-}
-
-category_t category_str_to_enum(const char *str) {
-    for (int i = 0; i < CAT_NUMBER_OF; i++) {
-        if (streq(category_string[i], str)) {
-            return i;
-        }
-    }
-    return CAT_UNKNOWN;
-}
-
-category_t category_strn_to_enum(const char *str, size_t n) {
-    for (int i = 0; i < CAT_NUMBER_OF; i++) {
-        if (strncmp(category_string[i], str, n) == 0 && category_string[i][n] == '\0') {
-            return i;
-        }
-    }
-    return CAT_UNKNOWN;
 }
 
 // compute the citations from the references

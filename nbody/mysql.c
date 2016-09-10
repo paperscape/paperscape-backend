@@ -6,6 +6,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "category.h"
 #include "layout.h"
 #include "mysql.h"
 
@@ -21,6 +22,7 @@ typedef struct _env_t {
     int num_papers;
     paper_t *papers;
     hashmap_t *keyword_set;
+    category_set_t *category_set;
 } env_t;
 
 static bool have_error(env_t *env) {
@@ -45,6 +47,7 @@ static bool env_set_up(env_t* env) {
     env->num_papers = 0;
     env->papers = NULL;
     env->keyword_set = hashmap_new();
+    env->category_set = NULL;
 
     // initialise the connection object
     if (mysql_init(&env->mysql) == NULL) {
@@ -202,12 +205,17 @@ static bool env_load_ids(env_t *env, init_config_t *init_config, bool load_autho
         int cat_num = 0;
         for (char *start = row[1], *cur = row[1]; cat_num < COMMON_PAPER_MAX_CATS; cur++) {
             if (*cur == ',' || *cur == '\0') {
-                category_t cat = category_strn_to_enum(start, cur - start);
-                if (cat == CAT_UNKNOWN) {
-                    // print unknown categories; for adding to cats.h
+                category_info_t *cat = category_set_get_by_name(env->category_set, start, cur - start);
+                if (cat == NULL) {
+                    // print unknown categories; for adding to input JSON file
                     printf("%.*s\n", (int)(cur - start), start);
                 } else {
-                    paper->allcats[cat_num++] = cat;
+                    if (cat->cat_id > 255) {
+                        // we use a byte to store the cat id, so it must be small enough
+                        printf("error: too many categories to store as a byte\n");
+                        exit(1);
+                    }
+                    paper->allcats[cat_num++] = cat->cat_id;
                 }
                 if (*cur == '\0') {
                     break;
@@ -217,7 +225,7 @@ static bool env_load_ids(env_t *env, init_config_t *init_config, bool load_autho
         }
         // fill in unused entries in allcats with UNKNOWN category
         for (; cat_num < COMMON_PAPER_MAX_CATS; cat_num++) {
-            paper->allcats[cat_num] = CAT_UNKNOWN;
+            paper->allcats[cat_num] = CATEGORY_UNKNOWN_ID;
         }
 
         // load authors and title if wanted
@@ -407,7 +415,7 @@ static bool env_load_keywords(env_t *env) {
                     while (kw_end < kws_end && *kw_end != ',') {
                         kw_end++;
                     }
-                    keyword_entry_t *unique_keyword = (keyword_entry_t*)hashmap_lookup_or_insert(env->keyword_set, kw, kw_end - kw);
+                    keyword_entry_t *unique_keyword = (keyword_entry_t*)hashmap_lookup_or_insert(env->keyword_set, kw, kw_end - kw, true);
                     if (unique_keyword != NULL) {
                         paper->keywords[paper->num_keywords++] = unique_keyword;
                     }
@@ -427,13 +435,16 @@ static bool env_load_keywords(env_t *env) {
     return true;
 }
 
-bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
+bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles, category_set_t *category_set, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env)) {
         env_finish(&env, true);
         return false;
     }
+
+    // set the category set for reference later
+    env.category_set = category_set;
 
     // load the DB
     if (!env_load_ids(&env, init_config, load_authors_and_titles)) {

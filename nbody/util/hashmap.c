@@ -56,7 +56,7 @@ void hashmap_clear_all_values(hashmap_t *hm, uintptr_t reset_value) {
     }
 }
 
-hashmap_entry_t *hashmap_lookup_or_insert(hashmap_t *hm, const char *key, size_t key_len) {
+hashmap_entry_t *hashmap_lookup_or_insert(hashmap_t *hm, const char *key, size_t key_len, bool allow_insert) {
     if (key_len == 0) {
         return NULL;
     }
@@ -91,9 +91,14 @@ hashmap_entry_t *hashmap_lookup_or_insert(hashmap_t *hm, const char *key, size_t
 
     // key not found in any table
 
+    if (!allow_insert) {
+        return NULL;
+    }
+
     // found an available slot, so use it
     if (avail_hmp != NULL) {
         avail_hmp->table[avail_pos].key = strndup(key, key_len);
+        avail_hmp->table[avail_pos].value = 0;
         avail_hmp->used += 1;
         if (10 * avail_hmp->used > 8 * avail_hmp->size) {
             // set the full flag if we reached a certain fraction of used entries
@@ -131,6 +136,7 @@ hashmap_entry_t *hashmap_lookup_or_insert(hashmap_t *hm, const char *key, size_t
 
     // make and insert new entry
     hmp->table[hash % hmp->size].key = strndup(key, key_len);
+    hmp->table[hash % hmp->size].value = 0;
     hmp->used += 1;
 
     // return new hashmap

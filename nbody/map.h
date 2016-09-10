@@ -3,14 +3,10 @@
 
 #include "util/hashmap.h"
 #include "common.h"
+#include "category.h"
 #include "quadtree.h"
 #include "layout.h"
 #include "force.h"
-
-typedef struct _category_info_t {
-    unsigned int num;       // number of papers in this category
-    float x, y;     // position of this category
-} category_info_t;
 
 typedef struct _map_env_t {
     // loaded
@@ -54,10 +50,10 @@ typedef struct _map_env_t {
     hashmap_t *keyword_set;
 
     // info for each category
-    category_info_t category_info[CAT_NUMBER_OF];
+    category_set_t *category_set;
 } map_env_t;
 
-map_env_t *map_env_new();
+map_env_t *map_env_new(category_set_t *cats);
 
 void map_env_set_init_config(map_env_t *map_env, init_config_t *init_config);
 void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, hashmap_t *keyword_set);
@@ -99,7 +95,7 @@ void map_env_coarsen_layout(map_env_t *map_env);
 void map_env_refine_layout(map_env_t *map_env);
 void map_env_jolt(map_env_t *map_env, double amt);
 void map_env_rotate_all(map_env_t *map_env, double angle);
-void map_env_orient_using_category(map_env_t *map_env, category_t wanted_cat, double wanted_angle);
+void map_env_orient_using_category(map_env_t *map_env, category_info_t *wanted_cat, double wanted_angle);
 void map_env_orient_using_paper(map_env_t *map_env, paper_t *wanted_paper, double wanted_angle);
 void map_env_flip_x(map_env_t *map_env);
 

@@ -55,7 +55,6 @@ func main() {
     outPrefix := flag.Arg(0)
 
     // connect to the db
-    //db := xiwi.ConnectToDB(*flagDB)
     db := ConnectToDB(*flagDB)
     if db == nil {
         return

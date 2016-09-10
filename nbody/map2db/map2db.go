@@ -4,9 +4,10 @@ import (
     "flag"
     "fmt"
     "os"
+    "strings"
     "encoding/json"
     "log"
-    "xiwi"
+    "github.com/yanatan16/GoMySQL"
 )
 
 var flagDB       = flag.String("db", "", "MySQL database to connect to")
@@ -22,7 +23,7 @@ func main() {
     }
 
     // connect to db
-    db := xiwi.ConnectToDB(*flagDB)
+    db := ConnectToDB(*flagDB)
     if db == nil {
         return
     }
@@ -79,3 +80,48 @@ func main() {
     stmt.Close()
 
 }
+
+func ConnectToDB(dbConnection string) *mysql.Client {
+    // connect to MySQL database; using a socket is preferred since it's faster
+    var db *mysql.Client
+    var err error
+
+    mysql_host := os.Getenv("PSCP_MYSQL_HOST")
+    mysql_user := os.Getenv("PSCP_MYSQL_USER")
+    mysql_pwd  := os.Getenv("PSCP_MYSQL_PWD")
+    mysql_db   := os.Getenv("PSCP_MYSQL_DB")
+    mysql_sock := os.Getenv("PSCP_MYSQL_SOCKET")
+
+    // if nothing requested, default to something sensible
+    if dbConnection == "" {
+        if fileExists(mysql_sock) {
+            dbConnection = mysql_sock
+        } else {
+            dbConnection = mysql_host
+        }
+    }
+
+    // make the connection
+    if strings.HasSuffix(dbConnection, ".sock") {
+        db, err = mysql.DialUnix(dbConnection, mysql_user, mysql_pwd, mysql_db)
+    } else {
+        db, err = mysql.DialTCP(dbConnection, mysql_user, mysql_pwd, mysql_db)
+    }
+
+
+    if err != nil {
+        fmt.Println("cannot connect to database;", err)
+        return nil
+    } else {
+        fmt.Println("connected to database:", dbConnection)
+        return db
+    }
+    return db
+}
+
+// returns whether the given file or directory exists or not
+func fileExists(path string) bool {
+    _, err := os.Stat(path)
+    return err == nil
+}
+

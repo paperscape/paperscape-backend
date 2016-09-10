@@ -518,6 +518,7 @@ static int usage(const char *progname) {
     printf("\n");
     printf("options:\n");
     printf("    --settings, -s <file>   load settings from given JSON file\n");
+    printf("    --cats-json <file>   load categories from given JSON file (default is no cats)\n");
     printf("    --layout-db             load layout from DB\n");
     printf("    --layout-json <file>    load layout from given JSON file\n");
     printf("    --refs-json <file>      load reference data from JSON file (default is from DB)\n");
@@ -537,6 +538,7 @@ int main(int argc, char *argv[]) {
     bool arg_layout_db          = false;
     bool arg_no_fake_links      = false;
     const char *arg_settings    = NULL;
+    const char *arg_cats_json    = NULL;
     const char *arg_layout_json = NULL;
     const char *arg_refs_json   = NULL;
     for (int a = 1; a < argc; a++) {
@@ -558,6 +560,12 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
+        } else if (streq(argv[a], "--cats-json")) {
+            a += 1;
+            if (a >= argc) {
+                return usage(argv[0]);
+            }
+            arg_cats_json = argv[a];
         } else if (streq(argv[a], "--layout-db")) {
             arg_layout_db = true;
         } else if (streq(argv[a], "--layout-json")) {
@@ -602,25 +610,35 @@ int main(int argc, char *argv[]) {
     //const char *where_clause = "(maincat='math') AND id >= 1900000000";
     //const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
 
+    // load the categories from JSON file
+    category_set_t *category_set;
+    if (arg_cats_json == NULL) {
+        category_set = category_set_new();
+    } else {
+        if (!json_load_categories(arg_cats_json, &category_set)) {
+            return 1;
+        }
+    }
+
     // load the papers from the DB
     int num_papers;
     paper_t *papers;
     hashmap_t *keyword_set;
     if (arg_refs_json == NULL) {
         // load the papers from the DB
-        if (!mysql_load_papers(init_config, true, &num_papers, &papers, &keyword_set)) {
+        if (!mysql_load_papers(init_config, true, category_set, &num_papers, &papers, &keyword_set)) {
             return 1;
         }
     } else {
         // load the papers from a JSON file
         // NOTE: this does not load authors and titles or keywords
-        if (!json_load_papers(arg_refs_json, &num_papers, &papers, &keyword_set)) {
+        if (!json_load_papers(arg_refs_json, category_set, &num_papers, &papers, &keyword_set)) {
             return 1;
         }
     }
 
     // create the map object
-    map_env_t *map_env = map_env_new();
+    map_env_t *map_env = map_env_new(category_set);
 
     // set initial configuration
     map_env_set_init_config(map_env,init_config);
