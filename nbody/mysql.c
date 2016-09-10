@@ -386,7 +386,7 @@ static bool env_load_keywords(env_t *env) {
                     while (kw_end < kws_end && *kw_end != ',') {
                         kw_end++;
                     }
-                    keyword_entry_t *unique_keyword = (keyword_entry_t*)hashmap_lookup_or_insert(env->keyword_set, kw, kw_end - kw);
+                    keyword_entry_t *unique_keyword = (keyword_entry_t*)hashmap_lookup_or_insert(env->keyword_set, kw, kw_end - kw, true);
                     if (unique_keyword != NULL) {
                         paper->keywords[paper->num_keywords++] = unique_keyword;
                     }
