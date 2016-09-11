@@ -14,9 +14,10 @@
 "sql":{
     "meta_table":{
         "name":"meta_data",
-        "extra_clause":"WHERE (maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'dx' OR maincat = 'dw') ORDER BY rand() LIMIT 500000",
+        "clause":"WHERE (maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'dx' OR maincat = 'dw') ORDER BY rand() LIMIT 500000",
         "field_id":"id",
         "field_allcats":"catcodes",
+        "field_title":"",
         "field_authors":"",
         "field_allcats":"",
         "field_keywords":""
@@ -25,9 +26,9 @@
         "name":"pcite",
         "field_id":"id",
         "field_refs":"refs",
-        "refblob_order":false,
-        "refblob_freq":false,
-        "refblob_cites":true
+        "rblob_order":false,
+        "rblob_freq":false,
+        "rblob_cites":true
     },
     "map_table":{
         "name":"map_data",

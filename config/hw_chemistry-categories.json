@@ -1,0 +1,14 @@
+[
+    {"cat":"dy", "col":[1, 0, 0], "descr":"Chemistry Multidisciplinary"},
+    {"cat":"ei", "col":[0, 1, 0], "descr":"Chemistry, Physical"},
+    {"cat":"pm", "col":[0.6, 0.4, 0.4], "descr":"Materials Science, Multidisciplinary"},
+    {"cat":"ee", "col":[0, 0, 1], "descr":"Chemistry, Organic"},
+    {"cat":"uy", "col":[0.4, 0.6, 0.4], "descr":"Polymer Science"},
+    {"cat":"ea", "col":[1, 1, 0], "descr":"Chemistry, Analytical"},
+    {"cat":"ec", "col":[0, 1, 1], "descr":"Chemistry, Inorganic & Nuclear"},
+    {"cat":"fi", "col":[0.4, 0.4, 0.6], "descr":"Crystallography"},
+    {"cat":"hq", "col":[1, 0, 1], "descr":"Electrochemistry"},
+    {"cat":"xq", "col":[0.7, 0.2, 0.2], "descr":"Spectroscopy"},
+    {"cat":"dx", "col":[0.89, 0.52, 0.60], "descr":"Chemistry, Medicinal"},
+    {"cat":"dw", "col":[0.2, 0.7, 0.2], "descr":"Chemistry, Applied"}
+]

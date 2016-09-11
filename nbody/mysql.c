@@ -400,7 +400,7 @@ static bool env_load_keywords(env_t *env) {
     const char *keywords   = env->config->sql_meta_field_keywords;
     if (strcmp(keywords,"") == 0) {
         printf("no keywords table specified, skipping...\n");
-        return false;
+        return true;
     }
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
