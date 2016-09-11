@@ -57,8 +57,8 @@ bool init_config_new(const char *filename, init_config_t **config) {
     (*config)->force_close_repulsion_c        = 1.1;
     (*config)->force_close_repulsion_d        = 0.6;
     (*config)->force_link_strength            = 1.17;
-    (*config)->force_use_ref_freq             = true;
     (*config)->force_anti_gravity_falloff_rsq = 1e6;
+    (*config)->force_use_ref_freq             = true;
     (*config)->force_initial_close_repulsion  = false;
     // attempt to set from JSON file
     jsmntok_t *forces_tok;
@@ -80,13 +80,13 @@ bool init_config_new(const char *filename, init_config_t **config) {
             (*config)->force_link_strength            = link_val.real;
         }
         if(jsmn_env_get_object_member_value_boolean(&jsmn_env, forces_tok, "use_ref_freq", &use_rf_val)) {
-            (*config)->force_use_ref_freq             = use_rf_val.real;
+            (*config)->force_use_ref_freq             = (use_rf_val.kind == JSMN_VALUE_TRUE);
         }
         if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "anti_gravity_falloff_rsq", JSMN_VALUE_REAL, &anti_grav_val)) {
             (*config)->force_anti_gravity_falloff_rsq = anti_grav_val.real;
         }
         if(jsmn_env_get_object_member_value_boolean(&jsmn_env, forces_tok, "initial_close_repulsion", &do_cr_val)) {
-            (*config)->force_initial_close_repulsion  = do_cr_val.real;
+            (*config)->force_initial_close_repulsion  = (do_cr_val.kind == JSMN_VALUE_TRUE);
         }
     }
 
@@ -100,9 +100,9 @@ bool init_config_new(const char *filename, init_config_t **config) {
     (*config)->sql_meta_clause         = "WHERE (arxiv IS NOT NULL AND status != 'WDN')";
     (*config)->sql_meta_field_id       = "id";
     (*config)->sql_meta_field_allcats  = "allcats";
-    (*config)->sql_meta_field_title    = "";
-    (*config)->sql_meta_field_authors  = "";
-    (*config)->sql_meta_field_keywords = "";
+    (*config)->sql_meta_field_title    = '\0';
+    (*config)->sql_meta_field_authors  = '\0';
+    (*config)->sql_meta_field_keywords = '\0';
     (*config)->sql_refs_name           = "pcite";
     (*config)->sql_refs_field_id       = "id";
     (*config)->sql_refs_field_refs     = "refs";
@@ -118,25 +118,25 @@ bool init_config_new(const char *filename, init_config_t **config) {
         if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "meta_table", JSMN_OBJECT, &meta_tok)) {
             jsmn_env_token_value_t name_val, clause_val, id_val, title_val,authors_val,allcats_val, keywords_val;
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "name", JSMN_VALUE_STRING, &name_val)) {
-                (*config)->sql_meta_name = name_val.str;
+                (*config)->sql_meta_name = strdup(name_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "clause", JSMN_VALUE_STRING, &clause_val)) {
-                (*config)->sql_meta_clause = clause_val.str;
+                (*config)->sql_meta_clause = strdup(clause_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_id", JSMN_VALUE_STRING, &id_val)) {
-                (*config)->sql_meta_field_id = id_val.str;
+                (*config)->sql_meta_field_id = strdup(id_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_title", JSMN_VALUE_STRING, &title_val)) {
-                (*config)->sql_meta_field_title = title_val.str;
+                (*config)->sql_meta_field_title = strdup(title_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_authors", JSMN_VALUE_STRING, &authors_val)) {
-                (*config)->sql_meta_field_authors = authors_val.str;
+                (*config)->sql_meta_field_authors = strdup(authors_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_allcats", JSMN_VALUE_STRING, &allcats_val)) {
-                (*config)->sql_meta_field_allcats = allcats_val.str;
+                (*config)->sql_meta_field_allcats = strdup(allcats_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_keywords", JSMN_VALUE_STRING, &keywords_val)) {
-                (*config)->sql_meta_field_keywords = keywords_val.str;
+                (*config)->sql_meta_field_keywords = strdup(keywords_val.str);
             }
 
         }
@@ -146,13 +146,13 @@ bool init_config_new(const char *filename, init_config_t **config) {
         if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "refs_table", JSMN_OBJECT, &refs_tok)) {
             jsmn_env_token_value_t name_val, id_val, refs_val, ref_freq_val, ref_order_val, ref_cites_val;
             if(jsmn_env_get_object_member_value(&jsmn_env, refs_tok, "name", JSMN_VALUE_STRING, &name_val)) {
-                (*config)->sql_refs_name = name_val.str;
+                (*config)->sql_refs_name = strdup(name_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, refs_tok, "field_id", JSMN_VALUE_STRING, &id_val)) {
-                (*config)->sql_refs_field_id = id_val.str;
+                (*config)->sql_refs_field_id = strdup(id_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, refs_tok, "field_refs", JSMN_VALUE_STRING, &refs_val)) {
-                (*config)->sql_refs_field_refs = refs_val.str;
+                (*config)->sql_refs_field_refs = strdup(refs_val.str);
             }
             if(jsmn_env_get_object_member_value_boolean(&jsmn_env, refs_tok, "rblob_order", &ref_order_val)) {
                 (*config)->sql_refs_rblob_order = (ref_order_val.kind == JSMN_VALUE_TRUE);
@@ -170,19 +170,19 @@ bool init_config_new(const char *filename, init_config_t **config) {
         if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "map_table", JSMN_OBJECT, &map_tok)) {
             jsmn_env_token_value_t name_val, id_val, x_val, y_val, r_val;
             if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "name", JSMN_VALUE_STRING, &name_val)) {
-                (*config)->sql_map_name = name_val.str;
+                (*config)->sql_map_name = strdup(name_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "field_id", JSMN_VALUE_STRING, &id_val)) {
-                (*config)->sql_map_field_id = id_val.str;
+                (*config)->sql_map_field_id = strdup(id_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "field_x", JSMN_VALUE_STRING, &x_val)) {
-                (*config)->sql_map_field_x = x_val.str;
+                (*config)->sql_map_field_x = strdup(x_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "field_y", JSMN_VALUE_STRING, &y_val)) {
-                (*config)->sql_map_field_y = y_val.str;
+                (*config)->sql_map_field_y = strdup(y_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "field_r", JSMN_VALUE_STRING, &r_val)) {
-                (*config)->sql_map_field_r = r_val.str;
+                (*config)->sql_map_field_r = strdup(r_val.str);
             }
         }
     }
