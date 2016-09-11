@@ -127,9 +127,6 @@ bool jsmn_env_next_object(jsmn_env_t *jsmn_env, bool *more_objects) {
     } else if (c == ',') {
         // more entries in array
         *more_objects = true;
-    } else {
-        // end of file
-        *more_objects = false;
     }
 
     jsmn_init(&jsmn_env->js_parser);
@@ -319,25 +316,44 @@ bool jsmn_env_get_object_member(jsmn_env_t *jsmn_env, jsmntok_t *object, const c
     return false;
 }
 
-// same as jsmn_env_get_object_member, but must match given type
-bool jsmn_env_get_object_member_of_type(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmn_env_value_kind_t wanted_type, jsmntok_t **found_token, jsmn_env_token_value_t *found_value) {
-    if(!jsmn_env_get_object_member(jsmn_env,object,wanted_member,found_token,found_value)) {
+// similar to jsmn_env_get_object_member, but only gives value, which must match given kind
+bool jsmn_env_get_object_member_value(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmn_env_value_kind_t wanted_kind, jsmn_env_token_value_t *found_value) {
+    if (found_value == NULL) {
+        return jsmn_env_error(jsmn_env, "object member value can't assign to null");
+    }
+    if(!jsmn_env_get_object_member(jsmn_env,object,wanted_member,NULL,found_value)) {
         return false;
     }
-    if (found_value->kind != wanted_type) {
-        return jsmn_env_error(jsmn_env, "received value of wrong type");
+    if (found_value->kind != wanted_kind) {
+        return jsmn_env_error(jsmn_env, "object member value is of wrong kind");
     }
     return true;
 }
 
-// same as jsmn_env_get_object_member, but must be boolean
-bool jsmn_env_get_object_member_boolean(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntok_t **found_token, jsmn_env_token_value_t *found_value) {
-    if(!jsmn_env_get_object_member(jsmn_env,object,wanted_member,found_token,found_value)) {
+// similar to jsmn_env_get_object_member, but only gives value, which must be boolean
+bool jsmn_env_get_object_member_value_boolean(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmn_env_token_value_t *found_value) {
+    if (found_value == NULL) {
+        return jsmn_env_error(jsmn_env, "object member value can't assign to null");
+    }
+    if(!jsmn_env_get_object_member(jsmn_env,object,wanted_member,NULL,found_value)) {
         return false;
     }
     if (found_value->kind != JSMN_VALUE_TRUE && found_value->kind != JSMN_VALUE_FALSE) {
-        return jsmn_env_error(jsmn_env, "received value of non-boolean type");
+        return jsmn_env_error(jsmn_env, "object member value is of non-boolean kind");
     }
     return true;
 }
 
+// similar to jsmn_env_get_object_member, but only gives token, which must match given type
+bool jsmn_env_get_object_member_token(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntype_t wanted_type, jsmntok_t **found_token) {
+    if (found_token == NULL) {
+        return jsmn_env_error(jsmn_env, "object member token can't assign to null");
+    }
+    if(!jsmn_env_get_object_member(jsmn_env,object,wanted_member,found_token,NULL)) {
+        return false;
+    }
+    if ((*found_token)->type != wanted_type) {
+        return jsmn_env_error(jsmn_env, "object member token is of wrong type");
+    }
+    return true;
+}

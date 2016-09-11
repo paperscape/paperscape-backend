@@ -48,7 +48,9 @@ bool jsmn_env_get_num_entries(jsmn_env_t *env, int *num_entries);
 bool jsmn_env_error(jsmn_env_t *jsmn_env, const char *msg);
 
 bool jsmn_env_get_object_member(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntok_t **found_token, jsmn_env_token_value_t *found_value);
-bool jsmn_env_get_object_member_of_type(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmn_env_value_kind_t wanted_type, jsmntok_t **found_token, jsmn_env_token_value_t *found_value);
-bool jsmn_env_get_object_member_boolean(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntok_t **found_token, jsmn_env_token_value_t *found_value);
+
+bool jsmn_env_get_object_member_value(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmn_env_value_kind_t wanted_kind, jsmn_env_token_value_t *found_value);
+bool jsmn_env_get_object_member_value_boolean(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmn_env_token_value_t *found_value);
+bool jsmn_env_get_object_member_token(jsmn_env_t *jsmn_env, jsmntok_t *object, const char *wanted_member, jsmntype_t wanted_type,  jsmntok_t **found_token);
 
 #endif /* __JSMNENV_H_ */

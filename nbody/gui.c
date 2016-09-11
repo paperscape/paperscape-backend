@@ -518,7 +518,9 @@ static int usage(const char *progname) {
     printf("\n");
     printf("options:\n");
     printf("    --settings, -s <file>   load settings from given JSON file\n");
-    printf("    --cats-json <file>   load categories from given JSON file (default is no cats)\n");
+    printf("                            (default is '../config/arxiv-settings.json')\n");
+    printf("    --cats-json <file>      load categories from given JSON file\n");
+    printf("                            (default is '../config/arxiv-categories.json')\n");
     printf("    --layout-db             load layout from DB\n");
     printf("    --layout-json <file>    load layout from given JSON file\n");
     printf("    --refs-json <file>      load reference data from JSON file (default is from DB)\n");
@@ -537,8 +539,8 @@ int main(int argc, char *argv[]) {
     double arg_link_strength    = -1;
     bool arg_layout_db          = false;
     bool arg_no_fake_links      = false;
-    const char *arg_settings    = NULL;
-    const char *arg_cats_json    = NULL;
+    const char *arg_settings    = "../config/arxiv-settings.json";
+    const char *arg_cats_json   = "../config/arxiv-categories.json";
     const char *arg_layout_json = NULL;
     const char *arg_refs_json   = NULL;
     for (int a = 1; a < argc; a++) {
@@ -588,12 +590,8 @@ int main(int argc, char *argv[]) {
     }
 
     // load settings from json file
-    const char *settings_file = "settings/default.json";
-    if (arg_settings != NULL) {
-        settings_file = arg_settings;
-    }
-    init_config_t *init_config = init_config_new(settings_file);
-    if (init_config == NULL) {
+    init_config_t *init_config;
+    if (!init_config_new(arg_settings,&init_config)) {
         return 1;
     }
 

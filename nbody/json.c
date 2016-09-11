@@ -56,19 +56,18 @@ static bool load_categories(jsmn_env_t *env, json_data_t *data) {
 
         // look for the cat member
         jsmn_env_token_value_t cat_val;
-        if (!jsmn_env_get_object_member_of_type(env, env->js_tok, "cat", JSMN_VALUE_STRING, NULL, &cat_val)) {
+        if (!jsmn_env_get_object_member_value(env, env->js_tok, "cat", JSMN_VALUE_STRING, &cat_val)) {
             return false;
         }
 
         // look for the col member
         jsmntok_t *col_tok;
-        if (!jsmn_env_get_object_member_of_type(env, env->js_tok, "col", JSMN_ARRAY, &col_tok, NULL)) {
+        if (!jsmn_env_get_object_member_token(env, env->js_tok, "col", JSMN_ARRAY, &col_tok)) {
             return false;
         }
 
         // check the col is an array of length 3
         if (col_tok->size != 3) {
-            //return have_error(env, "expecting an array of size 3");
             return jsmn_env_error(env,"expecting an array of size 3");
         }
 

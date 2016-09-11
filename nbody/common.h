@@ -75,7 +75,7 @@ typedef struct _keyword_entry_t {
     paper_t *paper;     // for general use
 } keyword_entry_t;
 
-init_config_t* init_config_new(const char *filename);
+bool init_config_new(const char *filename, init_config_t **config);
 
 void paper_init(paper_t *p, unsigned int id);
 

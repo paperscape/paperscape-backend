@@ -18,14 +18,13 @@ static int usage(const char *progname) {
     printf("\n");
     printf("options:\n");
     printf("    --settings, -s <file>     load settings from given JSON file\n");
+    printf("                              (default is '../config/arxiv-settings.json')\n");
     printf("    --start-afresh            start the graph layout afresh (default is to process\n");
     printf("                              only new papers); enabling this enables --write-json\n");
     printf("    --cats-json <file>        load categories from given JSON file (default is no cats)\n");
     printf("    --layout-json <file>      load layout from given JSON file (default is from DB)\n");
     printf("    --refs-json <file>        load reference data from JSON file (default is from DB)\n");
     printf("    --other-links <file>      load additional links from JSON file\n");
-    printf("    --whole-arxiv             process all papers from the arxiv (default is to\n");
-    printf("                              process only a small, test subset)\n");
     printf("    --write-db                write positions to DB (default is not to)\n");
     printf("    --write-json              write positions to json file (default is not to)\n");
     printf("    --no-fake-links, -nf      don't create fake links; --start-afresh must also be set\n");
@@ -47,7 +46,7 @@ int main(int argc, char *argv[]) {
     bool arg_no_fake_links       = false;
     double arg_anti_grav_rsq     = -1;
     double arg_link_strength     = -1;
-    const char *arg_settings     = NULL;
+    const char *arg_settings     = "../config/arxiv-settings.json";
     const char *arg_cats_json    = NULL;
     const char *arg_layout_json  = NULL;
     const char *arg_refs_json    = NULL;
@@ -124,12 +123,8 @@ int main(int argc, char *argv[]) {
     }
 
     // load settings from json file
-    const char *settings_file = "settings/default.json";
-    if (arg_settings != NULL) {
-        settings_file = arg_settings;
-    }
-    init_config_t *init_config = init_config_new(settings_file);
-    if (init_config == NULL) {
+    init_config_t *init_config;
+    if (!init_config_new(arg_settings,&init_config)) {
         return 1;
     }
 
