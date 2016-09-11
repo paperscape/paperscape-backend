@@ -90,45 +90,99 @@ bool init_config_new(const char *filename, init_config_t **config) {
         }
     }
 
+
+
     // look for member: sql 
     // ====================
     // set defaults
-    (*config)->sql_extra_clause    = "WHERE (arxiv IS NOT NULL AND status != 'WDN')";
-    (*config)->sql_authors_titles  = true;
-    (*config)->sql_keywords        = true;
-    (*config)->sql_rblob_ref_order = true;
-    (*config)->sql_rblob_ref_freq  = true;
-    (*config)->sql_rblob_ref_cites = true;
+    // fields defaulted to empty are not used if not specified
+    (*config)->sql_meta_name           = "meta_data";
+    (*config)->sql_meta_clause         = "WHERE (arxiv IS NOT NULL AND status != 'WDN')";
+    (*config)->sql_meta_field_id       = "id";
+    (*config)->sql_meta_field_allcats  = "allcats";
+    (*config)->sql_meta_field_title    = "";
+    (*config)->sql_meta_field_authors  = "";
+    (*config)->sql_meta_field_keywords = "";
+    (*config)->sql_refs_name           = "pcite";
+    (*config)->sql_refs_field_id       = "id";
+    (*config)->sql_refs_field_refs     = "refs";
+    (*config)->sql_refs_rblob_order    = true;
+    (*config)->sql_refs_rblob_freq     = true;
+    (*config)->sql_refs_rblob_cites    = true;
     // attempt to set from JSON file
     jsmntok_t *sql_tok;
     if(jsmn_env_get_object_member_token(&jsmn_env, jsmn_env.js_tok, "sql", JSMN_OBJECT, &sql_tok)) {
-        // look for member: authors_titles
-        jsmn_env_token_value_t authors_titles_val;
-        if(jsmn_env_get_object_member_value_boolean(&jsmn_env, sql_tok, "authors_titles", &authors_titles_val)) {
-            (*config)->sql_authors_titles = (authors_titles_val.kind == JSMN_VALUE_TRUE);
-        }
-        // look for member: keywords
-        jsmn_env_token_value_t keywords_val;
-        if(jsmn_env_get_object_member_value_boolean(&jsmn_env, sql_tok, "keywords", &keywords_val)) { 
-            (*config)->sql_keywords = (keywords_val.kind == JSMN_VALUE_TRUE);
-        }
-        // look for member: extra_clause
-        jsmn_env_token_value_t query_val;
-        if(jsmn_env_get_object_member_value(&jsmn_env, sql_tok, "extra_clause", JSMN_VALUE_STRING, &query_val)) {
-            (*config)->sql_extra_clause = query_val.str;
-        }
-        // look for member: refsblob
-        jsmntok_t *refsblob_tok;
-        if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "refsblob", JSMN_OBJECT, &refsblob_tok)) {
-            jsmn_env_token_value_t ref_freq_val, ref_order_val, ref_cites_val;
-            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, refsblob_tok, "ref_order", &ref_order_val)) {
-                (*config)->sql_rblob_ref_order = (ref_order_val.kind == JSMN_VALUE_TRUE);
+        // look for member: meta_table
+        // ---------------------------
+        jsmntok_t *meta_tok;
+        if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "meta_table", JSMN_OBJECT, &meta_tok)) {
+            jsmn_env_token_value_t name_val, clause_val, id_val, title_val,authors_val,allcats_val, keywords_val;
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "name", JSMN_VALUE_STRING, &name_val)) {
+                (*config)->sql_meta_name = name_val.str;
             }
-            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, refsblob_tok, "ref_freq", &ref_freq_val)) {
-                (*config)->sql_rblob_ref_freq  = (ref_freq_val.kind  == JSMN_VALUE_TRUE);
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "clause", JSMN_VALUE_STRING, &clause_val)) {
+                (*config)->sql_meta_clause = clause_val.str;
             }
-            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, refsblob_tok, "ref_cites", &ref_cites_val)) {
-                (*config)->sql_rblob_ref_cites = (ref_cites_val.kind == JSMN_VALUE_TRUE);
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_id", JSMN_VALUE_STRING, &id_val)) {
+                (*config)->sql_meta_field_id = id_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_title", JSMN_VALUE_STRING, &title_val)) {
+                (*config)->sql_meta_field_title = title_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_authors", JSMN_VALUE_STRING, &authors_val)) {
+                (*config)->sql_meta_field_authors = authors_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_allcats", JSMN_VALUE_STRING, &allcats_val)) {
+                (*config)->sql_meta_field_allcats = allcats_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_keywords", JSMN_VALUE_STRING, &keywords_val)) {
+                (*config)->sql_meta_field_keywords = keywords_val.str;
+            }
+
+        }
+        // look for member: refs_table
+        // ---------------------------
+        jsmntok_t *refs_tok;
+        if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "refs_table", JSMN_OBJECT, &refs_tok)) {
+            jsmn_env_token_value_t name_val, id_val, refs_val, ref_freq_val, ref_order_val, ref_cites_val;
+            if(jsmn_env_get_object_member_value(&jsmn_env, refs_tok, "name", JSMN_VALUE_STRING, &name_val)) {
+                (*config)->sql_refs_name = name_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, refs_tok, "field_id", JSMN_VALUE_STRING, &id_val)) {
+                (*config)->sql_refs_field_id = id_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, refs_tok, "field_refs", JSMN_VALUE_STRING, &refs_val)) {
+                (*config)->sql_refs_field_refs = refs_val.str;
+            }
+            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, refs_tok, "rblob_order", &ref_order_val)) {
+                (*config)->sql_refs_rblob_order = (ref_order_val.kind == JSMN_VALUE_TRUE);
+            }
+            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, refs_tok, "rblob_freq", &ref_freq_val)) {
+                (*config)->sql_refs_rblob_freq  = (ref_freq_val.kind  == JSMN_VALUE_TRUE);
+            }
+            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, refs_tok, "rblob_cites", &ref_cites_val)) {
+                (*config)->sql_refs_rblob_cites = (ref_cites_val.kind == JSMN_VALUE_TRUE);
+            }
+        }
+        // look for member: map_table
+        // ---------------------------
+        jsmntok_t *map_tok;
+        if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "map_table", JSMN_OBJECT, &map_tok)) {
+            jsmn_env_token_value_t name_val, id_val, x_val, y_val, r_val;
+            if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "name", JSMN_VALUE_STRING, &name_val)) {
+                (*config)->sql_map_name = name_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "field_id", JSMN_VALUE_STRING, &id_val)) {
+                (*config)->sql_map_field_id = id_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "field_x", JSMN_VALUE_STRING, &x_val)) {
+                (*config)->sql_map_field_x = x_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "field_y", JSMN_VALUE_STRING, &y_val)) {
+                (*config)->sql_map_field_y = y_val.str;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, map_tok, "field_r", JSMN_VALUE_STRING, &r_val)) {
+                (*config)->sql_map_field_r = r_val.str;
             }
         }
     }

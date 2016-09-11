@@ -12,13 +12,29 @@
     "initial_close_repulsion":false
 },
 "sql":{
-    "extra_clause":"WHERE (arxiv IS NOT NULL AND status != 'WDN')",
-    "authors_titles":true,
-    "keywords":true,
-    "refsblob":{
-        "ref_order":true,
-        "ref_freq":true,
-        "ref_cites":true
+    "meta_table":{
+        "name":"meta_data",
+        "clause":"WHERE (arxiv IS NOT NULL AND status != 'WDN')",
+        "field_id":"id",
+        "field_allcats":"allcats",
+        "field_title":"title",
+        "field_authors":"authors",
+        "field_keywords":"keywords"
+    },
+    "refs_table":{
+        "name":"pcite",
+        "field_id":"id",
+        "field_refs":"refs",
+        "rblob_order":true,
+        "rblob_freq":true,
+        "rblob_cites":true
+    },
+    "map_table":{
+        "name":"map_data",
+        "field_id":"id",
+        "field_x":"x",
+        "field_y":"y",
+        "field_r":"r"
     }
 }
 }

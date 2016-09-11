@@ -676,7 +676,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (arg_layout_db) {
-        map_env_layout_pos_load_from_db(map_env);
+        map_env_layout_pos_load_from_db(map_env, init_config);
     } else if (arg_layout_json != NULL) {
         map_env_layout_pos_load_from_json(map_env, arg_layout_json);
     } else {
@@ -686,7 +686,7 @@ int main(int argc, char *argv[]) {
     // init gtk
     gtk_init(&argc, &argv);
 
-    build_gui(map_env, init_config->sql_extra_clause);
+    build_gui(map_env, init_config->sql_meta_clause);
 
     // start the main loop and block until the application is closed
     gtk_main();

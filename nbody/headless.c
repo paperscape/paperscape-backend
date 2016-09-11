@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
     }
 
     // print info about the where clause being used
-    printf("using where clause: %s\n", init_config->sql_extra_clause);
+    printf("using where clause: %s\n", init_config->sql_meta_clause);
 
     // load the categories from JSON file
     category_set_t *category_set;
@@ -199,7 +199,7 @@ int main(int argc, char *argv[]) {
     } else {
         if (arg_layout_json == NULL) {
             // load existing positions from DB
-            map_env_layout_pos_load_from_db(map_env);
+            map_env_layout_pos_load_from_db(map_env, init_config);
         } else {
             // load existing positions from json file
             map_env_layout_pos_load_from_json(map_env, arg_layout_json);
@@ -244,7 +244,7 @@ int main(int argc, char *argv[]) {
 
     // write the new positions to the DB (never do this for timelapse)
     if (arg_write_db) {
-        map_env_layout_pos_save_to_db(map_env);
+        map_env_layout_pos_save_to_db(map_env, init_config);
     }
 
     // write map to JSON (always do this for timelapse)

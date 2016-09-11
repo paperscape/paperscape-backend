@@ -19,6 +19,7 @@ typedef struct _env_t {
     vstr_t *vstr[VSTR_MAX];
     bool close_mysql;
     MYSQL mysql;
+    init_config_t *config;
     int num_papers;
     paper_t *papers;
     hashmap_t *keyword_set;
@@ -30,7 +31,7 @@ static bool have_error(env_t *env) {
     return false;
 }
 
-static bool env_set_up(env_t* env) {
+static bool env_set_up(env_t* env, init_config_t *init_config) {
     char *mysql_host, *mysql_user, *mysql_pwd, *mysql_db, *mysql_sock;
     
     mysql_host = getenv("PSCP_MYSQL_HOST");
@@ -43,6 +44,7 @@ static bool env_set_up(env_t* env) {
     for (int i = 0; i < VSTR_MAX; i++) {
         env->vstr[i] = vstr_new();
     }
+    env->config = init_config;
     env->close_mysql = false;
     env->num_papers = 0;
     env->papers = NULL;
@@ -123,8 +125,17 @@ static bool env_query_no_result(env_t *env, const char *q, unsigned long len) {
 }
 
 static bool env_get_num_ids(env_t *env, int *num_ids) {
+    const char *meta_table = env->config->sql_meta_name;
+    const char *id         = env->config->sql_meta_field_id;
+    vstr_t *vstr = env->vstr[VSTR_0];
+    vstr_reset(vstr);
+    vstr_printf(vstr, "SELECT count(%s) FROM %s",id,meta_table);
+    if (vstr_had_error(vstr)) {
+        return false;
+    }
+    
     MYSQL_RES *result;
-    if (!env_query_one_row(env, "SELECT count(id) FROM meta_data", 1, &result)) {
+    if (!env_query_one_row(env, vstr_str(vstr), 1, &result)) {
         return false;
     }
     MYSQL_ROW row = mysql_fetch_row(result);
@@ -145,13 +156,13 @@ static int paper_cmp_id(const void *in1, const void *in2) {
     }
 }
 
-static bool env_load_ids(env_t *env, init_config_t *init_config, bool load_authors_and_titles) {
+static bool env_load_ids(env_t *env, bool load_authors_and_titles) {
     // TODO sanity checks when allcats or authors or title is null (need to create such entries in DB to test)
 
     MYSQL_RES *result;
     MYSQL_ROW row;
 
-    printf("reading ids from meta_data\n");
+    printf("reading ids from %s\n",env->config->sql_meta_name);
 
     // get the number of ids, so we can allocate the correct amount of memory
     int num_ids;
@@ -166,27 +177,34 @@ static bool env_load_ids(env_t *env, init_config_t *init_config, bool load_autho
     }
 
     // get the ids
+    const char *meta_table = env->config->sql_meta_name;
+    const char *id         = env->config->sql_meta_field_id;
+    const char *allcats    = env->config->sql_meta_field_allcats;
+    const char *title      = env->config->sql_meta_field_title;
+    const char *authors    = env->config->sql_meta_field_authors;
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     int num_fields;
-    if (load_authors_and_titles && !init_config->sql_authors_titles) {
+    if (load_authors_and_titles && (strcmp(env->config->sql_meta_field_authors,"") == 0 || strcmp(env->config->sql_meta_field_title,"") == 0)) {
         load_authors_and_titles = false;
     }
     if (load_authors_and_titles) {
-        vstr_printf(vstr, "SELECT id,allcats,authors,title FROM meta_data");
+        //vstr_printf(vstr, "SELECT id,allcats,authors,title FROM meta_data");
+        vstr_printf(vstr, "SELECT %s,%s,%s,%s FROM %s",id,allcats,authors,title,meta_table);
         num_fields = 4;
     } else {
-        vstr_printf(vstr, "SELECT id,allcats FROM meta_data");
+        //vstr_printf(vstr, "SELECT id,allcats FROM meta_data");
+        vstr_printf(vstr, "SELECT %s,%s FROM %s",id,allcats,meta_table);
         num_fields = 2;
     }
-    const char *extra_clause = init_config->sql_extra_clause;
-    if (extra_clause != NULL && extra_clause[0] != 0) {
+    const char *extra_clause = env->config->sql_meta_clause;
+    //if (extra_clause != NULL && extra_clause[0] != 0) {
+    if (strcmp(extra_clause,"") != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
     if (vstr_had_error(vstr)) {
         return false;
     }
-
     if (!env_query_many_rows(env, vstr_str(vstr), num_fields, &result)) {
         return false;
     }
@@ -202,33 +220,35 @@ static bool env_load_ids(env_t *env, init_config_t *init_config, bool load_autho
         paper_init(paper, id);
 
         // parse categories
-        float def_col[3] = {1,1,1};
         int cat_num = 0;
-        for (char *start = row[1], *cur = row[1]; cat_num < COMMON_PAPER_MAX_CATS; cur++) {
-            if (*cur == ',' || *cur == '\0') {
-                category_info_t *cat = category_set_get_by_name(env->category_set, start, cur - start);
-                if (cat == NULL) {
-                    if (load_authors_and_titles) {
-                        // 'load_authors_and_titles' indicated we're in gui mode (could be renamed)
-                        // in this case print unknown categories; for adding to input JSON file
-                        printf("warning: no colour for category %.*s\n", (int)(cur - start), start);
+        if (row[1] != NULL) {
+            float def_col[3] = {1,1,1};
+            for (char *start = row[1], *cur = row[1]; cat_num < COMMON_PAPER_MAX_CATS; cur++) {
+                if (*cur == ',' || *cur == '\0') {
+                    category_info_t *cat = category_set_get_by_name(env->category_set, start, cur - start);
+                    if (cat == NULL) {
+                        if (load_authors_and_titles) {
+                            // 'load_authors_and_titles' indicated we're in gui mode (could be renamed)
+                            // in this case print unknown categories; for adding to input JSON file
+                            printf("warning: no colour for category %.*s\n", (int)(cur - start), start);
+                        }
+                        // include it in category set anyway, as it may still be needed to make fake links
+                        category_set_add_category(env->category_set, start, cur - start, def_col);  
+                        cat = category_set_get_by_name(env->category_set, start, cur - start);
+                    } 
+                    if (cat != NULL) {
+                        if (cat->cat_id > 255) {
+                            // we use a byte to store the cat id, so it must be small enough
+                            printf("error: too many categories to store as a byte\n");
+                            exit(1);
+                        }
+                        paper->allcats[cat_num++] = cat->cat_id;
                     }
-                    // include it in category set anyway, as it may still be needed to make fake links
-                    category_set_add_category(env->category_set, start, cur - start, def_col);  
-                    cat = category_set_get_by_name(env->category_set, start, cur - start);
-                } 
-                if (cat != NULL) {
-                    if (cat->cat_id > 255) {
-                        // we use a byte to store the cat id, so it must be small enough
-                        printf("error: too many categories to store as a byte\n");
-                        exit(1);
+                    if (*cur == '\0') {
+                        break;
                     }
-                    paper->allcats[cat_num++] = cat->cat_id;
+                    start = cur + 1;
                 }
-                if (*cur == '\0') {
-                    break;
-                }
-                start = cur + 1;
             }
         }
         // fill in unused entries in allcats with UNKNOWN category
@@ -276,7 +296,7 @@ static paper_t *env_get_paper_by_id(env_t *env, unsigned int id) {
     return NULL;
 }
 
-static bool env_load_refs(env_t *env, init_config_t *init_config) {
+static bool env_load_refs(env_t *env) {
     MYSQL_RES *result;
     MYSQL_ROW row;
     unsigned long *lens;
@@ -284,9 +304,13 @@ static bool env_load_refs(env_t *env, init_config_t *init_config) {
     printf("reading pcite\n");
 
     // get the refs blobs from the pcite table
+    const char *refs_table = env->config->sql_refs_name;
+    const char *id         = env->config->sql_refs_field_id;
+    const char *refs       = env->config->sql_refs_field_refs;
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,refs FROM pcite");
+    //vstr_printf(vstr, "SELECT id,refs FROM pcite");
+    vstr_printf(vstr, "SELECT %s,%s FROM %s",id,refs,refs_table);
     if (vstr_had_error(vstr)) {
         return false;
     }
@@ -296,11 +320,9 @@ static bool env_load_refs(env_t *env, init_config_t *init_config) {
 
     // find length of a single ref blob
     unsigned int len_blob = 10;
-    if (init_config != NULL) {
-        if (!init_config->sql_rblob_ref_order) len_blob -= 2;
-        if (!init_config->sql_rblob_ref_freq)  len_blob -= 2;
-        if (!init_config->sql_rblob_ref_cites) len_blob -= 2;
-    }
+    if (!env->config->sql_refs_rblob_order) len_blob -= 2;
+    if (!env->config->sql_refs_rblob_freq)  len_blob -= 2;
+    if (!env->config->sql_refs_rblob_cites) len_blob -= 2;
 
     int total_refs = 0;
     while ((row = mysql_fetch_row(result))) {
@@ -338,10 +360,10 @@ static bool env_load_refs(env_t *env, init_config_t *init_config) {
                     if (paper->refs[paper->num_refs] != NULL) {
                         paper->refs[paper->num_refs]->num_cites += 1;
                         unsigned short ref_freq = 1;
-                        if (init_config == NULL || init_config->sql_rblob_ref_freq) {
+                        if (env->config->sql_refs_rblob_freq) {
                             // refs blob contains reference frequency info
                             int buf_index = 6;
-                            if (init_config != NULL && !init_config->sql_rblob_ref_order) {
+                            if (!env->config->sql_refs_rblob_order) {
                                 // refs blob doesn't contain reference order info
                                 buf_index -= 2;
                             }
@@ -373,9 +395,16 @@ static bool env_load_keywords(env_t *env) {
     printf("reading keywords\n");
 
     // get the keywords from the db
+    const char *meta_table = env->config->sql_meta_name;
+    const char *id         = env->config->sql_meta_field_id;
+    const char *keywords   = env->config->sql_meta_field_keywords;
+    if (strcmp(keywords,"") == 0) {
+        printf("no keywords table specified, skipping...\n");
+        return false;
+    }
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,keywords FROM meta_data");
+    vstr_printf(vstr, "SELECT %s,%s FROM %s",id,keywords,meta_table);
     if (vstr_had_error(vstr)) {
         return false;
     }
@@ -446,7 +475,7 @@ static bool env_load_keywords(env_t *env) {
 bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles, category_set_t *category_set, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
     // set up environment
     env_t env;
-    if (!env_set_up(&env)) {
+    if (!env_set_up(&env, init_config)) {
         env_finish(&env, true);
         return false;
     }
@@ -455,13 +484,13 @@ bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles,
     env.category_set = category_set;
 
     // load the DB
-    if (!env_load_ids(&env, init_config, load_authors_and_titles)) {
+    if (!env_load_ids(&env, load_authors_and_titles)) {
         return false;
     }
-    if (!env_load_refs(&env, init_config)) {
+    if (!env_load_refs(&env)) {
         return false;
     }
-    if (init_config->sql_keywords && !env_load_keywords(&env)) {
+    if (!env_load_keywords(&env)) {
         // we have keywords but failed to load them
         return false;
     }
@@ -484,15 +513,20 @@ bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles,
 /* stuff to save papers positions to DB                         */
 /****************************************************************/
 
-bool mysql_save_paper_positions(layout_t *layout) {
+bool mysql_save_paper_positions(init_config_t *init_config, layout_t *layout) {
     // set up environment
     env_t env;
-    if (!env_set_up(&env)) {
+    if (!env_set_up(&env, init_config)) {
         env_finish(&env, true);
         return false;
     }
 
     // save positions
+    const char *map_table = env.config->sql_map_name;
+    const char *id_f      = env.config->sql_map_field_id;
+    const char *x_f       = env.config->sql_map_field_x;
+    const char *y_f       = env.config->sql_map_field_y;
+    const char *r_f       = env.config->sql_map_field_r;
     vstr_t *vstr = env.vstr[VSTR_0];
     assert(layout->child_layout == NULL);
     int total_pos = 0;
@@ -503,7 +537,7 @@ bool mysql_save_paper_positions(layout_t *layout) {
             vstr_reset(vstr);
             int x, y, r;
             layout_node_export_quantities(n, &x, &y, &r);
-            vstr_printf(vstr, "REPLACE INTO map_data (id,x,y,r) VALUES (%u,%d,%d,%d)", n->paper->id, x, y, r);
+            vstr_printf(vstr, "REPLACE INTO %s (%s,%s,%s,%s) VALUES (%u,%d,%d,%d)", map_table,id_f,x_f,y_f,r_f,n->paper->id, x, y, r);
             if (vstr_had_error(vstr)) {
                 env_finish(&env, true);
                 return false;
@@ -524,10 +558,10 @@ bool mysql_save_paper_positions(layout_t *layout) {
     return true;
 }
 
-bool mysql_load_paper_positions(layout_t *layout) {
+bool mysql_load_paper_positions(init_config_t *init_config, layout_t *layout) {
     // set up environment
     env_t env;
-    if (!env_set_up(&env)) {
+    if (!env_set_up(&env,init_config)) {
         env_finish(&env, true);
         return false;
     }
@@ -535,9 +569,13 @@ bool mysql_load_paper_positions(layout_t *layout) {
     printf("reading map_data\n");
 
     // query the positions from the map_data table
+    const char *map_table = env.config->sql_map_name;
+    const char *id_f      = env.config->sql_map_field_id;
+    const char *x_f       = env.config->sql_map_field_x;
+    const char *y_f       = env.config->sql_map_field_y;
     vstr_t *vstr = env.vstr[VSTR_0];
     vstr_reset(vstr);
-    vstr_printf(vstr, "SELECT id,x,y FROM map_data");
+    vstr_printf(vstr, "SELECT %s,%s,%s FROM %s",id_f,x_f,y_f,map_table);
     if (vstr_had_error(vstr)) {
         env_finish(&env, true);
         return false;
