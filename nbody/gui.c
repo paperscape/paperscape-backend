@@ -85,7 +85,7 @@ static gboolean map_env_update(map_env_t *map_env) {
         }
     }
 
-    if (iterate_counter % 50 == 0) {
+    if (iterate_counter % 10 == 0) {
         // force a redraw
         gtk_widget_queue_draw(window);
     }

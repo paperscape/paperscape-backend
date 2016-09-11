@@ -447,6 +447,9 @@ bool json_load_categories(const char *filename, category_set_t **category_set_ou
 
     // return the category set
     *category_set_out = data.category_set;
+    // free keyword set
+    hashmap_free(data.keyword_set);
+    data.keyword_set = NULL;
 
     return true;
 }

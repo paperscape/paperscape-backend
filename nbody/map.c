@@ -71,7 +71,6 @@ void map_env_set_init_config(map_env_t *map_env, init_config_t *init_config) {
     map_env->force_params.close_repulsion_d  = init_config->force_close_repulsion_d;
     map_env->force_params.do_close_repulsion = init_config->force_initial_close_repulsion;
     map_env->force_params.use_ref_freq       = init_config->force_use_ref_freq;
-    printf("%d\n",map_env->force_params.use_ref_freq);
     map_env->force_params.link_strength      = init_config->force_link_strength;
     map_env->force_params.anti_gravity_falloff_rsq = init_config->force_anti_gravity_falloff_rsq;
 }
