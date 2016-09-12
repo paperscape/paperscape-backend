@@ -189,7 +189,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         } else if (event->keyval == GDK_KEY_f) {
         }
 
-        map_env_select_date_range(map_env, id_range_start, id_range_end, true);
+        map_env_prepare_graph(map_env, id_range_start, id_range_end, true);
         */
 
         /*
@@ -596,19 +596,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000";
-    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR arxiv IS NULL)";
-    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc') AND id >= 2115000000";
-    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='gr-qc') AND id >= 2110000000";
-    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='gr-qc' OR maincat='astro-ph') AND id >= 2120000000";
-    //const char *where_clause = "(maincat='hep-lat') AND id >= 1910000000";
-    //const char *where_clause = "(maincat='cond-mat' OR maincat='quant-ph') AND id >= 2110000000";
-    //const char *where_clause = "(maincat='hep-th' OR maincat='hep-ph' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='astro-ph' OR maincat='math-ph') AND id >= 2110000000";
-    //const char *where_clause = "(maincat='astro-ph' OR maincat='cond-mat' OR maincat='gr-qc' OR maincat='hep-ex' OR maincat='hep-lat' OR maincat='hep-ph' OR maincat='hep-th' OR maincat='math-ph' OR maincat='nlin' OR maincat='nucl-ex' OR maincat='nucl-th' OR maincat='physics' OR maincat='quant-ph') AND id >= 1900000000";
-    //const char *where_clause = "(maincat='cs') AND id >= 2090000000";
-    //const char *where_clause = "(maincat='math') AND id >= 1900000000";
-    //const char *where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
-
     // load the categories from JSON file
     category_set_t *category_set;
     if (arg_cats_json == NULL) {
@@ -656,22 +643,20 @@ int main(int argc, char *argv[]) {
     //map_env_papers_test2(map_env, 100);
 
     // select the date range
-    {
-        unsigned int id_min;
-        unsigned int id_max;
-        map_env_get_max_id_range(map_env, &id_min, &id_max);
+    unsigned int id_min;
+    unsigned int id_max;
+    map_env_get_max_id_range(map_env, &id_min, &id_max);
+    /*
+    if (map_env->ids_time_ordered) { 
         unsigned int id_range_start = id_min;
         unsigned int id_range_end   = id_max;
-
         // for starting part way through
         id_range_start = date_to_unique_id(2012, 3, 0);
         id_range_end = id_range_start + 20000000; // plus 2 years
         id_range_end = id_range_start +  3000000; // plus 0.5 year
-        id_range_start = id_min; id_range_end = id_max; // full range
-
-        //id_range_end = id_max - 120000000; // minus 2 years
-        map_env_select_date_range(map_env, id_range_start, id_range_end);
     }
+    */
+    map_env_select_graph(map_env, id_min, id_max);
 
     if (arg_layout_db) {
         map_env_layout_pos_load_from_db(map_env, init_config);

@@ -103,7 +103,7 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
 
 void map_env_get_max_id_range(map_env_t *map_env, unsigned int *id_min, unsigned int *id_max);
 void map_env_inc_num_papers(map_env_t *map_env, int amt);
-void map_env_select_date_range(map_env_t *map_env, unsigned int id_start, unsigned int id_end);
+void map_env_select_graph(map_env_t *map_env, unsigned int id_start, unsigned int id_end);
 
 void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_freq, double factor_other_link);
 int map_env_layout_place_new_papers(map_env_t *map_env);

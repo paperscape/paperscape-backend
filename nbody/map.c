@@ -852,7 +852,7 @@ void paper_propagate_connectivity(paper_t *paper) {
     }
 }
 
-void map_env_select_date_range(map_env_t *map_env, unsigned int id_start, unsigned id_end) {
+void map_env_select_graph(map_env_t *map_env, unsigned int id_start, unsigned id_end) {
     int i_start = map_env->max_num_papers - 1;
     int i_end = 0;
     for (int i = 0; i < map_env->max_num_papers; i++) {
@@ -873,8 +873,8 @@ void map_env_select_date_range(map_env_t *map_env, unsigned int id_start, unsign
         map_env->num_papers = 0;
         return;
     }
-
-    printf("date range: %u - %u; index %d - %d\n", id_start, id_end, i_start, i_end);
+    
+    printf("id range: %u - %u; index %d - %d\n", id_start, id_end, i_start, i_end);
 
     for (int i = i_start; i <= i_end; i++) {
         paper_t *p = &map_env->all_papers[i];

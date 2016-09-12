@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
     unsigned int id_min;
     unsigned int id_max;
     map_env_get_max_id_range(map_env, &id_min, &id_max);
-    map_env_select_date_range(map_env, id_min, id_max);
+    map_env_select_graph(map_env, id_min, id_max);
 
     if (arg_start_afresh) {
         // create a new layout with 10 levels of coarsening
