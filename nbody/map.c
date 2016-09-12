@@ -8,6 +8,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "initconfig.h"
 #include "layout.h"
 #include "force.h"
 #include "quadtree.h"

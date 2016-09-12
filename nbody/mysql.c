@@ -6,6 +6,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "initconfig.h"
 #include "category.h"
 #include "layout.h"
 #include "mysql.h"

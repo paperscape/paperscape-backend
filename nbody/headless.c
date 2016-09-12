@@ -5,6 +5,7 @@
 
 #include "util/xiwilib.h"
 #include "common.h"
+#include "initconfig.h"
 #include "layout.h"
 #include "map.h"
 #include "mapmysql.h"

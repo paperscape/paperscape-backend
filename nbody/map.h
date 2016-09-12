@@ -3,6 +3,7 @@
 
 #include "util/hashmap.h"
 #include "common.h"
+#include "initconfig.h"
 #include "category.h"
 #include "quadtree.h"
 #include "layout.h"
