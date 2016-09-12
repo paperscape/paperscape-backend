@@ -53,9 +53,8 @@ typedef struct _map_env_t {
     category_set_t *category_set;
 } map_env_t;
 
-map_env_t *map_env_new(category_set_t *cats);
+map_env_t *map_env_new(init_config_t *init_config, category_set_t *cats);
 
-void map_env_set_init_config(map_env_t *map_env, init_config_t *init_config);
 void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, hashmap_t *keyword_set);
 void map_env_random_papers(map_env_t *map_env, int n);
 void map_env_papers_test1(map_env_t *map_env, int n);

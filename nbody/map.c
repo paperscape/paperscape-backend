@@ -13,7 +13,7 @@
 #include "quadtree.h"
 #include "map.h"
 
-map_env_t *map_env_new(category_set_t *cats) {
+map_env_t *map_env_new(init_config_t *init_config, category_set_t *cats) {
     map_env_t *map_env = m_new(map_env_t, 1);
     map_env->max_num_papers = 0;
     map_env->all_papers = NULL;
@@ -45,26 +45,9 @@ map_env_t *map_env_new(category_set_t *cats) {
     map_env->keyword_set = NULL;
     map_env->category_set = cats;
 
-    // below is now set by map_env_set_init_config(...), and defaulted in init_config_new(...)
-    //map_env->force_params.do_close_repulsion = false;
-    //map_env->force_params.close_repulsion_a = 1e9;
-    //map_env->force_params.close_repulsion_b = 1e14;
-    //map_env->force_params.close_repulsion_c = 1.1;
-    //map_env->force_params.close_repulsion_d = 0.6;
-    //map_env->force_params.anti_gravity_falloff_rsq = 1e6;
-    //map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
-    ////map_env->force_params.link_strength = 0.77;
-    //map_env->force_params.link_strength = 1.17;
-    //map_env->force_params.use_ref_freq = true;
-    
-    //map_env->ids_time_ordered = false;
-
-    return map_env;
-}
-
-void map_env_set_init_config(map_env_t *map_env, init_config_t *init_config) {
     map_env->ids_time_ordered = init_config->ids_time_ordered;
-    
+   
+    // defaults now set in init_config_new(...)
     map_env->force_params.close_repulsion_a  = init_config->force_close_repulsion_a;
     map_env->force_params.close_repulsion_b  = init_config->force_close_repulsion_b;
     map_env->force_params.close_repulsion_c  = init_config->force_close_repulsion_c;
@@ -74,6 +57,8 @@ void map_env_set_init_config(map_env_t *map_env, init_config_t *init_config) {
     map_env->force_params.link_strength      = init_config->force_link_strength;
     map_env->force_params.anti_gravity_falloff_rsq     = init_config->force_anti_gravity_falloff_rsq;
     map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
+
+    return map_env;
 }
 
 void map_env_world_to_screen(map_env_t *map_env, double *x, double *y) {

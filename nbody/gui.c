@@ -636,10 +636,7 @@ int main(int argc, char *argv[]) {
     }
 
     // create the map object
-    map_env_t *map_env = map_env_new(category_set);
-
-    // set initial configuration
-    map_env_set_init_config(map_env,init_config);
+    map_env_t *map_env = map_env_new(init_config, category_set);
 
     // whether to create fake links for disconnected papers
     map_env_set_make_fake_links(map_env,!arg_no_fake_links);

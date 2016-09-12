@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS_COMMON = -Wall -ansi -std=gnu99 -O3 -g
+CFLAGS_COMMON = -Wall -ansi -std=gnu99 -O3
 LDFLAGS_COMMON =
 CFLAGS_GUI = $(shell pkg-config --cflags gtk+-3.0)
 LDFLAGS_GUI = $(shell pkg-config --libs gtk+-3.0)
