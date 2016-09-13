@@ -309,7 +309,7 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
     if (vstr_info != NULL) {
         vstr_printf(vstr_info, "have %d layout nodes in graph; %d finer levels, %d coarser levels\n", map_env->layout->num_nodes, map_env_number_of_finer_layouts(map_env), map_env_number_of_coarser_layouts(map_env));
         vstr_printf(vstr_info, "have %d papers connected and included in graph\n", map_env->num_papers);
-        if (map_env->num_papers > 0) {
+        if (map_env->ids_time_ordered && map_env->num_papers > 0) {
             unsigned int id0 = map_env->papers[0]->id;
             unsigned int id1 = map_env->papers[map_env->num_papers - 1]->id;
             int y0, m0, d0;
