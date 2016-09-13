@@ -99,9 +99,9 @@ bool init_config_new(const char *filename, init_config_t **config) {
     (*config)->sql_meta_clause         = "WHERE (arxiv IS NOT NULL AND status != 'WDN')";
     (*config)->sql_meta_field_id       = "id";
     (*config)->sql_meta_field_allcats  = "allcats";
-    (*config)->sql_meta_field_title    = '\0';
-    (*config)->sql_meta_field_authors  = '\0';
-    (*config)->sql_meta_field_keywords = '\0';
+    (*config)->sql_meta_field_title    = "";
+    (*config)->sql_meta_field_authors  = "";
+    (*config)->sql_meta_field_keywords = "";
     (*config)->sql_refs_name           = "pcite";
     (*config)->sql_refs_field_id       = "id";
     (*config)->sql_refs_field_refs     = "refs";
