@@ -131,6 +131,10 @@ static bool env_get_num_ids(env_t *env, int *num_ids) {
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT count(%s) FROM %s",id,meta_table);
+    const char *extra_clause = env->config->sql_meta_clause;
+    if (strcmp(extra_clause,"") != 0) {
+        vstr_printf(vstr, " %s", extra_clause);
+    }
     if (vstr_had_error(vstr)) {
         return false;
     }
@@ -157,7 +161,7 @@ static int paper_cmp_id(const void *in1, const void *in2) {
     }
 }
 
-static bool env_load_ids(env_t *env, bool load_authors_and_titles) {
+static bool env_load_ids(env_t *env, bool load_display_fields) {
     // TODO sanity checks when allcats or authors or title is null (need to create such entries in DB to test)
 
     MYSQL_RES *result;
@@ -186,20 +190,14 @@ static bool env_load_ids(env_t *env, bool load_authors_and_titles) {
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     int num_fields;
-    if (load_authors_and_titles && (strcmp(env->config->sql_meta_field_authors,"") == 0 || strcmp(env->config->sql_meta_field_title,"") == 0)) {
-        load_authors_and_titles = false;
-    }
-    if (load_authors_and_titles) {
-        //vstr_printf(vstr, "SELECT id,allcats,authors,title FROM meta_data");
+    if (load_display_fields && !(strcmp(env->config->sql_meta_field_authors,"") == 0 || strcmp(env->config->sql_meta_field_title,"") == 0)) {
         vstr_printf(vstr, "SELECT %s,%s,%s,%s FROM %s",id,allcats,authors,title,meta_table);
         num_fields = 4;
     } else {
-        //vstr_printf(vstr, "SELECT id,allcats FROM meta_data");
         vstr_printf(vstr, "SELECT %s,%s FROM %s",id,allcats,meta_table);
         num_fields = 2;
     }
     const char *extra_clause = env->config->sql_meta_clause;
-    //if (extra_clause != NULL && extra_clause[0] != 0) {
     if (strcmp(extra_clause,"") != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
@@ -228,8 +226,8 @@ static bool env_load_ids(env_t *env, bool load_authors_and_titles) {
                 if (*cur == ',' || *cur == '\0') {
                     category_info_t *cat = category_set_get_by_name(env->category_set, start, cur - start);
                     if (cat == NULL) {
-                        if (load_authors_and_titles) {
-                            // 'load_authors_and_titles' indicated we're in gui mode (could be renamed)
+                        if (load_display_fields) {
+                            // 'load_display_fields' indicates we're in gui mode
                             // in this case print unknown categories; for adding to input JSON file
                             printf("warning: no colour for category %.*s\n", (int)(cur - start), start);
                         }
@@ -258,7 +256,7 @@ static bool env_load_ids(env_t *env, bool load_authors_and_titles) {
         }
 
         // load authors and title if wanted
-        if (load_authors_and_titles) {
+        if (num_fields >= 4) {
             paper->authors = strdup(row[2]);
             paper->title = strdup(row[3]);
         }
@@ -473,7 +471,7 @@ static bool env_load_keywords(env_t *env) {
     return true;
 }
 
-bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles, category_set_t *category_set, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
+bool mysql_load_papers(init_config_t *init_config, bool load_display_fields, category_set_t *category_set, int *num_papers_out, paper_t **papers_out, hashmap_t **keyword_set_out) {
     // set up environment
     env_t env;
     if (!env_set_up(&env, init_config)) {
@@ -485,7 +483,7 @@ bool mysql_load_papers(init_config_t *init_config, bool load_authors_and_titles,
     env.category_set = category_set;
 
     // load the DB
-    if (!env_load_ids(&env, load_authors_and_titles)) {
+    if (!env_load_ids(&env, load_display_fields)) {
         return false;
     }
     if (!env_load_refs(&env)) {
