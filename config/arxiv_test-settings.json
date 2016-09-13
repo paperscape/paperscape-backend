@@ -20,6 +20,7 @@
         "field_title":"title",
         "field_authors":"authors",
         "field_keywords":"keywords"
+        "add_missing_cats":true
     },
     "refs_table":{
         "name":"pcite",

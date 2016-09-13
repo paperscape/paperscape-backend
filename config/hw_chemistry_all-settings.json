@@ -19,7 +19,8 @@
         "field_allcats":"catcodes",
         "field_title":"",
         "field_authors":"",
-        "field_keywords":""
+        "field_keywords":"",
+        "add_missing_cats":false
     },
     "refs_table":{
         "name":"pcite",

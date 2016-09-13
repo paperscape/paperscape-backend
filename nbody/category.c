@@ -14,10 +14,10 @@ category_set_t *category_set_new(void) {
     return cats;
 }
 
-void category_set_add_category(category_set_t *cats, const char *str, size_t n, float rgb[3]) {
+bool category_set_add_category(category_set_t *cats, const char *str, size_t n, float rgb[3]) {
     if (cats->num_cats >= CATEGORY_MAX_CATS) {
-        printf("error: too many categories\n");
-        exit(1);
+        printf("error: too many categories, cannot add %.*s\n", (int)n, str);
+        return false;
     }
 
     // set new category
@@ -35,7 +35,8 @@ void category_set_add_category(category_set_t *cats, const char *str, size_t n, 
     hashmap_entry_t *entry = hashmap_lookup_or_insert(cats->hashmap, str, n, true);
     if (entry->value != 0) {
         printf("error: category %.*s already exists\n", (int)n, str);
-        exit(1);
+        return false;
     }
     entry->value = (uintptr_t)cat;
+    return true;
 }

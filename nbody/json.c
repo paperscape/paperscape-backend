@@ -91,7 +91,9 @@ static bool load_categories(jsmn_env_t *env, json_data_t *data) {
         }
 
         // add the new category to the set
-        category_set_add_category(data->category_set, cat_val.str, strlen(cat_val.str), rgb);
+        if(!category_set_add_category(data->category_set, cat_val.str, strlen(cat_val.str), rgb)) {
+            exit(1);
+        }
         n_cats += 1;
     }
 

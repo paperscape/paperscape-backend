@@ -12,6 +12,7 @@ typedef struct _init_config_t {
     const char *sql_meta_field_authors;
     const char *sql_meta_field_allcats;
     const char *sql_meta_field_keywords;
+    bool sql_meta_add_missing_cats;
     // refs table
     const char *sql_refs_name;
     const char *sql_refs_field_id;

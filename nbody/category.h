@@ -24,7 +24,7 @@ typedef struct _category_set_t {
 } category_set_t;
 
 category_set_t *category_set_new(void);
-void category_set_add_category(category_set_t *cats, const char *str, size_t n, float rgb[3]);
+bool category_set_add_category(category_set_t *cats, const char *str, size_t n, float rgb[3]);
 
 static inline size_t category_set_get_num(category_set_t *cats) {
     return cats->num_cats;

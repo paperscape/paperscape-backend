@@ -221,20 +221,23 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
         // parse categories
         int cat_num = 0;
         if (row[1] != NULL) {
-            //float def_col[3] = {1,1,1};
+            float def_col[3] = {1,1,1};
             for (char *start = row[1], *cur = row[1]; cat_num < COMMON_PAPER_MAX_CATS; cur++) {
                 if (*cur == ',' || *cur == '\0') {
                     category_info_t *cat = category_set_get_by_name(env->category_set, start, cur - start);
                     if (cat == NULL) {
                         if (load_display_fields) {
                             // 'load_display_fields' indicates we're in gui mode
-                            // in this case print unknown categories; for adding to input JSON file
-                            printf("warning: no colour for category %.*s\n", (int)(cur - start), start);
+                            // print unknown categories; for adding to input JSON file
+                            //printf("warning: no colour for category %.*s\n", (int)(cur - start), start);
                         }
-                        // FIXME WoS exceeds 256 categories, easy to switch hashmap away from byte key?
-                        // include it in category set anyway, as it may still be needed to make fake links
-                        //category_set_add_category(env->category_set, start, cur - start, def_col);  
-                        //cat = category_set_get_by_name(env->category_set, start, cur - start);
+                        if (env->config->sql_meta_add_missing_cats) {
+                            // include it in category set anyway, as it may still be needed to make fake links
+                            if(category_set_add_category(env->category_set, start, cur - start, def_col)) {
+                                // NOTE: WoS exceeds 256 categories hard limit, so check if limit exceeded
+                                cat = category_set_get_by_name(env->category_set, start, cur - start);
+                            }
+                        }
                     } 
                     if (cat != NULL) {
                         if (cat->cat_id > 255) {
