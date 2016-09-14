@@ -48,6 +48,16 @@ bool init_config_new(const char *filename, init_config_t **config) {
         (*config)->ids_time_ordered = (ito_val.kind == JSMN_VALUE_TRUE);
     }
 
+    // look for member: use_external_cites
+    // =================================
+    // set defaults
+    (*config)->use_external_cites = false;
+    // attempt to set from JSON file
+    jsmn_env_token_value_t ues_val;
+    if(jsmn_env_get_object_member_value_boolean(&jsmn_env, jsmn_env.js_tok, "use_external_cites", &ues_val)) {
+        (*config)->use_external_cites = (ues_val.kind == JSMN_VALUE_TRUE);
+    }
+
     // look for member: forces
     // =======================
     // set defaults

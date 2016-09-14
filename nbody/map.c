@@ -46,7 +46,8 @@ map_env_t *map_env_new(init_config_t *init_config, category_set_t *cats) {
     map_env->keyword_set = NULL;
     map_env->category_set = cats;
 
-    map_env->ids_time_ordered = init_config->ids_time_ordered;
+    map_env->ids_time_ordered   = init_config->ids_time_ordered;
+    map_env->use_external_cites = init_config->use_external_cites;
    
     // defaults now set in init_config_new(...)
     map_env->force_params.close_repulsion_a  = init_config->force_close_repulsion_a;
@@ -91,10 +92,11 @@ void map_env_set_papers(map_env_t *map_env, int num_papers, paper_t *papers, has
 #ifdef ENABLE_TRED
         p->refs_tred_computed = m_new(int, p->num_refs);
 #endif
-        p->num_included_cites = p->num_cites;
-        p->mass = 0.2 + 0.2 * p->num_included_cites;
-        p->radius = sqrt(p->mass / M_PI);
+        if (!map_env->use_external_cites) {
+            p->num_graph_cites = p->num_cites;
+        }
     }
+    map_env_set_mass_radius(map_env);
 }
 
 void map_env_random_papers(map_env_t *map_env, int n) {
@@ -731,6 +733,15 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
     #endif
 }
 
+void map_env_set_mass_radius(map_env_t *map_env) {
+    for (int i = 0; i < map_env->max_num_papers; i++) {
+        paper_t *p = &map_env->all_papers[i];
+        p->mass   = 0.2 + 0.2 * p->num_graph_cites;
+        p->radius = sqrt(p->mass / M_PI);
+    }
+}
+
+
 void map_env_get_max_id_range(map_env_t *map_env, unsigned int *id_min, unsigned int *id_max) {
     if (map_env->max_num_papers > 0) {
         *id_min = map_env->all_papers[0].id;
@@ -752,12 +763,12 @@ void map_env_inc_num_papers(map_env_t *map_env, int amt) {
     if (map_env->cur_num_papers > map_env->max_num_papers) {
         map_env->cur_num_papers = map_env->max_num_papers;
     }
-    recompute_num_included_cites(map_env->cur_num_papers, map_env->all_papers);
+    recompute_num_graph_cites(map_env->cur_num_papers, map_env->all_papers);
     recompute_colours(map_env->cur_num_papers, map_env->all_papers, false);
     //compute_tred(map_env->cur_num_papers, map_env->all_papers);
     for (int i = 0; i < map_env->cur_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        p->mass = 0.05 + 0.2 * p->num_included_cites;
+        p->mass = 0.05 + 0.2 * p->num_graph_cites;
         p->r = sqrt(p->mass / M_PI);
         p->index2 = i;
     }
@@ -840,7 +851,7 @@ static void make_fake_links_for_paper(map_env_t *map_env, paper_t *paper) {
     }
 }
 
-void paper_propagate_connectivity(paper_t *paper) {
+static void paper_propagate_connectivity(paper_t *paper) {
     if (paper->included && !paper->connected) {
         paper->connected = true;
         for (int i = 0; i < paper->num_refs; i++) {
@@ -904,23 +915,11 @@ void map_env_select_graph(map_env_t *map_env, unsigned int id_start, unsigned id
 
     // CALCULATE CONNECTED
 
-    // think this can be placed later, as may not include disconnected papers
-    //recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
-    
     recompute_colours(map_env->max_num_papers, map_env->all_papers, false);
 
 #ifdef ENABLE_TRED
     compute_tred(map_env->max_num_papers, map_env->all_papers);
 #endif
-
-    // think this can be placed later, as may not include disconnected papers
-    
-    // recompute mass and radius based on num_included_cites
-    //for (int i = 0; i < map_env->max_num_papers; i++) {
-    //    paper_t *p = &map_env->all_papers[i];
-    //    p->mass = 0.2 + 0.2 * p->num_included_cites;
-    //    p->radius = sqrt(p->mass / M_PI);
-    //}
 
     // work out the colour of the graph with the most number of connected papers
     int biggest_col = 0;
@@ -1016,15 +1015,11 @@ void map_env_select_graph(map_env_t *map_env, unsigned int id_start, unsigned id
     printf("after making fake links, have %d papers not connected\n", total_not_connected);
 
     // RECOMPUTE DIMENSIONS
-
-    recompute_num_included_cites(map_env->max_num_papers, map_env->all_papers);
-
-    for (int i = 0; i < map_env->max_num_papers; i++) {
-        paper_t *p = &map_env->all_papers[i];
-        p->mass = 0.2 + 0.2 * p->num_included_cites;
-        p->radius = sqrt(p->mass / M_PI);
+    
+    if (!map_env->use_external_cites) {
+        recompute_num_graph_cites(map_env->max_num_papers, map_env->all_papers);
     }
-
+    map_env_set_mass_radius(map_env);
 }
 
 void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_ref_link, double factor_other_link) {

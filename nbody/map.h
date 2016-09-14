@@ -25,6 +25,7 @@ typedef struct _map_env_t {
 
     force_params_t force_params;
 
+    bool use_external_cites;
     bool ids_time_ordered;
     bool do_tred;
     bool draw_grid;
@@ -101,6 +102,7 @@ void map_env_flip_x(map_env_t *map_env);
 
 bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_step_size, bool very_fine_steps);
 
+void map_env_set_mass_radius(map_env_t *map_env);
 void map_env_get_max_id_range(map_env_t *map_env, unsigned int *id_min, unsigned int *id_max);
 void map_env_inc_num_papers(map_env_t *map_env, int amt);
 void map_env_select_graph(map_env_t *map_env, unsigned int id_start, unsigned int id_end);

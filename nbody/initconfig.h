@@ -27,9 +27,10 @@ typedef struct _init_config_t {
     const char *sql_map_field_y;
     const char *sql_map_field_r;
     // ### Map Environment initial configuration
-    bool ids_time_ordered;
-    bool force_use_ref_freq;
-    bool force_initial_close_repulsion;
+    bool   ids_time_ordered;
+    bool   use_external_cites;
+    bool   force_use_ref_freq;
+    bool   force_initial_close_repulsion;
     double force_close_repulsion_a;
     double force_close_repulsion_b;
     double force_close_repulsion_c;

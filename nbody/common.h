@@ -39,7 +39,7 @@ typedef struct _paper_t {
 
     // stuff for the placement of papers
     bool included;
-    int num_included_cites;
+    int num_graph_cites;
     bool connected;
     float age; // between 0.0 and 1.0
     float radius;
@@ -60,7 +60,7 @@ unsigned int date_to_unique_id(int y, int m, int d);
 void unique_id_to_date(unsigned int id, int *y, int *m, int *d);
 
 bool build_citation_links(int num_papers, paper_t *papers);
-void recompute_num_included_cites(int num_papers, paper_t *papers);
+void recompute_num_graph_cites(int num_papers, paper_t *papers);
 void recompute_colours(int num_papers, paper_t *papers, int verbose);
 void compute_tred(int num_papers, paper_t *papers);
 

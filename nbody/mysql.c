@@ -322,10 +322,11 @@ static bool env_load_refs(env_t *env) {
     }
 
     // find length of a single ref blob
-    unsigned int len_blob = 10;
-    if (!env->config->sql_refs_rblob_order) len_blob -= 2;
-    if (!env->config->sql_refs_rblob_freq)  len_blob -= 2;
-    if (!env->config->sql_refs_rblob_cites) len_blob -= 2;
+    // note that order of these rblob properties important
+    unsigned int len_blob = 4;
+    if (env->config->sql_refs_rblob_order) len_blob += 2;
+    if (env->config->sql_refs_rblob_freq)  len_blob += 2;
+    if (env->config->sql_refs_rblob_cites) len_blob += 2;
 
     int total_refs = 0;
     while ((row = mysql_fetch_row(result))) {
@@ -362,17 +363,23 @@ static bool env_load_refs(env_t *env) {
                     paper->refs[paper->num_refs] = env_get_paper_by_id(env, id);
                     if (paper->refs[paper->num_refs] != NULL) {
                         paper->refs[paper->num_refs]->num_cites += 1;
-                        unsigned short ref_freq = 1;
+                        unsigned short buf_index = 4, ref_freq = 1;
+                        if (env->config->sql_refs_rblob_order) {
+                            // refs blob contains reference order info
+                            buf_index += 2;
+                        }
                         if (env->config->sql_refs_rblob_freq) {
                             // refs blob contains reference frequency info
-                            int buf_index = 6;
-                            if (!env->config->sql_refs_rblob_order) {
-                                // refs blob doesn't contain reference order info
-                                buf_index -= 2;
-                            }
                             ref_freq = decode_le16(buf + buf_index);
                             if (ref_freq > 255) {
                                 ref_freq = 255;
+                            }
+                            buf_index += 2;
+                        }
+                        if (env->config->sql_refs_rblob_cites) {
+                            // refs blob contain reference cites info
+                            if (env->config->use_external_cites) {
+                                paper->refs[paper->num_refs]->num_graph_cites = decode_le16(buf + buf_index);
                             }
                         }
                         paper->refs_ref_freq[paper->num_refs] = ref_freq;
