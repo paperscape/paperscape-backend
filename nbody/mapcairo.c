@@ -338,5 +338,6 @@ void map_env_draw(map_env_t *map_env, cairo_t *cr, int width, int height, vstr_t
         vstr_printf(vstr_info, "(4/$) close repulsion B: %.3g\n", map_env->force_params.close_repulsion_b);
         vstr_printf(vstr_info, "(5/%) close repulsion C: %.3g\n", map_env->force_params.close_repulsion_c);
         vstr_printf(vstr_info, "(6/^) close repulsion D: %.3g\n", map_env->force_params.close_repulsion_d);
+        vstr_printf(vstr_info, "(7/&) mass~cites exponent: %.3g\n", map_env->mass_cites_exponent);
     }
 }

@@ -29,6 +29,7 @@ typedef struct _init_config_t {
     // ### Map Environment initial configuration
     bool   ids_time_ordered;
     bool   use_external_cites;
+    double mass_cites_exponent;
     bool   force_use_ref_freq;
     bool   force_initial_close_repulsion;
     double force_close_repulsion_a;

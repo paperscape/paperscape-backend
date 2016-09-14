@@ -269,7 +269,6 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_adjust_close_repulsion(map_env, 1.0, 0.7);
     } else if (event->keyval == GDK_KEY_dollar) {
         map_env_adjust_close_repulsion(map_env, 1.0, 1.5);
-
     } else if (event->keyval == GDK_KEY_5) {
         map_env_adjust_close_repulsion2(map_env, 0.95, 0.0);
     } else if (event->keyval == GDK_KEY_percent) {
@@ -278,7 +277,10 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_adjust_close_repulsion2(map_env, 1.0, -0.05);
     } else if (event->keyval == GDK_KEY_asciicircum) {
         map_env_adjust_close_repulsion2(map_env, 1.0, 0.05);
-
+    } else if (event->keyval == GDK_KEY_7) {
+        map_env_adjust_mass_cites_exponent(map_env, -0.05);
+    } else if (event->keyval == GDK_KEY_ampersand) {
+        map_env_adjust_mass_cites_exponent(map_env, 0.05);
     } else if (event->keyval == GDK_KEY_9) {
         map_env_coarsen_layout(map_env);
     } else if (event->keyval == GDK_KEY_0) {

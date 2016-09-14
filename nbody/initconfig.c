@@ -58,6 +58,16 @@ bool init_config_new(const char *filename, init_config_t **config) {
         (*config)->use_external_cites = (ues_val.kind == JSMN_VALUE_TRUE);
     }
 
+    // look for member: mass_cites_exponent
+    // =================================
+    // set defaults
+    (*config)->mass_cites_exponent = 1.;
+    // attempt to set from JSON file
+    jsmn_env_token_value_t mce_val;
+    if(jsmn_env_get_object_member_value(&jsmn_env, jsmn_env.js_tok, "mass_cites_exponent", JSMN_VALUE_REAL, &mce_val)) {
+        (*config)->mass_cites_exponent = mce_val.real;
+    }
+
     // look for member: forces
     // =======================
     // set defaults

@@ -2,6 +2,7 @@
 "description":"Test Paperscape settings",
 "ids_time_ordered":true,
 "use_external_cites":false,
+"mass_cites_exponent":1.0,
 "forces":{
     "link_strength":1.17,
     "anti_gravity_falloff_rsq":1e6,

@@ -48,7 +48,9 @@ map_env_t *map_env_new(init_config_t *init_config, category_set_t *cats) {
 
     map_env->ids_time_ordered   = init_config->ids_time_ordered;
     map_env->use_external_cites = init_config->use_external_cites;
-   
+
+    map_env->mass_cites_exponent = init_config->mass_cites_exponent;
+
     // defaults now set in init_config_new(...)
     map_env->force_params.close_repulsion_a  = init_config->force_close_repulsion_a;
     map_env->force_params.close_repulsion_b  = init_config->force_close_repulsion_b;
@@ -266,9 +268,15 @@ void map_env_adjust_close_repulsion(map_env_t *map_env, double amt_a, double amt
     map_env->force_params.close_repulsion_b *= amt_b;
 }
 
-void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_a, double amt_b) {
-    map_env->force_params.close_repulsion_c *= amt_a;
-    map_env->force_params.close_repulsion_d += amt_b;
+void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_c, double amt_d) {
+    map_env->force_params.close_repulsion_c *= amt_c;
+    map_env->force_params.close_repulsion_d += amt_d;
+}
+
+void map_env_adjust_mass_cites_exponent(map_env_t *map_env, double amt) {
+    map_env->mass_cites_exponent += amt;
+    map_env_set_mass_radius(map_env);
+    layout_recompute_mass_radius(map_env->layout);
 }
 
 int map_env_number_of_coarser_layouts(map_env_t *map_env) {
@@ -736,7 +744,7 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
 void map_env_set_mass_radius(map_env_t *map_env) {
     for (int i = 0; i < map_env->max_num_papers; i++) {
         paper_t *p = &map_env->all_papers[i];
-        p->mass   = 0.2 + 0.2 * p->num_graph_cites;
+        p->mass   = 0.2 + 0.2 * pow(p->num_graph_cites,map_env->mass_cites_exponent);
         p->radius = sqrt(p->mass / M_PI);
     }
 }

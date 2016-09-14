@@ -43,6 +43,9 @@ typedef struct _map_env_t {
     double max_link_force_mag;
     double max_total_force_mag;
 
+    // m ~ (1 + cites^exp)
+    double mass_cites_exponent;
+
     // standard deviation of the positions of the papers
     double x_sd, y_sd;
 
@@ -89,7 +92,8 @@ void map_env_toggle_use_ref_freq(map_env_t *map_env);
 void map_env_adjust_anti_gravity(map_env_t *map_env, double amt);
 void map_env_adjust_link_strength(map_env_t *map_env, double amt);
 void map_env_adjust_close_repulsion(map_env_t *map_env, double amt_a, double amt_b);
-void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_a, double amt_b);
+void map_env_adjust_close_repulsion2(map_env_t *map_env, double amt_c, double amt_d);
+void map_env_adjust_mass_cites_exponent(map_env_t *map_env,double amt);
 int map_env_number_of_coarser_layouts(map_env_t *map_env);
 int map_env_number_of_finer_layouts(map_env_t *map_env);
 void map_env_coarsen_layout(map_env_t *map_env);

@@ -2,6 +2,7 @@
 "description":"Hyperwall settings",
 "ids_time_ordered":false,
 "use_external_cites":true,
+"mass_cites_exponent":1.0,
 "forces":{
     "link_strength":0.75,
     "anti_gravity_falloff_rsq":1e7,

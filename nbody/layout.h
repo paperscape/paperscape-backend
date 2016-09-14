@@ -57,5 +57,6 @@ void layout_node_compute_best_start_position(layout_node_t *n);
 void layout_rotate_all(layout_t *layout, double angle);
 void layout_node_export_quantities(layout_node_t *l, int *x_out, int *y_out, int *r_out);
 void layout_node_import_quantities(layout_node_t *l, int x_in, int y_in);
+void layout_recompute_mass_radius(layout_t *layout);
 
 #endif // _INCLUDED_LAYOUT_H

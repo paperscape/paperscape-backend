@@ -501,3 +501,46 @@ void layout_node_import_quantities(layout_node_t *l, int x_in, int y_in) {
     l->y = (double)y_in / export_import_double_conversion_factor;
     // radius is not imported
 }
+
+// iterate backwards through layout chain to recompute mass and radius
+void layout_recompute_mass_radius(layout_t *layout) {
+    // get finest layout
+    int num_layouts = 1;
+    while(layout->child_layout != NULL) {
+        layout = layout->child_layout;
+        num_layouts++;
+    }
+    
+    // recompute mass and radius, starting from finest
+    // layout
+    for(int i = 0; i < num_layouts; i++) {
+        for (int j = 0; j < layout->num_nodes; j++) {
+            layout_node_t *n = &layout->nodes[j];
+            assert(n != NULL);
+            if (n->flags & LAYOUT_NODE_IS_FINEST) {
+                // finest layout node
+                assert(n->paper != NULL);
+                n->mass = n->paper->mass;
+                n->radius = n->paper->radius;
+            } else {
+                float mass = 0, rad2 = 0;
+                // a coarse layout node
+                if (n->child1 != NULL) {
+                    mass += n->child1->mass;
+                    rad2 += n->child1->radius * n->child1->radius;
+                }
+                if (n->child2 != NULL) {
+                    mass += n->child2->mass;
+                    rad2 += n->child2->radius * n->child2->radius;
+                }
+                n->mass = mass;
+                n->radius = sqrt(rad2);
+            }
+        }
+        if (layout->parent_layout != NULL) {
+            layout = layout->parent_layout;
+        } else {
+            break;
+        }
+    }
+}
