@@ -31,11 +31,13 @@ typedef struct _paper_t {
     int num_fake_links;
     struct _paper_t **fake_links;
 
+#ifdef ENABLE_TRED
     // stuff for tred
     int tred_visit_index;
     int *refs_tred_computed;
     struct _paper_t *tred_follow_back_paper;
     int tred_follow_back_ref;
+#endif
 
     // stuff for the placement of papers
     bool included;

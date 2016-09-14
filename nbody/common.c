@@ -197,6 +197,8 @@ void recompute_colours(int num_papers, paper_t *papers, int verbose) {
     m_free(num_with_col);
 }
 
+#ifdef ENABLE_TRED
+
 // for tred
 
 static void compute_tred_refs_mark(int p_top_index, paper_t *p_cur, paper_t *follow_back_paper, int follow_back_ref) {
@@ -270,4 +272,4 @@ void compute_tred(int num_papers, paper_t *papers) {
     }
 }
 
-
+#endif // ENABLE_TRED
