@@ -16,7 +16,8 @@
 "sql":{
     "meta_table":{
         "name":"meta_data",
-        "clause":"WHERE (mainbigcat = 'chemistry')",
+        "where_clause":"mainbigcat = 'chemistry'",
+        "extra_clause":"",
         "field_id":"id",
         "field_allcats":"catcodes",
         "field_title":"",

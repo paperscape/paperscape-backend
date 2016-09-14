@@ -131,7 +131,11 @@ static bool env_get_num_ids(env_t *env, int *num_ids) {
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT count(%s) FROM %s",id,meta_table);
-    const char *extra_clause = env->config->sql_meta_clause;
+    const char *where_clause = env->config->sql_meta_where_clause;
+    if (strcmp(where_clause,"") != 0) {
+        vstr_printf(vstr, " WHERE (%s)", where_clause);
+    }
+    const char *extra_clause = env->config->sql_meta_extra_clause;
     if (strcmp(extra_clause,"") != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
@@ -197,7 +201,11 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
         vstr_printf(vstr, "SELECT %s,%s FROM %s",id,allcats,meta_table);
         num_fields = 2;
     }
-    const char *extra_clause = env->config->sql_meta_clause;
+    const char *where_clause = env->config->sql_meta_where_clause;
+    if (strcmp(where_clause,"") != 0) {
+        vstr_printf(vstr, " WHERE (%s)", where_clause);
+    }
+    const char *extra_clause = env->config->sql_meta_extra_clause;
     if (strcmp(extra_clause,"") != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
@@ -312,8 +320,14 @@ static bool env_load_refs(env_t *env) {
     const char *refs       = env->config->sql_refs_field_refs;
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
-    //vstr_printf(vstr, "SELECT id,refs FROM pcite");
     vstr_printf(vstr, "SELECT %s,%s FROM %s",id,refs,refs_table);
+    const char *where_clause = env->config->sql_meta_where_clause;
+    if (strcmp(where_clause,"") != 0) {
+        const char *meta_table = env->config->sql_meta_name;
+        const char *meta_id = env->config->sql_meta_field_id;
+        // NOTE: MySQL doesn't seem to be support LIMIT statement inside subquery i.e. can't include extra_clause
+        vstr_printf(vstr, " WHERE %s IN (SELECT %s FROM %s WHERE (%s))",id,meta_id,meta_table,where_clause);
+    }
     if (vstr_had_error(vstr)) {
         return false;
     }
@@ -415,6 +429,14 @@ static bool env_load_keywords(env_t *env) {
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT %s,%s FROM %s",id,keywords,meta_table);
+    const char *where_clause = env->config->sql_meta_where_clause;
+    if (strcmp(where_clause,"") != 0) {
+        vstr_printf(vstr, " WHERE (%s)", where_clause);
+    }
+    const char *extra_clause = env->config->sql_meta_extra_clause;
+    if (strcmp(extra_clause,"") != 0) {
+        vstr_printf(vstr, " %s", extra_clause);
+    }
     if (vstr_had_error(vstr)) {
         return false;
     }

@@ -16,7 +16,8 @@
 "sql":{
     "meta_table":{
         "name":"meta_data",
-        "clause":"WHERE (arxiv IS NOT NULL AND status != 'WDN')",
+        "where_clause":"arxiv IS NOT NULL AND status != 'WDN'",
+        "extra_clause":"",
         "field_id":"id",
         "field_allcats":"allcats",
         "field_title":"title",

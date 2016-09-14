@@ -6,7 +6,8 @@ typedef struct _init_config_t {
     // ### MySQL config
     // meta table
     const char *sql_meta_name;
-    const char *sql_meta_clause;
+    const char *sql_meta_where_clause;
+    const char *sql_meta_extra_clause;
     const char *sql_meta_field_id;
     const char *sql_meta_field_title;
     const char *sql_meta_field_authors;

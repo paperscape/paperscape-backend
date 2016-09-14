@@ -16,7 +16,8 @@
 "sql":{
     "meta_table":{
         "name":"meta_data",
-        "clause":"WHERE (maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'dx' OR maincat = 'dw') ORDER BY rand() LIMIT 200000",
+        "where_clause":"maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'dx' OR maincat = 'dw'",
+        "extra_clause":"ORDER BY rand(42) LIMIT 200000",
         "field_id":"id",
         "field_allcats":"catcodes",
         "field_title":"",

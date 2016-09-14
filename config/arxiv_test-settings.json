@@ -16,7 +16,8 @@
 "sql":{
     "meta_table":{
         "name":"meta_data",
-        "clause":"WHERE (arxiv IS NOT NULL AND status != 'WDN' AND (maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000)",
+        "where_clause":"arxiv IS NOT NULL AND status != 'WDN' AND (maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000",
+        "extra_clause":"",
         "field_id":"id",
         "field_allcats":"allcats",
         "field_title":"title",

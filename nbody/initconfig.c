@@ -116,7 +116,8 @@ bool init_config_new(const char *filename, init_config_t **config) {
     // set defaults
     // fields defaulted to empty are not used if not specified
     (*config)->sql_meta_name           = "meta_data";
-    (*config)->sql_meta_clause         = "WHERE (arxiv IS NOT NULL AND status != 'WDN')";
+    (*config)->sql_meta_where_clause   = "arxiv IS NOT NULL AND status != 'WDN'";
+    (*config)->sql_meta_extra_clause   = "";
     (*config)->sql_meta_field_id       = "id";
     (*config)->sql_meta_field_allcats  = "allcats";
     (*config)->sql_meta_field_title    = "";
@@ -135,12 +136,15 @@ bool init_config_new(const char *filename, init_config_t **config) {
         // ---------------------------
         jsmntok_t *meta_tok;
         if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "meta_table", JSMN_OBJECT, &meta_tok)) {
-            jsmn_env_token_value_t name_val, clause_val, id_val, title_val,authors_val,allcats_val, keywords_val, missing_cats_val;
+            jsmn_env_token_value_t name_val, where_clause_val, extra_clause_val, id_val, title_val,authors_val,allcats_val, keywords_val, missing_cats_val;
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "name", JSMN_VALUE_STRING, &name_val)) {
                 (*config)->sql_meta_name = strdup(name_val.str);
             }
-            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "clause", JSMN_VALUE_STRING, &clause_val)) {
-                (*config)->sql_meta_clause = strdup(clause_val.str);
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "where_clause", JSMN_VALUE_STRING, &where_clause_val)) {
+                (*config)->sql_meta_where_clause = strdup(where_clause_val.str);
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "extra_clause", JSMN_VALUE_STRING, &extra_clause_val)) {
+                (*config)->sql_meta_extra_clause = strdup(extra_clause_val.str);
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_id", JSMN_VALUE_STRING, &id_val)) {
                 (*config)->sql_meta_field_id = strdup(id_val.str);
