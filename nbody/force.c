@@ -209,22 +209,19 @@ void force_quad_tree_forces(force_params_t *param, quadtree_t *qt) {
             // with threading
             multi_env_t me1 = {param, qt->root->q0};
             multi_env_t me2 = {param, qt->root->q1};
-            //multi_env_t me3 = {param, qt->root->q2};
+            multi_env_t me3 = {param, qt->root->q2};
             //multi_env_t me4 = {param, qt->root->q3};
-            pthread_t pt1, pt2;//, pt3;//, pt4;
+            pthread_t pt1, pt2, pt3;//, pt4;
             pthread_create(&pt1, NULL, multi_do, &me1);
             pthread_create(&pt2, NULL, multi_do, &me2);
-            //pthread_create(&pt3, NULL, multi_do, &me3);
+            pthread_create(&pt3, NULL, multi_do, &me3);
             //pthread_create(&pt4, NULL, multi_do, &me4);
-            if (qt->root->q2 != NULL) {
-                quad_tree_forces_descend(param, qt->root->q2);
-            }
             if (qt->root->q3 != NULL) {
                 quad_tree_forces_descend(param, qt->root->q3);
             }
             pthread_join(pt1, NULL);
             pthread_join(pt2, NULL);
-            //pthread_join(pt3, NULL);
+            pthread_join(pt3, NULL);
             //pthread_join(pt4, NULL);
         }
         //quad_tree_node_forces_propagate(qt->root, 0, 0);
