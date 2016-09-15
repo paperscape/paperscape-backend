@@ -188,6 +188,7 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
     // get the ids
     const char *meta_table = env->config->sql_meta_name;
     const char *id         = env->config->sql_meta_field_id;
+    //const char *agesort    = env->config->sql_meta_field_agesort;
     const char *allcats    = env->config->sql_meta_field_allcats;
     const char *title      = env->config->sql_meta_field_title;
     const char *authors    = env->config->sql_meta_field_authors;
@@ -209,6 +210,7 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
     if (strcmp(extra_clause,"") != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
+    //vstr_printf(vstr, ") ORDER BY %s", agesort);
     if (vstr_had_error(vstr)) {
         return false;
     }

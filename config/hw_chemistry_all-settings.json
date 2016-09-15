@@ -1,10 +1,10 @@
 {
-"description":"Hyperwall settings",
+"description":"Hyperwall all chemistry settings",
 "ids_time_ordered":false,
 "use_external_cites":true,
 "mass_cites_exponent":1.0,
 "forces":{
-    "link_strength":0.75,
+    "link_strength":10.0,
     "anti_gravity_falloff_rsq":1e7,
     "close_repulsion_a":1e9,
     "close_repulsion_b":1e14,
@@ -23,6 +23,7 @@
         "field_title":"",
         "field_authors":"",
         "field_keywords":"",
+        "field_agesort":"year",
         "add_missing_cats":false
     },
     "refs_table":{

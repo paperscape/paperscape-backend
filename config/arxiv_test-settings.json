@@ -22,7 +22,8 @@
         "field_allcats":"allcats",
         "field_title":"title",
         "field_authors":"authors",
-        "field_keywords":"keywords"
+        "field_keywords":"keywords",
+        "field_agesort":"year",
         "add_missing_cats":true
     },
     "refs_table":{
