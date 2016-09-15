@@ -36,7 +36,7 @@ type Paper struct {
     age         float32
     heat        float32
     //col         CairoColor
-    maincat     string
+    maincat     *Category
     label       string
 }
 
@@ -117,34 +117,13 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
     
     } else {
 
-        if paper.maincat == "hep-th" {
-            col.r, col.g, col.b = 0, 0, 1 // blue
-        } else if paper.maincat == "hep-ph" {
-            col.r, col.g, col.b = 0, 1, 0 // green
-        } else if paper.maincat == "hep-ex" {
-            col.r, col.g, col.b = 1, 1, 0 // yellow
-        } else if paper.maincat == "gr-qc" {
-            col.r, col.g, col.b = 0, 1, 1 // cyan
-        } else if paper.maincat == "hep-lat" {
-            col.r, col.g, col.b = 0.7, 0.36, 0.2 // tan brown
-        } else if paper.maincat == "astro-ph" {
-            col.r, col.g, col.b = 0.89, 0.53, 0.6 // skin pink
-        } else if paper.maincat == "cond-mat" {
-            col.r, col.g, col.b = 0.7, 0.5, 0.4
-        } else if paper.maincat == "quant-ph" {
-            col.r, col.g, col.b = 0.4, 0.7, 0.7
-        } else if paper.maincat == "physics" {
-            col.r, col.g, col.b = 1, 0, 0 // red
-        } else if paper.maincat == "math" {
-            col.r, col.g, col.b = 0.62, 0.86, 0.24 // lime green
-        } else if paper.maincat == "cs" {
-            col.r, col.g, col.b = 0.7, 0.3, 0.6 // purple
-        } else {
-            col.r, col.g, col.b = 0.7, 1, 0.3
-        }
+        col.r = paper.maincat.r
+        col.g = paper.maincat.g
+        col.b = paper.maincat.b
 
         // brighten papers in categories that are mostly tiny dots
-        brighten := paper.maincat == "math" || paper.maincat == "cs"
+        // this is arXiv specific
+        brighten := paper.maincat.name == "math" || paper.maincat.name == "cs"
 
 
         // foreground colour; select one by making its if condition true
@@ -237,7 +216,7 @@ func (graph *Graph) CalculateCategoryLabels() {
         var sumMass, sumMassX, sumMassY int64
         var minX,minY,maxX,maxY int
         for _, paper := range(graph.papers) {
-            if paper.maincat == category.maincat {
+            if paper.maincat.name == category.maincat {
                 mass := int64(paper.radius*paper.radius)
                 sumMass += mass
                 sumMassX += mass*int64(paper.x)
@@ -456,11 +435,11 @@ func (graph *Graph) QueryHeat(db *mysql.Client) {
     fmt.Println("read heat from cites")
 }
 
-func (graph *Graph) QueryCategories(db *mysql.Client) {
+func (graph *Graph) QueryCategories(db *mysql.Client, catSet *CategorySet) {
 
     // execute the query
-    //err := db.Query("SELECT id,maincat FROM meta_data")
-    err := db.Query("SELECT id,maincat,allcats FROM meta_data")
+    err := db.Query("SELECT id,maincat FROM meta_data")
+    //err := db.Query("SELECT id,maincat,allcats FROM meta_data")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
@@ -490,7 +469,7 @@ func (graph *Graph) QueryCategories(db *mysql.Client) {
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
-            paper.maincat = maincat
+            paper.maincat = catSet.Lookup(maincat)
         }
     }
 

@@ -28,6 +28,7 @@ var COLOUR_GRAYSCALE = 2
 
 var flagDB           = flag.String("db", "", "MySQL database to connect to")
 var flagDBLocSuffix  = flag.String("db-suffix", "", "Suffix of location table in MySQL database: map_data_{suffix}")
+var flagJSONCatFile  = flag.String("json-cats", "", "Read categories from JSON file (default is no categories)")
 var flagJSONLocFile  = flag.String("json-layout", "", "Read paper locations from JSON file instead of DB")
 
 var flagSkipTiles    = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
@@ -60,8 +61,14 @@ func main() {
     }
     defer db.Close()
 
+    // read in the categories
+    catSet := ReadCategoriesFromJSON(*flagJSONCatFile)
+    if catSet == nil {
+        return
+    }
+
     // read in the graph
-    graph := ReadGraph(db, *flagJSONLocFile)
+    graph := ReadGraph(db, *flagJSONLocFile, catSet)
 
     // build the quad tree
     graph.BuildQuadTree()
@@ -172,10 +179,13 @@ func ReadPaperLocationFromJSON(filename string) []*Paper {
     // close file
     file.Close()
 
+    // create default category for newly loaded papers
+    defaultCat := MakeDefaultCategory("unknown")
+
     // build paper array
     papers := make([]*Paper, 0)
     for _, item := range layout {
-        papers = append(papers, MakePaper(uint(item[0]), item[1], item[2], item[3]))
+        papers = append(papers, MakePaper(uint(item[0]), item[1], item[2], item[3], defaultCat))
     }
 
     // make sure papers are sorted!
@@ -232,6 +242,9 @@ func QueryPapers(db *mysql.Client) []*Paper {
     //papers := make([]*Paper, numPapers)
     papers := make([]*Paper, 0)
 
+    // create default category for newly loaded papers
+    defaultCat := MakeDefaultCategory("unknown")
+
     // execute the query
     //err = db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
     err = db.Query("SELECT id,x,y,r FROM " + loc_table)
@@ -262,7 +275,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
         if y, ok = row[2].(int64); !ok { continue }
         if r, ok = row[3].(int64); !ok { continue }
 
-        papers = append(papers,MakePaper(uint(id), int(x), int(y), int(r)))
+        papers = append(papers,MakePaper(uint(id), int(x), int(y), int(r), defaultCat))
     }
 
     db.FreeResult()
@@ -283,16 +296,17 @@ func QueryPapers(db *mysql.Client) []*Paper {
     return papers
 }
 
-func MakePaper(id uint, x int, y int, radius int) *Paper {
+func MakePaper(id uint, x int, y int, radius int, maincat *Category) *Paper {
     paper := new(Paper)
     paper.id = id
     paper.x = x
     paper.y = y
     paper.radius = radius
+    paper.maincat = maincat
     return paper
 }
 
-func ReadGraph(db *mysql.Client, jsonLocationFile string) *Graph {
+func ReadGraph(db *mysql.Client, jsonLocationFile string, catSet *CategorySet) *Graph {
     graph := new(Graph)
 
     if len(jsonLocationFile) == 0 {
@@ -310,7 +324,7 @@ func ReadGraph(db *mysql.Client, jsonLocationFile string) *Graph {
         }
     }
 
-    graph.QueryCategories(db)
+    graph.QueryCategories(db, catSet)
 
     if !*flagSkipLabels {
         graph.QueryLabels(db)
