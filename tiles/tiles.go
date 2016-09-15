@@ -35,7 +35,6 @@ var flagSkipLabels   = flag.Bool("skip-labels", false, "Do not generate labels (
 var flagGrayScale    = flag.Bool("gs", false, "Generate grayscale tiles")
 var flagHeatMap      = flag.Bool("hm", false, "Generate heatmap tiles")
 
-var flagSubCats      = flag.Bool("sub-cats", false, "Distinguish sub category papers (currently works only for astro-ph)")
 var flagCentreGraph  = flag.Bool("centre", false, "Whether to centre the graph on the total centre of mass")
 
 var flagDoSingle     = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
