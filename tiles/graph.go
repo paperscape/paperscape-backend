@@ -589,6 +589,68 @@ func (graph *Graph) QueryLabels(config *Config) {
     }
 }
 
+func (graph *Graph) ComputeAges(config *Config) {
+   
+    fmt.Println("Computing paper ages")
+    numPapers := len(graph.papers)
+    if config.IdsTimeOrdered {
+        // calculate age - papers should be sorted by id already
+        for index, paper := range(graph.papers) {
+            paper.age = float32(index) / float32(numPapers)
+        }
+    } else {
+        // sort ids according to agesort field specified in settings
+        // use this sorting to compute age
+        var query string
+        if *flagLayoutFile == "" {
+            // loaded layout map from DB, so limit query to ids from map table
+            query = fmt.Sprintf("SELECT %[1]s.%[2]s,%[3]s.%[5]s FROM %[1]s,%[3]s WHERE %[1]s.%[2]s = %[3]s.%[4]s ORDER BY %[3]s.%[5]s", config.Sql.Map.Name, config.Sql.Map.FieldId, config.Sql.Meta.Name, config.Sql.Meta.FieldId, config.Sql.Meta.FieldAgesort)
+        } else {
+            // loaded layout map from file, so get all ids from meta table to match against
+            // (note: not using ExtraClause as it probably clashes with ORDER BY ...)
+            query = fmt.Sprintf("SELECT %s FROM %s WHERE (%s) ORDER BY %s", config.Sql.Meta.FieldId, config.Sql.Meta.Name, config.Sql.Meta.WhereClause, config.Sql.Meta.FieldAgesort)
+        }
+        err := config.db.Query(query)
+        if err != nil {
+            fmt.Println("MySQL query error;", err)
+            return
+        }
+
+        // get result set
+        result, err := config.db.UseResult()
+        if err != nil {
+            fmt.Println("MySQL use result error;", err)
+            return 
+        }
+
+        index := 0
+        for {
+            row := result.FetchRow()
+            if row == nil {
+                break
+            }
+
+            var ok bool
+            var id uint64
+            //var agesort uint64
+            if id, ok = row[0].(uint64); !ok { continue }
+            //if agesort, ok = row[1].(uint64); !ok { continue }
+            paper := graph.GetPaperById(uint(id))
+            if paper != nil {
+                paper.age = float32(index) / float32(numPapers)
+                index += 1
+            }
+        }
+
+        config.db.FreeResult()
+
+        if index != numPapers {
+            log.Fatal("ERROR: Mismatch between number of papers and age index count:",index,numPapers)
+        }
+    }
+}
+
+
 func (graph *Graph) BuildQuadTree() {
     qt := new(QuadTree)
 

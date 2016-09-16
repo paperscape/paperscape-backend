@@ -166,7 +166,7 @@ func cleanJsonString(input string) string {
 }
 
 // read layout in form [[id,x,y,r],...] from JSON file
-func ReadPaperLocationFromJSON(filename string) []*Paper {
+func ReadPaperLocationFromJSON(config *Config, filename string) []*Paper {
     fmt.Printf("reading paper layout from JSON file %v\n", filename)
 
     // open JSON file
@@ -198,11 +198,6 @@ func ReadPaperLocationFromJSON(filename string) []*Paper {
 
     // make sure papers are sorted!
     sort.Sort(PaperSortId(papers))
-
-    // calculate age
-    for index, paper := range(papers) {
-        paper.age = float32(index) / float32(len(papers))
-    }
 
     // print info
     fmt.Printf("read %v paper positions\n", len(layout))
@@ -253,7 +248,6 @@ func QueryPapers(config *Config) []*Paper {
     // execute the query
     //err = config.db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
     query = fmt.Sprintf("SELECT %s,%s,%s,%s FROM %s", config.Sql.Map.FieldId, config.Sql.Map.FieldX, config.Sql.Map.FieldY, config.Sql.Map.FieldR, config.Sql.Map.Name)
-    //err = config.db.Query("SELECT id,x,y,r FROM " + loc_table)
     err = config.db.Query(query)
     if err != nil {
         fmt.Println("MySQL query error;", err)
@@ -290,11 +284,6 @@ func QueryPapers(config *Config) []*Paper {
     // make sure papers are sorted!
     sort.Sort(PaperSortId(papers))
 
-    // calculate age
-    for index, paper := range(papers) {
-        paper.age = float32(index) / float32(numPapers)
-    }
-
     if len(papers) != int(numPapers) {
         fmt.Println("could not read all papers from",config.Sql.Map.Name,"; wanted", numPapers, "got", len(papers))
         return nil
@@ -316,21 +305,22 @@ func MakePaper(id uint, x int, y int, radius int, maincat *Category) *Paper {
 func ReadGraph(config *Config, jsonLocationFile string, catSet *CategorySet) *Graph {
     graph := new(Graph)
 
-    if len(jsonLocationFile) == 0 {
+    if jsonLocationFile != "" {
+        // load positions from JSON layout file
+        graph.papers = ReadPaperLocationFromJSON(config, jsonLocationFile)
+        if graph.papers == nil {
+            log.Fatal("could not read papers from JSON file")
+        }
+    } else {
         // load positions from the data base
         graph.papers = QueryPapers(config)
         if graph.papers == nil {
             log.Fatal("could not read papers from db")
         }
         fmt.Printf("read %v papers from db\n", len(graph.papers))
-    } else {
-        // load positions from JSON file
-        graph.papers = ReadPaperLocationFromJSON(jsonLocationFile)
-        if graph.papers == nil {
-            log.Fatal("could not read papers from JSON file")
-        }
     }
 
+    graph.ComputeAges(config)
     graph.QueryCategories(config, catSet)
 
     if !*flagSkipLabels {
