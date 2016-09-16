@@ -627,8 +627,12 @@ func (graph *Graph) BuildQuadTree() {
     }
 
     // build the quad tree
+    var insertErrors int
     for _, paper := range graph.papers {
-        QuadTreeInsertPaper(nil, &qt.Root, paper, qt.MinX, qt.MinY, qt.MaxX, qt.MaxY)
+        QuadTreeInsertPaper(nil, &qt.Root, paper, qt.MinX, qt.MinY, qt.MaxX, qt.MaxY, &insertErrors)
+    }
+    if (insertErrors > 0) {
+        log.Printf("ERROR: QuadTreeInsertPaper hit minimum cell size %d time(s)\n",insertErrors)
     }
 
     fmt.Printf("quad tree bounding box: (%v,%v) -- (%v,%v)\n", qt.MinX, qt.MinY, qt.MaxX, qt.MaxY)

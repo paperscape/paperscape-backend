@@ -1,7 +1,7 @@
 package main
 
 import (
-    "log"
+    //"log"
 )
 
 type QuadTreeNode struct {
@@ -16,7 +16,7 @@ type QuadTree struct {
     Root                    *QuadTreeNode
 }
 
-func QuadTreeInsertPaper(parent *QuadTreeNode, q **QuadTreeNode, paper *Paper, MinX, MinY, MaxX, MaxY int) {
+func QuadTreeInsertPaper(parent *QuadTreeNode, q **QuadTreeNode, paper *Paper, MinX, MinY, MaxX, MaxY int, insertErrors *int) {
     if *q == nil {
         // hit an empty node; create a new leaf cell and put this paper in it
         *q = new(QuadTreeNode)
@@ -32,15 +32,15 @@ func QuadTreeInsertPaper(parent *QuadTreeNode, q **QuadTreeNode, paper *Paper, M
         (*q).Q1 = nil
         (*q).Q2 = nil
         (*q).Q3 = nil
-        QuadTreeInsertPaper(parent, q, oldPaper, MinX, MinY, MaxX, MaxY)
-        QuadTreeInsertPaper(parent, q, paper, MinX, MinY, MaxX, MaxY)
+        QuadTreeInsertPaper(parent, q, oldPaper, MinX, MinY, MaxX, MaxY, insertErrors)
+        QuadTreeInsertPaper(parent, q, paper, MinX, MinY, MaxX, MaxY, insertErrors)
 
     } else {
         // hit an internal node
 
         // check cell size didn't get too small
         if (MaxX <= MinX + 1 || MaxY <= MinY + 1) {
-            log.Println("ERROR: QuadTreeInsertPaper hit minimum cell size")
+            *insertErrors += 1
             return
         }
 
@@ -51,15 +51,15 @@ func QuadTreeInsertPaper(parent *QuadTreeNode, q **QuadTreeNode, paper *Paper, M
         // insert the new paper in the correct cell
         if ((paper.y) < MidY) {
             if ((paper.x) < MidX) {
-                QuadTreeInsertPaper(*q, &(*q).Q0, paper, MinX, MinY, MidX, MidY)
+                QuadTreeInsertPaper(*q, &(*q).Q0, paper, MinX, MinY, MidX, MidY, insertErrors)
             } else {
-                QuadTreeInsertPaper(*q, &(*q).Q1, paper, MidX, MinY, MaxX, MidY)
+                QuadTreeInsertPaper(*q, &(*q).Q1, paper, MidX, MinY, MaxX, MidY, insertErrors)
             }
         } else {
             if ((paper.x) < MidX) {
-                QuadTreeInsertPaper(*q, &(*q).Q2, paper, MinX, MidY, MidX, MaxY)
+                QuadTreeInsertPaper(*q, &(*q).Q2, paper, MinX, MidY, MidX, MaxY, insertErrors)
             } else {
-                QuadTreeInsertPaper(*q, &(*q).Q3, paper, MidX, MidY, MaxX, MaxY)
+                QuadTreeInsertPaper(*q, &(*q).Q3, paper, MidX, MidY, MaxX, MaxY, insertErrors)
             }
         }
     }
