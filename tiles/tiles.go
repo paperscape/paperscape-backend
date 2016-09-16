@@ -12,7 +12,7 @@ import (
     "math"
     "sort"
     "log"
-    "time"
+    //"time"
     "encoding/json"
     //"GoMySQL"
     "github.com/yanatan16/GoMySQL"
@@ -26,9 +26,8 @@ var COLOUR_NORMAL    = 0
 var COLOUR_HEATMAP   = 1
 var COLOUR_GRAYSCALE = 2
 
-var flagDB           = flag.String("db", "", "MySQL database to connect to")
-var flagDBLocSuffix  = flag.String("db-suffix", "", "Suffix of location table in MySQL database: map_data_{suffix}")
-var flagJSONCatFile  = flag.String("json-cats", "", "Read categories from JSON file (default is no categories)")
+var flagJSONSetFile  = flag.String("json-settings", "../config/arxiv-settings.json", "Read settings from JSON file")
+var flagJSONCatFile  = flag.String("json-cats", "../config/arxiv-categories.json", "Read categories from JSON file")
 var flagJSONLocFile  = flag.String("json-layout", "", "Read paper locations from JSON file instead of DB")
 
 var flagSkipTiles    = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
@@ -54,12 +53,20 @@ func main() {
     }
     outPrefix := flag.Arg(0)
 
-    // connect to the db
-    db := ConnectToDB(*flagDB)
-    if db == nil {
+    // read in settings
+    config := ReadConfigFromJSON(*flagJSONSetFile)
+    if config == nil {
+        log.Fatal("Could not read in config settings")
         return
     }
-    defer db.Close()
+
+    // connect to the db
+    config.db = ConnectToDB()
+    if config.db == nil {
+        log.Fatal("Could not connect to DB")
+        return
+    }
+    defer config.db.Close()
 
     // read in the categories
     catSet := ReadCategoriesFromJSON(*flagJSONCatFile)
@@ -68,7 +75,7 @@ func main() {
     }
 
     // read in the graph
-    graph := ReadGraph(db, *flagJSONLocFile, catSet)
+    graph := ReadGraph(config, *flagJSONLocFile, catSet)
 
     // build the quad tree
     graph.BuildQuadTree()
@@ -109,15 +116,22 @@ func main() {
         w := bufio.NewWriter(fo)
 
         num_papers := len(graph.papers)
+        
+        // dbSuffix was used for timelapse maps 
+        // assumed that map tables have prefix 'map_data_'
+        dbSuffix := ""
+        if len(config.Sql.Map.Name) > 9 && config.Sql.Map.Name[:9] == "map_data_" {
+            dbSuffix = config.Sql.Map.Name[9:]
+        }
 
-        fmt.Fprintf(w,"world_index({\"dbsuffix\":\"%s\",\"latestid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",*flagDBLocSuffix,graph.LatestId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
+        fmt.Fprintf(w,"world_index({\"dbsuffix\":\"%s\",\"latestid\":%d,\"numpapers\":%d,\"xmin\":%d,\"ymin\":%d,\"xmax\":%d,\"ymax\":%d,\"pixelw\":%d,\"pixelh\":%d",dbSuffix,graph.LatestId,num_papers,graph.MinX,graph.MinY,graph.MaxX,graph.MaxY,TILE_PIXEL_LEN,TILE_PIXEL_LEN)
 
-        graph.QueryNewPapersId(db)
+        graph.QueryNewPapersId(config)
         if graph.NewPapersId != 0 {
             fmt.Fprintf(w,",\"newid\":%d",graph.NewPapersId)
         }
 
-        graph.QueryLastMetaDownload(db)
+        graph.QueryLastMetaDownload(config)
         if graph.LastMetaDownload != "" {
             fmt.Fprintf(w,",\"lastdl\":\"%s\"",graph.LastMetaDownload)
         }
@@ -149,12 +163,6 @@ func cleanJsonString(input string) string {
         }
     }
     return string(output)
-}
-
-func idToDaysAgo(id uint) uint {
-    tId := time.Date(((int(id) / 10000000) + 1800),time.Month((((int(id) % 10000000) / 625000) + 1)),(((int(id) % 625000) / 15625) + 1),0,0,0,0,time.UTC)
-    days := uint(time.Now().Sub(tId).Hours()/24)
-    return days
 }
 
 // read layout in form [[id,x,y,r],...] from JSON file
@@ -203,22 +211,19 @@ func ReadPaperLocationFromJSON(filename string) []*Paper {
 }
 
 // Query database for papers to include
-func QueryPapers(db *mysql.Client) []*Paper {
+func QueryPapers(config *Config) []*Paper {
     
-    loc_table := "map_data"
-    if *flagDBLocSuffix != "" {
-        loc_table += "_" + *flagDBLocSuffix
-    }
-
     // count number of papers
-    err := db.Query("SELECT count(id) FROM " + loc_table)
+    query := fmt.Sprintf("SELECT count(%s) FROM %s", config.Sql.Map.FieldId, config.Sql.Map.Name)
+    //err := config.db.Query("SELECT count(id) FROM " + loc_table)
+    err := config.db.Query(query)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return nil
     }
 
     // get result set
-    result, err := db.UseResult()
+    result, err := config.db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
         return nil
@@ -236,7 +241,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
         fmt.Println("MySQL didn't return a number")
         return nil
     }
-    db.FreeResult()
+    config.db.FreeResult()
 
     // allocate paper array
     //papers := make([]*Paper, numPapers)
@@ -246,15 +251,17 @@ func QueryPapers(db *mysql.Client) []*Paper {
     defaultCat := MakeDefaultCategory("unknown")
 
     // execute the query
-    //err = db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
-    err = db.Query("SELECT id,x,y,r FROM " + loc_table)
+    //err = config.db.Query("SELECT map_data.id,map_data.x,map_data.y,map_data.r,keywords.keywords FROM map_data,keywords WHERE map_data.id = keywords.id")
+    query = fmt.Sprintf("SELECT %s,%s,%s,%s FROM %s", config.Sql.Map.FieldId, config.Sql.Map.FieldX, config.Sql.Map.FieldY, config.Sql.Map.FieldR, config.Sql.Map.Name)
+    //err = config.db.Query("SELECT id,x,y,r FROM " + loc_table)
+    err = config.db.Query(query)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return nil
     }
 
     // get result set
-    result, err = db.UseResult()
+    result, err = config.db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
         return nil
@@ -278,7 +285,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
         papers = append(papers,MakePaper(uint(id), int(x), int(y), int(r), defaultCat))
     }
 
-    db.FreeResult()
+    config.db.FreeResult()
 
     // make sure papers are sorted!
     sort.Sort(PaperSortId(papers))
@@ -289,7 +296,7 @@ func QueryPapers(db *mysql.Client) []*Paper {
     }
 
     if len(papers) != int(numPapers) {
-        fmt.Println("could not read all papers from",loc_table,"; wanted", numPapers, "got", len(papers))
+        fmt.Println("could not read all papers from",config.Sql.Map.Name,"; wanted", numPapers, "got", len(papers))
         return nil
     }
 
@@ -306,12 +313,12 @@ func MakePaper(id uint, x int, y int, radius int, maincat *Category) *Paper {
     return paper
 }
 
-func ReadGraph(db *mysql.Client, jsonLocationFile string, catSet *CategorySet) *Graph {
+func ReadGraph(config *Config, jsonLocationFile string, catSet *CategorySet) *Graph {
     graph := new(Graph)
 
     if len(jsonLocationFile) == 0 {
         // load positions from the data base
-        graph.papers = QueryPapers(db)
+        graph.papers = QueryPapers(config)
         if graph.papers == nil {
             log.Fatal("could not read papers from db")
         }
@@ -324,13 +331,12 @@ func ReadGraph(db *mysql.Client, jsonLocationFile string, catSet *CategorySet) *
         }
     }
 
-    graph.QueryCategories(db, catSet)
+    graph.QueryCategories(config, catSet)
 
     if !*flagSkipLabels {
-        graph.QueryLabels(db)
+        graph.QueryLabels(config)
         graph.CalculateCategoryLabels()
-        if *flagDBLocSuffix == "" {
-            // Region labels are specific to default map only
+        if *flagRegionFile != "" {
             graph.ReadRegionLabels(*flagRegionFile)
         }
     }
@@ -342,7 +348,7 @@ func ReadGraph(db *mysql.Client, jsonLocationFile string, catSet *CategorySet) *
 
     // Only if using heat calc
     //if *flagHeatMap {
-    //    graph.QueryHeat(db)
+    //    graph.QueryHeat(config)
     //}
     
     var sumMass, sumMassX, sumMassY int64
@@ -829,7 +835,7 @@ func DrawPoster(graph *Graph, surfWidthInt, surfHeightInt int, filename string, 
     surf.Finish()
 }
 
-func ConnectToDB(dbConnection string) *mysql.Client {
+func ConnectToDB() *mysql.Client {
     // connect to MySQL database; using a socket is preferred since it's faster
     var db *mysql.Client
     var err error
@@ -840,13 +846,11 @@ func ConnectToDB(dbConnection string) *mysql.Client {
     mysql_db   := os.Getenv("PSCP_MYSQL_DB")
     mysql_sock := os.Getenv("PSCP_MYSQL_SOCKET")
 
-    // if nothing requested, default to something sensible
-    if dbConnection == "" {
-        if fileExists(mysql_sock) {
-            dbConnection = mysql_sock
-        } else {
-            dbConnection = mysql_host
-        }
+    var dbConnection string
+    if fileExists(mysql_sock) {
+        dbConnection = mysql_sock
+    } else {
+        dbConnection = mysql_host
     }
 
     // make the connection

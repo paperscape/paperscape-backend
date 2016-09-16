@@ -1,10 +1,10 @@
 {
 "description":"Hyperwall all chemistry settings",
 "ids_time_ordered":false,
-"use_external_cites":true,
+"use_external_cites":false,
 "mass_cites_exponent":1.0,
 "forces":{
-    "link_strength":10.0,
+    "link_strength":5.0,
     "anti_gravity_falloff_rsq":1e7,
     "close_repulsion_a":1e9,
     "close_repulsion_b":1e14,
@@ -19,6 +19,7 @@
         "where_clause":"mainbigcat = 'chemistry'",
         "extra_clause":"",
         "field_id":"id",
+        "field_maincat":"maincat",
         "field_allcats":"catcodes",
         "field_title":"",
         "field_authors":"",

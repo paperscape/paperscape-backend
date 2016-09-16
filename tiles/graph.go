@@ -10,7 +10,7 @@ import (
     "time"
     "encoding/json"
     //"GoMySQL"
-    "github.com/yanatan16/GoMySQL"
+    //"github.com/yanatan16/GoMySQL"
 )
 
 type CairoColor struct {
@@ -51,7 +51,7 @@ type Graph struct {
     LastMetaDownload string
 }
 
-func (paper *Paper) DetermineLabel(authors, keywords string) {
+func (paper *Paper) DetermineLabel(authors, keywords, title string) {
     // work out author string; maximum 2 authors
     aus := strings.SplitN(authors, ",", 3)
     for i, au := range aus {
@@ -70,22 +70,43 @@ func (paper *Paper) DetermineLabel(authors, keywords string) {
         // 3 or more authors
         auStr = aus[0] + ",et al."
     }
-
-    // work out keyword string; maximum 2 keywords
-    kws := strings.SplitN(keywords, ",", 3)
+   
     var kwStr string
-    if len(kws) <= 1 {
-        // 0 or 1 keywords
-        kwStr = keywords + ","
-    } else if len(kws) == 2 {
-        // 2 keywords
-        kwStr = keywords
-    } else {
-        // 3 or more keywords
-        kwStr = kws[0] + "," + kws[1]
+    if keywords != "" {
+        // work out keyword string; maximum 2 keywords
+        kws := strings.SplitN(keywords, ",", 3)
+        if len(kws) <= 1 {
+            // 0 or 1 keywords
+            kwStr = keywords + ","
+        } else if len(kws) == 2 {
+            // 2 keywords
+            kwStr = keywords
+        } else {
+            // 3 or more keywords
+            kwStr = kws[0] + "," + kws[1]
+        }
+    } else if title != "" {
+        // truncate title string to some reasonable length
+        // hack: client uses commas to split string, so replace
+        // all comas with semicolons
+        title = strings.Replace(title,",",";",-1)
+        if len(title) > 32 {
+            title = title[:32]
+            i := strings.LastIndex(title," ")
+            if i != -1 {
+                title = title[:i]
+            }
+        }
+        kwStr = title + "...,"
     }
 
     paper.label = cleanJsonString(kwStr + "," + auStr)
+}
+
+func idToDaysAgo(id uint) uint {
+    tId := time.Date(((int(id) / 10000000) + 1800),time.Month((((int(id) % 10000000) / 625000) + 1)),(((int(id) % 625000) / 15625) + 1),0,0,0,0,time.UTC)
+    days := uint(time.Now().Sub(tId).Hours()/24)
+    return days
 }
 
 func (paper *Paper) GetColour(colourScheme int) *CairoColor {
@@ -262,24 +283,29 @@ func (graph *Graph) ReadRegionLabels(filename string) {
     fmt.Printf("read %v region labels\n", len(graph.regLabels))
 }
 
-func (graph *Graph) QueryLastMetaDownload(db *mysql.Client) {
+func (graph *Graph) QueryLastMetaDownload(config *Config) {
 
+    // construct query
+    if config.Sql.Misc.Name == "" {
+        fmt.Println("MySQL no misc table specified")
+        return
+    }
+    query := fmt.Sprintf("SELECT %s FROM %s WHERE %s = \"lastmetadownload\"", config.Sql.Misc.FieldValue, config.Sql.Misc.Name, config.Sql.Misc.FieldField)
     // execute the query
-    query := fmt.Sprintf("SELECT value FROM misc WHERE field = \"lastmetadownload\"")
-    err := db.Query(query)
+    err := config.db.Query(query)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
     }
 
     // get result set
-    result, err := db.UseResult()
+    result, err := config.db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
         return
     }
 
-    defer db.FreeResult()
+    defer config.db.FreeResult()
 
     var ok bool
     var value string
@@ -308,24 +334,30 @@ func (graph *Graph) QueryLastMetaDownload(db *mysql.Client) {
 
 }
 
-func (graph *Graph) QueryNewPapersId(db *mysql.Client) {
+func (graph *Graph) QueryNewPapersId(config *Config) {
 
+    // construct query
+    if config.Sql.Date.Name == "" {
+        fmt.Println("MySQL no date table specified")
+        return
+    }
+    //query := fmt.Sprintf("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < %d",graph.LatestId)
+    query := fmt.Sprintf("SELECT max(%s) FROM %s WHERE %s < %d", config.Sql.Date.FieldId, config.Sql.Date.Name, config.Sql.Date.FieldId, graph.LatestId)
     // execute the query
-    query := fmt.Sprintf("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < %d",graph.LatestId)
-    err := db.Query(query)
+    err := config.db.Query(query)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
     }
 
     // get result set
-    result, err := db.UseResult()
+    result, err := config.db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
         return
     }
 
-    defer db.FreeResult()
+    defer config.db.FreeResult()
 
     var ok bool
     var id uint64
@@ -351,17 +383,18 @@ func getLE32(blob []byte, i int) uint {
     return uint(blob[i]) | (uint(blob[i + 1]) << 8) | (uint(blob[i + 2]) << 16) | (uint(blob[i + 3]) << 24)
 }
 
-func (graph *Graph) QueryHeat(db *mysql.Client) {
+/*
+func (graph *Graph) QueryHeat(config *Config) {
 
     // execute the query
-    err := db.Query("SELECT id,numCites,cites FROM pcite")
+    err := config.db.Query("SELECT id,numCites,cites FROM pcite")
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
     }
 
     // get result set
-    result, err := db.UseResult()
+    result, err := config.db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
         return
@@ -430,23 +463,26 @@ func (graph *Graph) QueryHeat(db *mysql.Client) {
     }
     fmt.Printf("max %f\n",maxHeat)
 
-    db.FreeResult()
+    config.db.FreeResult()
 
     fmt.Println("read heat from cites")
 }
+*/
 
-func (graph *Graph) QueryCategories(db *mysql.Client, catSet *CategorySet) {
+func (graph *Graph) QueryCategories(config *Config, catSet *CategorySet) {
 
+    // construct query
+    //query := fmt.Sprintf("SELECT %s,%s,%s FROM %s",config.sqlMetaFieldId, config.sqlMetaFieldMaincat, config.sqlMetaFieldAllcats, config.sqlMetaTable)
+    query := fmt.Sprintf("SELECT %s,%s FROM %s",config.Sql.Meta.FieldId, config.Sql.Meta.FieldMaincat, config.Sql.Meta.Name)
     // execute the query
-    err := db.Query("SELECT id,maincat FROM meta_data")
-    //err := db.Query("SELECT id,maincat,allcats FROM meta_data")
+    err := config.db.Query(query)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
     }
 
     // get result set
-    result, err := db.UseResult()
+    result, err := config.db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
         return
@@ -465,7 +501,7 @@ func (graph *Graph) QueryCategories(db *mysql.Client, catSet *CategorySet) {
         //var allcats string
         if id, ok = row[0].(uint64); !ok { continue }
         if maincat, ok = row[1].(string); !ok { continue }
-        //allcats, ok = row[2].(string)
+        //if allcats, ok = row[2].(string); !ok { continue }
 
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
@@ -473,24 +509,54 @@ func (graph *Graph) QueryCategories(db *mysql.Client, catSet *CategorySet) {
         }
     }
 
-    db.FreeResult()
+    config.db.FreeResult()
 
 }
 
-func (graph *Graph) QueryLabels(db *mysql.Client) {
+func (graph *Graph) QueryLabels(config *Config) {
+    // construct query
+    query := "SELECT " + config.Sql.Meta.FieldId
+    keywordsLoaded := false
+    authorsLoaded  := false
+    titleLoaded   := false
+    // Load only keywords or title, not both
+    if config.Sql.Meta.FieldKeywords != "" {
+        query += "," + config.Sql.Meta.FieldKeywords
+        keywordsLoaded = true
+    } else if config.Sql.Meta.FieldTitle != "" {
+        query += "," + config.Sql.Meta.FieldTitle
+        titleLoaded = true
+    }
+    if config.Sql.Meta.FieldAuthors != "" {
+        query += "," + config.Sql.Meta.FieldAuthors
+        authorsLoaded = true
+    }
+    query += " FROM " + config.Sql.Meta.Name
+    if config.Sql.Meta.WhereClause != "" {
+        query += fmt.Sprintf(" WHERE (%s)",config.Sql.Meta.WhereClause)
+    }
+    if config.Sql.Meta.ExtraClause != "" {
+        query += " " + config.Sql.Meta.ExtraClause
+    }
+    if !((keywordsLoaded || titleLoaded) && authorsLoaded) {
+        fmt.Println("Insufficient keywords or title and authors data available to make labels")
+        return
+    }
+
     // execute the query
-    err := db.Query("SELECT id,keywords,authors FROM meta_data")
+    err := config.db.Query(query)
     if err != nil {
         fmt.Println("MySQL query error;", err)
         return
     }
 
     // get result set
-    result, err := db.UseResult()
+    result, err := config.db.UseResult()
     if err != nil {
         fmt.Println("MySQL use result error;", err)
         return
     }
+    defer config.db.FreeResult()
 
     // get each row from the result
     for {
@@ -502,26 +568,25 @@ func (graph *Graph) QueryLabels(db *mysql.Client) {
         var ok bool
         var id uint64
         var keywords []byte
+        var title string
         //var allcats string
-        var authors string
+        var authors []byte
         if id, ok = row[0].(uint64); !ok { continue }
-        if keywords, ok = row[1].([]byte); !ok { continue }
-        //if allcats, ok = row[2].(string); !ok { continue }
-        if row[2] == nil {
-            continue
-        } else if au, ok := row[2].([]byte); !ok {
-            continue
-        } else {
-            authors = string(au)
-        }
-
+        if row[1] != nil {
+            if keywordsLoaded {
+                if keywords, ok = row[1].([]byte); !ok { continue }
+            } else if titleLoaded {
+                if title, ok = row[1].(string); !ok { continue }
+            } else { continue }
+        } else { continue }
+        if row[2] != nil {
+            if authors, ok = row[2].([]byte); !ok { continue }
+        } else { continue }
         paper := graph.GetPaperById(uint(id))
         if paper != nil {
-            paper.DetermineLabel(authors,string(keywords))
+            paper.DetermineLabel(string(authors),string(keywords),title)
         }
     }
-
-    db.FreeResult()
 }
 
 func (graph *Graph) BuildQuadTree() {

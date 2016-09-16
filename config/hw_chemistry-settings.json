@@ -19,6 +19,7 @@
         "where_clause":"maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'dx' OR maincat = 'dw'",
         "extra_clause":"ORDER BY rand(42) LIMIT 200000",
         "field_id":"id",
+        "field_maincat":"maincat",
         "field_allcats":"catcodes",
         "field_title":"",
         "field_authors":"",
