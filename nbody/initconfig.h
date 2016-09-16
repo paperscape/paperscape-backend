@@ -2,43 +2,58 @@
 #define _INCLUDED_INITCONFIG_H
 
 // Initial configuration
+// Obeys same structure as JSON file
 typedef struct _init_config_t {
-    // ### MySQL config
-    // meta table
-    const char *sql_meta_name;
-    const char *sql_meta_where_clause;
-    const char *sql_meta_extra_clause;
-    const char *sql_meta_field_id;
-    const char *sql_meta_field_title;
-    const char *sql_meta_field_authors;
-    const char *sql_meta_field_allcats;
-    const char *sql_meta_field_keywords;
-    bool sql_meta_add_missing_cats;
-    // refs table
-    const char *sql_refs_name;
-    const char *sql_refs_field_id;
-    const char *sql_refs_field_refs;
-    bool        sql_refs_rblob_freq;
-    bool        sql_refs_rblob_order;
-    bool        sql_refs_rblob_cites;
-    // map table
-    const char *sql_map_name;
-    const char *sql_map_field_id;
-    const char *sql_map_field_x;
-    const char *sql_map_field_y;
-    const char *sql_map_field_r;
-    // ### Map Environment initial configuration
+
     bool   ids_time_ordered;
     bool   use_external_cites;
     double mass_cites_exponent;
-    bool   force_use_ref_freq;
-    bool   force_initial_close_repulsion;
-    double force_close_repulsion_a;
-    double force_close_repulsion_b;
-    double force_close_repulsion_c;
-    double force_close_repulsion_d;
-    double force_link_strength;
-    double force_anti_gravity_falloff_rsq;
+    
+    struct _config_forces_t {
+        bool   use_ref_freq;
+        bool   initial_close_repulsion;
+        double close_repulsion_a;
+        double close_repulsion_b;
+        double close_repulsion_c;
+        double close_repulsion_d;
+        double link_strength;
+        double anti_gravity_falloff_rsq;
+    } forces;
+
+    struct _config_sql_t {
+        
+        struct _config_sql_meta_table_t {
+            const char *name;
+            const char *where_clause;
+            const char *extra_clause;
+            const char *field_id;
+            const char *field_title;
+            const char *field_authors;
+            const char *field_allcats;
+            const char *field_keywords;
+            bool add_missing_cats;
+        } meta_table;
+
+        struct _config_sql_refs_table_t {
+            const char *name;
+            const char *field_id;
+            const char *field_refs;
+            bool rblob_order;
+            bool rblob_freq;
+            bool rblob_cites;
+            bool add_missing_cats;
+        } refs_table;
+
+        struct _config_sql_map_table_t {
+            const char *name;
+            const char *field_id;
+            const char *field_x;
+            const char *field_y;
+            const char *field_r;
+        } map_table;
+
+    } sql;
+
 } init_config_t;
 
 bool init_config_new(const char *filename, init_config_t **config);

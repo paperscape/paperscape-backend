@@ -52,14 +52,14 @@ map_env_t *map_env_new(init_config_t *init_config, category_set_t *cats) {
     map_env->mass_cites_exponent = init_config->mass_cites_exponent;
 
     // defaults now set in init_config_new(...)
-    map_env->force_params.close_repulsion_a  = init_config->force_close_repulsion_a;
-    map_env->force_params.close_repulsion_b  = init_config->force_close_repulsion_b;
-    map_env->force_params.close_repulsion_c  = init_config->force_close_repulsion_c;
-    map_env->force_params.close_repulsion_d  = init_config->force_close_repulsion_d;
-    map_env->force_params.do_close_repulsion = init_config->force_initial_close_repulsion;
-    map_env->force_params.use_ref_freq       = init_config->force_use_ref_freq;
-    map_env->force_params.link_strength      = init_config->force_link_strength;
-    map_env->force_params.anti_gravity_falloff_rsq     = init_config->force_anti_gravity_falloff_rsq;
+    map_env->force_params.close_repulsion_a  = init_config->forces.close_repulsion_a;
+    map_env->force_params.close_repulsion_b  = init_config->forces.close_repulsion_b;
+    map_env->force_params.close_repulsion_c  = init_config->forces.close_repulsion_c;
+    map_env->force_params.close_repulsion_d  = init_config->forces.close_repulsion_d;
+    map_env->force_params.do_close_repulsion = init_config->forces.initial_close_repulsion;
+    map_env->force_params.use_ref_freq       = init_config->forces.use_ref_freq;
+    map_env->force_params.link_strength      = init_config->forces.link_strength;
+    map_env->force_params.anti_gravity_falloff_rsq     = init_config->forces.anti_gravity_falloff_rsq;
     map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
 
     return map_env;

@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
     }
 
     // print info about the where clause being used
-    printf("using sql clause: %s %s\n", init_config->sql_meta_where_clause, init_config->sql_meta_extra_clause);
+    printf("using sql clause: %s %s\n", init_config->sql.meta_table.where_clause, init_config->sql.meta_table.extra_clause);
 
     // load the categories from JSON file
     category_set_t *category_set;

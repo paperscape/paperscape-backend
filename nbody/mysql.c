@@ -126,16 +126,16 @@ static bool env_query_no_result(env_t *env, const char *q, unsigned long len) {
 }
 
 static bool env_get_num_ids(env_t *env, int *num_ids) {
-    const char *meta_table = env->config->sql_meta_name;
-    const char *id         = env->config->sql_meta_field_id;
+    const char *meta_table = env->config->sql.meta_table.name;
+    const char *id         = env->config->sql.meta_table.field_id;
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT count(%s) FROM %s",id,meta_table);
-    const char *where_clause = env->config->sql_meta_where_clause;
+    const char *where_clause = env->config->sql.meta_table.where_clause;
     if (strcmp(where_clause,"") != 0) {
         vstr_printf(vstr, " WHERE (%s)", where_clause);
     }
-    const char *extra_clause = env->config->sql_meta_extra_clause;
+    const char *extra_clause = env->config->sql.meta_table.extra_clause;
     if (strcmp(extra_clause,"") != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
@@ -171,7 +171,7 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
     MYSQL_RES *result;
     MYSQL_ROW row;
 
-    printf("reading ids from %s\n",env->config->sql_meta_name);
+    printf("reading ids from %s\n",env->config->sql.meta_table.name);
 
     // get the number of ids, so we can allocate the correct amount of memory
     int num_ids;
@@ -186,27 +186,27 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
     }
 
     // get the ids
-    const char *meta_table = env->config->sql_meta_name;
-    const char *id         = env->config->sql_meta_field_id;
-    //const char *agesort    = env->config->sql_meta_field_agesort;
-    const char *allcats    = env->config->sql_meta_field_allcats;
-    const char *title      = env->config->sql_meta_field_title;
-    const char *authors    = env->config->sql_meta_field_authors;
+    const char *meta_table = env->config->sql.meta_table.name;
+    const char *id         = env->config->sql.meta_table.field_id;
+    //const char *agesort    = env->config->sql.meta_table.field_agesort;
+    const char *allcats    = env->config->sql.meta_table.field_allcats;
+    const char *title      = env->config->sql.meta_table.field_title;
+    const char *authors    = env->config->sql.meta_table.field_authors;
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     int num_fields;
-    if (load_display_fields && !(strcmp(env->config->sql_meta_field_authors,"") == 0 || strcmp(env->config->sql_meta_field_title,"") == 0)) {
+    if (load_display_fields && !(strcmp(env->config->sql.meta_table.field_authors,"") == 0 || strcmp(env->config->sql.meta_table.field_title,"") == 0)) {
         vstr_printf(vstr, "SELECT %s,%s,%s,%s FROM %s",id,allcats,authors,title,meta_table);
         num_fields = 4;
     } else {
         vstr_printf(vstr, "SELECT %s,%s FROM %s",id,allcats,meta_table);
         num_fields = 2;
     }
-    const char *where_clause = env->config->sql_meta_where_clause;
+    const char *where_clause = env->config->sql.meta_table.where_clause;
     if (strcmp(where_clause,"") != 0) {
         vstr_printf(vstr, " WHERE (%s)", where_clause);
     }
-    const char *extra_clause = env->config->sql_meta_extra_clause;
+    const char *extra_clause = env->config->sql.meta_table.extra_clause;
     if (strcmp(extra_clause,"") != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
@@ -241,7 +241,7 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
                             // print unknown categories; for adding to input JSON file
                             //printf("warning: no colour for category %.*s\n", (int)(cur - start), start);
                         }
-                        if (env->config->sql_meta_add_missing_cats) {
+                        if (env->config->sql.meta_table.add_missing_cats) {
                             // include it in category set anyway, as it may still be needed to make fake links
                             if(category_set_add_category(env->category_set, start, cur - start, def_col)) {
                                 // NOTE: WoS exceeds 256 categories hard limit, so check if limit exceeded
@@ -317,16 +317,16 @@ static bool env_load_refs(env_t *env) {
     printf("reading pcite\n");
 
     // get the refs blobs from the pcite table
-    const char *refs_table = env->config->sql_refs_name;
-    const char *id         = env->config->sql_refs_field_id;
-    const char *refs       = env->config->sql_refs_field_refs;
+    const char *refs_table = env->config->sql.refs_table.name;
+    const char *id         = env->config->sql.refs_table.field_id;
+    const char *refs       = env->config->sql.refs_table.field_refs;
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT %s,%s FROM %s",id,refs,refs_table);
-    const char *where_clause = env->config->sql_meta_where_clause;
+    const char *where_clause = env->config->sql.meta_table.where_clause;
     if (strcmp(where_clause,"") != 0) {
-        const char *meta_table = env->config->sql_meta_name;
-        const char *meta_id = env->config->sql_meta_field_id;
+        const char *meta_table = env->config->sql.meta_table.name;
+        const char *meta_id = env->config->sql.meta_table.field_id;
         // NOTE: MySQL doesn't seem to be support LIMIT statement inside subquery i.e. can't include extra_clause
         vstr_printf(vstr, " WHERE %s IN (SELECT %s FROM %s WHERE (%s))",id,meta_id,meta_table,where_clause);
     }
@@ -340,9 +340,9 @@ static bool env_load_refs(env_t *env) {
     // find length of a single ref blob
     // note that order of these rblob properties important
     unsigned int len_blob = 4;
-    if (env->config->sql_refs_rblob_order) len_blob += 2;
-    if (env->config->sql_refs_rblob_freq)  len_blob += 2;
-    if (env->config->sql_refs_rblob_cites) len_blob += 2;
+    if (env->config->sql.refs_table.rblob_order) len_blob += 2;
+    if (env->config->sql.refs_table.rblob_freq)  len_blob += 2;
+    if (env->config->sql.refs_table.rblob_cites) len_blob += 2;
 
     int total_refs = 0;
     while ((row = mysql_fetch_row(result))) {
@@ -380,11 +380,11 @@ static bool env_load_refs(env_t *env) {
                     if (paper->refs[paper->num_refs] != NULL) {
                         paper->refs[paper->num_refs]->num_cites += 1;
                         unsigned short buf_index = 4, ref_freq = 1;
-                        if (env->config->sql_refs_rblob_order) {
+                        if (env->config->sql.refs_table.rblob_order) {
                             // refs blob contains reference order info
                             buf_index += 2;
                         }
-                        if (env->config->sql_refs_rblob_freq) {
+                        if (env->config->sql.refs_table.rblob_freq) {
                             // refs blob contains reference frequency info
                             ref_freq = decode_le16(buf + buf_index);
                             if (ref_freq > 255) {
@@ -392,7 +392,7 @@ static bool env_load_refs(env_t *env) {
                             }
                             buf_index += 2;
                         }
-                        if (env->config->sql_refs_rblob_cites) {
+                        if (env->config->sql.refs_table.rblob_cites) {
                             // refs blob contain reference cites info
                             if (env->config->use_external_cites) {
                                 paper->refs[paper->num_refs]->num_graph_cites = decode_le16(buf + buf_index);
@@ -421,9 +421,9 @@ static bool env_load_keywords(env_t *env) {
     printf("reading keywords\n");
 
     // get the keywords from the db
-    const char *meta_table = env->config->sql_meta_name;
-    const char *id         = env->config->sql_meta_field_id;
-    const char *keywords   = env->config->sql_meta_field_keywords;
+    const char *meta_table = env->config->sql.meta_table.name;
+    const char *id         = env->config->sql.meta_table.field_id;
+    const char *keywords   = env->config->sql.meta_table.field_keywords;
     if (strcmp(keywords,"") == 0) {
         printf("no keywords table specified, skipping...\n");
         return true;
@@ -431,11 +431,11 @@ static bool env_load_keywords(env_t *env) {
     vstr_t *vstr = env->vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT %s,%s FROM %s",id,keywords,meta_table);
-    const char *where_clause = env->config->sql_meta_where_clause;
+    const char *where_clause = env->config->sql.meta_table.where_clause;
     if (strcmp(where_clause,"") != 0) {
         vstr_printf(vstr, " WHERE (%s)", where_clause);
     }
-    const char *extra_clause = env->config->sql_meta_extra_clause;
+    const char *extra_clause = env->config->sql.meta_table.extra_clause;
     if (strcmp(extra_clause,"") != 0) {
         vstr_printf(vstr, " %s", extra_clause);
     }
@@ -556,11 +556,11 @@ bool mysql_save_paper_positions(init_config_t *init_config, layout_t *layout) {
     }
 
     // save positions
-    const char *map_table = env.config->sql_map_name;
-    const char *id_f      = env.config->sql_map_field_id;
-    const char *x_f       = env.config->sql_map_field_x;
-    const char *y_f       = env.config->sql_map_field_y;
-    const char *r_f       = env.config->sql_map_field_r;
+    const char *map_table = env.config->sql.map_table.name;
+    const char *id_f      = env.config->sql.map_table.field_id;
+    const char *x_f       = env.config->sql.map_table.field_x;
+    const char *y_f       = env.config->sql.map_table.field_y;
+    const char *r_f       = env.config->sql.map_table.field_r;
     vstr_t *vstr = env.vstr[VSTR_0];
     assert(layout->child_layout == NULL);
     int total_pos = 0;
@@ -603,10 +603,10 @@ bool mysql_load_paper_positions(init_config_t *init_config, layout_t *layout) {
     printf("reading map_data\n");
 
     // query the positions from the map_data table
-    const char *map_table = env.config->sql_map_name;
-    const char *id_f      = env.config->sql_map_field_id;
-    const char *x_f       = env.config->sql_map_field_x;
-    const char *y_f       = env.config->sql_map_field_y;
+    const char *map_table = env.config->sql.map_table.name;
+    const char *id_f      = env.config->sql.map_table.field_id;
+    const char *x_f       = env.config->sql.map_table.field_x;
+    const char *y_f       = env.config->sql.map_table.field_y;
     vstr_t *vstr = env.vstr[VSTR_0];
     vstr_reset(vstr);
     vstr_printf(vstr, "SELECT %s,%s,%s FROM %s",id_f,x_f,y_f,map_table);
