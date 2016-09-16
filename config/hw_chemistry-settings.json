@@ -4,6 +4,7 @@
 "use_external_cites":true,
 "mass_cites_exponent":1.0,
 "forces":{
+    "comment":"These force parameters are used by nbody.",
     "link_strength":1.17,
     "anti_gravity_falloff_rsq":1e6,
     "close_repulsion_a":1e9,
@@ -15,6 +16,7 @@
 },
 "sql":{
     "meta_table":{
+        "comment":"This table is used to load meta data for all the papers.",
         "name":"meta_data",
         "where_clause":"maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'dx' OR maincat = 'dw'",
         "extra_clause":"ORDER BY rand(42) LIMIT 200000",
@@ -28,6 +30,7 @@
         "add_missing_cats":false
     },
     "refs_table":{
+        "comment":"This table is used to load the graph of references in nbody.",
         "name":"pcite",
         "field_id":"id",
         "field_refs":"refs",
@@ -36,6 +39,7 @@
         "rblob_cites":true
     },
     "map_table":{
+        "comment":"This table is used to store output from nbody. It can serve as input for both tiles and nbody.",
         "name":"map_data",
         "field_id":"id",
         "field_x":"x",

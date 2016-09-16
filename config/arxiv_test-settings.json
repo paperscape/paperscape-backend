@@ -4,6 +4,7 @@
 "use_external_cites":false,
 "mass_cites_exponent":1.0,
 "forces":{
+    "comment":"These force parameters are used by nbody.",
     "link_strength":1.17,
     "anti_gravity_falloff_rsq":1e6,
     "close_repulsion_a":1e9,
@@ -15,6 +16,7 @@
 },
 "sql":{
     "meta_table":{
+        "comment":"This table is used to load meta data for all the papers.",
         "name":"meta_data",
         "where_clause":"arxiv IS NOT NULL AND status != 'WDN' AND (maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000",
         "extra_clause":"",
@@ -28,6 +30,7 @@
         "add_missing_cats":true
     },
     "refs_table":{
+        "comment":"This table is used to load the graph of references in nbody.",
         "name":"pcite",
         "field_id":"id",
         "field_refs":"refs",
@@ -36,6 +39,7 @@
         "rblob_cites":true
     },
     "map_table":{
+        "comment":"This table is used to store output from nbody. It can serve as input for both tiles and nbody.",
         "name":"map_data",
         "field_id":"id",
         "field_x":"x",
@@ -43,11 +47,13 @@
         "field_r":"r"
     },
     "date_table":{
+        "comment":"If present, this table is used by tiles to record id range of new papers in 'world_index.json'.",
         "name":"datebdry",
         "field_days":"daysAgo",
         "field_id":"id"
     },
     "misc_table":{
+        "comment":"If present, this table is used by tiles to record last download date in 'world_index.json'.",
         "name":"misc",
         "field_field":"field",
         "field_value":"value"
