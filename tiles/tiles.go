@@ -26,10 +26,10 @@ var COLOUR_NORMAL      = 0
 var COLOUR_HEATMAP     = 1
 var COLOUR_GRAYSCALE   = 2
 
-var flagSettingsFile   = flag.String("json-settings", "../config/arxiv-settings.json", "Read settings from JSON file")
-var flagCatsFile       = flag.String("json-cats", "../config/arxiv-categories.json", "Read categories from JSON file")
-var flagLayoutFile     = flag.String("json-layout", "", "Read paper locations from JSON file instead of DB")
-var flagRegionsFile    = flag.String("json-regions", "regions/arxiv-regions.json", "Read region labels from JSON file")
+var flagSettingsFile   = flag.String("settings", "../config/arxiv-settings.json", "Read settings from JSON file")
+var flagCatsFile       = flag.String("categories", "../config/arxiv-categories.json", "Read categories from JSON file")
+var flagLayoutFile     = flag.String("layout", "", "Read paper locations from JSON file instead of DB")
+var flagRegionsFile    = flag.String("regions", "regions/arxiv-regions.json", "Read region labels from JSON file")
 
 var flagSkipTiles      = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
 var flagSkipLabels     = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")

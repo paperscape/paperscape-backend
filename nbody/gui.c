@@ -520,17 +520,17 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    --settings, -s <file>   load settings from given JSON file\n");
-    printf("                            (default is '../config/arxiv-settings.json')\n");
-    printf("    --cats-json <file>      load categories from given JSON file\n");
-    printf("                            (default is '../config/arxiv-categories.json')\n");
-    printf("    --layout-db             load layout from DB\n");
-    printf("    --layout-json <file>    load layout from given JSON file\n");
-    printf("    --refs-json <file>      load reference data from JSON file (default is from DB)\n");
-    printf("                            this omits author and title data\n");
-    printf("    --no-fake-links, -nf    don't create fake links\n");
-    printf("    --link <num>            link strength\n");
-    printf("    --rsq <num>             r-star squared distance for anti-gravity\n");
+    printf("    --settings, -s <file>     load settings from given JSON file\n");
+    printf("                              (default is '../config/arxiv-settings.json')\n");
+    printf("    --categories, -c <file>   load categories from given JSON file\n");
+    printf("                              (default is '../config/arxiv-categories.json')\n");
+    printf("    --layout-db               load layout from DB\n");
+    printf("    --layout, -l <file>       load layout from given JSON file\n");
+    printf("    --references, -r <file>   load reference data from JSON file (default is from DB)\n");
+    printf("                              this omits author and title data\n");
+    printf("    --no-fake-links, -nf      don't create fake links\n");
+    printf("    --link <num>              link strength\n");
+    printf("    --rsq <num>               r-star squared distance for anti-gravity\n");
     printf("\n");
     return 1;
 }
@@ -565,7 +565,7 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_link_strength = strtod(argv[a], NULL);
-        } else if (streq(argv[a], "--cats-json")) {
+        } else if (streq(argv[a], "--categories") || streq(argv[a], "-c")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
@@ -573,13 +573,13 @@ int main(int argc, char *argv[]) {
             arg_cats_json = argv[a];
         } else if (streq(argv[a], "--layout-db")) {
             arg_layout_db = true;
-        } else if (streq(argv[a], "--layout-json")) {
+        } else if (streq(argv[a], "--layout") || streq(argv[a], "-l")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
             }
             arg_layout_json = argv[a];
-        } else if (streq(argv[a], "--refs-json")) {
+        } else if (streq(argv[a], "--references") || streq(argv[a], "-r")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);

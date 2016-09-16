@@ -18,13 +18,13 @@ static int usage(const char *progname) {
     printf("usage: %s [options]\n", progname);
     printf("\n");
     printf("options:\n");
-    printf("    --settings, -s <file>     load settings from given JSON file\n");
+    printf("    --settings, -s <file>     load settings from a JSON file\n");
     printf("                              (default is '../config/arxiv-settings.json')\n");
     printf("    --start-afresh            start the graph layout afresh (default is to process\n");
     printf("                              only new papers); enabling this enables --write-json\n");
-    printf("    --cats-json <file>        load categories from given JSON file (default is no cats)\n");
-    printf("    --layout-json <file>      load layout from given JSON file (default is from DB)\n");
-    printf("    --refs-json <file>        load reference data from JSON file (default is from DB)\n");
+    printf("    --categories, -c <file>   load categories from a JSON file (default is no cats)\n");
+    printf("    --layout, -l <file>       load layout from a JSON file (default is from DB)\n");
+    printf("    --references, -r <file>   load reference data from JSON file (default is from DB)\n");
     printf("    --other-links <file>      load additional links from JSON file\n");
     printf("    --write-db                write positions to DB (default is not to)\n");
     printf("    --write-json              write positions to json file (default is not to)\n");
@@ -64,19 +64,19 @@ int main(int argc, char *argv[]) {
         } else if (streq(argv[a], "--start-afresh")) {
             arg_start_afresh = true;
             arg_write_json = true;
-        } else if (streq(argv[a], "--cats-json")) {
+        } else if (streq(argv[a], "--categories") || streq(argv[a], "-c")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
             }
             arg_cats_json = argv[a];
-        } else if (streq(argv[a], "--layout-json")) {
+        } else if (streq(argv[a], "--layout") || streq(argv[a], "-l")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
             }
             arg_layout_json = argv[a];
-        } else if (streq(argv[a], "--refs-json")) {
+        } else if (streq(argv[a], "--references") || streq(argv[a], "-r")) {
             a += 1;
             if (a >= argc) {
                 return usage(argv[0]);
@@ -87,9 +87,6 @@ int main(int argc, char *argv[]) {
                 return usage(argv[0]);
             }
             arg_other_links = argv[a];
-        } else if (streq(argv[a], "--whole-arxiv")) {
-            // TODO remove this flag from autoupdate scripts
-            //where_clause = "(arxiv IS NOT NULL AND status != 'WDN')";
         } else if (streq(argv[a], "--write-db")) {
             arg_write_db = true;
         } else if (streq(argv[a], "--write-json")) {
@@ -108,12 +105,12 @@ int main(int argc, char *argv[]) {
             arg_link_strength = strtod(argv[a], NULL);
         } else if (streq(argv[a], "--no-fake-links") || streq(argv[a], "-nf")) {
             arg_no_fake_links = true;
-        } else if (streq(argv[a], "--factor-ref-link") || streq(argv[a], "-fr")) {
+        } else if (streq(argv[a], "--factor-ref-link")) {
             if (++a >= argc) {
                 return usage(argv[0]);
             }
             arg_factor_ref_link = strtod(argv[a], NULL);;
-        } else if (streq(argv[a], "--factor-other-link") || streq(argv[a], "-fo")) {
+        } else if (streq(argv[a], "--factor-other-link")) {
             if (++a >= argc) {
                 return usage(argv[0]);
             }
