@@ -186,14 +186,24 @@ static void quad_tree_node_forces_propagate(quadtree_node_t *q, double fx, doubl
 #include <pthread.h>
 
 typedef struct _multi_env_t {
+    pthread_t pthread;
+    pthread_barrier_t b_start, b_end;
     force_params_t *param;
     quadtree_node_t *q;
 } multi_env_t;
 
-static void *multi_do(void *env_in) {
+static bool th_created = false;
+multi_env_t th_me1, th_me1, th_me2, th_me3;
+
+// this function is the worker thread that calls quad_tree_forces_descend when needed
+static void *th_entry(void *env_in) {
     multi_env_t *env = env_in;
-    if (env->q != NULL) {
-        quad_tree_forces_descend(env->param, env->q);
+    for (;;) {
+        pthread_barrier_wait(&env->b_start);
+        if (env->q != NULL) {
+            quad_tree_forces_descend(env->param, env->q);
+        }
+        pthread_barrier_wait(&env->b_end);
     }
     return NULL;
 }
@@ -201,28 +211,50 @@ static void *multi_do(void *env_in) {
 // descending then ascending is almost twice as fast (for large graphs) as
 // just naively iterating through all the leaves, possibly due to cache effects
 void force_quad_tree_forces(force_params_t *param, quadtree_t *qt) {
+
+    // initialise threads on the first call
+    if (!th_created) {
+        pthread_barrier_init(&th_me1.b_start, NULL, 2);
+        pthread_barrier_init(&th_me1.b_end, NULL, 2);
+        pthread_barrier_init(&th_me2.b_start, NULL, 2);
+        pthread_barrier_init(&th_me2.b_end, NULL, 2);
+        pthread_barrier_init(&th_me3.b_start, NULL, 2);
+        pthread_barrier_init(&th_me3.b_end, NULL, 2);
+        pthread_create(&th_me1.pthread, NULL, th_entry, &th_me1);
+        pthread_create(&th_me2.pthread, NULL, th_entry, &th_me2);
+        pthread_create(&th_me3.pthread, NULL, th_entry, &th_me3);
+        th_created = true;
+    }
+
     if (qt->root != NULL) {
         if (qt->root->num_items == 1 || 0) {
             // without threading
             quad_tree_forces_descend(param, qt->root);
         } else {
             // with threading
-            multi_env_t me1 = {param, qt->root->q0};
-            multi_env_t me2 = {param, qt->root->q1};
-            multi_env_t me3 = {param, qt->root->q2};
-            //multi_env_t me4 = {param, qt->root->q3};
-            pthread_t pt1, pt2, pt3;//, pt4;
-            pthread_create(&pt1, NULL, multi_do, &me1);
-            pthread_create(&pt2, NULL, multi_do, &me2);
-            pthread_create(&pt3, NULL, multi_do, &me3);
-            //pthread_create(&pt4, NULL, multi_do, &me4);
+
+            // set parameters for worker threads
+            th_me1.param = param;
+            th_me1.q = qt->root->q0;
+            th_me2.param = param;
+            th_me2.q = qt->root->q1;
+            th_me3.param = param;
+            th_me3.q = qt->root->q2;
+
+            // start worker threads
+            pthread_barrier_wait(&th_me1.b_start);
+            pthread_barrier_wait(&th_me2.b_start);
+            pthread_barrier_wait(&th_me3.b_start);
+
+            // do our own work
             if (qt->root->q3 != NULL) {
                 quad_tree_forces_descend(param, qt->root->q3);
             }
-            pthread_join(pt1, NULL);
-            pthread_join(pt2, NULL);
-            pthread_join(pt3, NULL);
-            //pthread_join(pt4, NULL);
+
+            // wait for all worker threads to finish
+            pthread_barrier_wait(&th_me1.b_end);
+            pthread_barrier_wait(&th_me2.b_end);
+            pthread_barrier_wait(&th_me3.b_end);
         }
         //quad_tree_node_forces_propagate(qt->root, 0, 0);
     }
