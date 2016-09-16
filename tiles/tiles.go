@@ -19,30 +19,30 @@ import (
     "github.com/ungerik/go-cairo"
 )
 
-var GRAPH_PADDING = 100 // what to pad graph by on each side
-var TILE_PIXEL_LEN = 512
+var GRAPH_PADDING      = 100 // what to pad graph by on each side
+var TILE_PIXEL_LEN     = 512
 
-var COLOUR_NORMAL    = 0
-var COLOUR_HEATMAP   = 1
-var COLOUR_GRAYSCALE = 2
+var COLOUR_NORMAL      = 0
+var COLOUR_HEATMAP     = 1
+var COLOUR_GRAYSCALE   = 2
 
-var flagJSONSetFile  = flag.String("json-settings", "../config/arxiv-settings.json", "Read settings from JSON file")
-var flagJSONCatFile  = flag.String("json-cats", "../config/arxiv-categories.json", "Read categories from JSON file")
-var flagJSONLocFile  = flag.String("json-layout", "", "Read paper locations from JSON file instead of DB")
+var flagSettingsFile   = flag.String("json-settings", "../config/arxiv-settings.json", "Read settings from JSON file")
+var flagCatsFile       = flag.String("json-cats", "../config/arxiv-categories.json", "Read categories from JSON file")
+var flagLayoutFile     = flag.String("json-layout", "", "Read paper locations from JSON file instead of DB")
+var flagRegionsFile    = flag.String("json-regions", "regions/arxiv-regions.json", "Read region labels from JSON file")
 
-var flagSkipTiles    = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
-var flagSkipLabels   = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
-var flagGrayScale    = flag.Bool("gs", false, "Generate grayscale tiles")
-var flagHeatMap      = flag.Bool("hm", false, "Generate heatmap tiles")
+var flagSkipTiles      = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
+var flagSkipLabels     = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
+var flagGrayScale      = flag.Bool("gs", false, "Generate grayscale tiles")
+var flagHeatMap        = flag.Bool("hm", false, "Generate heatmap tiles")
 
-var flagCentreGraph  = flag.Bool("centre", false, "Whether to centre the graph on the total centre of mass")
+var flagCentreGraph    = flag.Bool("centre", false, "Whether to centre the graph on the total centre of mass")
 
-var flagDoSingle     = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
-var flagDoPoster     = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
+var flagDoSingle       = flag.String("single-image", "", "Generate a large single image with <WxHxZoom> parameters, eg 100x100x2.5")
+var flagDoPoster       = flag.Bool("poster", false, "Generate an image suitable for printing as a poster")
 
-var flagRegionFile   = flag.String("region-file", "regions.json", "JSON file with region labels")
 
-var flagMaxCores     = flag.Int("cores", -1, "Max number of system cores to use, default is all of them")
+var flagMaxCores       = flag.Int("cores", -1, "Max number of system cores to use, default is all of them")
 
 func main() {
     // parse command line options
@@ -54,7 +54,7 @@ func main() {
     outPrefix := flag.Arg(0)
 
     // read in settings
-    config := ReadConfigFromJSON(*flagJSONSetFile)
+    config := ReadConfigFromJSON(*flagSettingsFile)
     if config == nil {
         log.Fatal("Could not read in config settings")
         return
@@ -69,13 +69,13 @@ func main() {
     defer config.db.Close()
 
     // read in the categories
-    catSet := ReadCategoriesFromJSON(*flagJSONCatFile)
+    catSet := ReadCategoriesFromJSON(*flagCatsFile)
     if catSet == nil {
         return
     }
 
     // read in the graph
-    graph := ReadGraph(config, *flagJSONLocFile, catSet)
+    graph := ReadGraph(config, *flagLayoutFile, catSet)
 
     // build the quad tree
     graph.BuildQuadTree()
@@ -336,8 +336,8 @@ func ReadGraph(config *Config, jsonLocationFile string, catSet *CategorySet) *Gr
     if !*flagSkipLabels {
         graph.QueryLabels(config)
         graph.CalculateCategoryLabels()
-        if *flagRegionFile != "" {
-            graph.ReadRegionLabels(*flagRegionFile)
+        if *flagRegionsFile != "" {
+            graph.ReadRegionLabels(*flagRegionsFile)
         }
     }
 
