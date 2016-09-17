@@ -211,7 +211,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_J) {
         // write map to JSON
         vstr_reset(vstr);
-        vstr_printf(vstr, "out-map_%06u.json", map_env_get_num_papers(map_env));
+        vstr_printf(vstr, "out-map_%06u-i%d.json", map_env_get_num_papers(map_env),iterate_counter);
         map_env_layout_pos_save_to_json(map_env, vstr_str(vstr));
 
     } else if (event->keyval == GDK_KEY_j) {
@@ -239,7 +239,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
 
     } else if (event->keyval == GDK_KEY_w) {
         vstr_reset(vstr);
-        vstr_printf(vstr, "out-map_%06u.png", map_env_get_num_papers(map_env));
+        vstr_printf(vstr, "out-map_%06u-i%d.png", map_env_get_num_papers(map_env),iterate_counter);
         draw_to_png(map_env, 1000, 1000, vstr_str(vstr), NULL);
 
     } else if (event->keyval == GDK_KEY_z) {
