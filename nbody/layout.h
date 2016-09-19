@@ -12,6 +12,7 @@ struct _paper_t;
 
 typedef struct _layout_node_t {
     unsigned int flags;
+    unsigned int num_links;
     struct _layout_node_t *parent;
     union {
         struct {    // for when this layout is the finest layout
@@ -22,7 +23,6 @@ typedef struct _layout_node_t {
             struct _layout_node_t *child2;
         };
     };
-    unsigned int num_links;
     struct _layout_link_t *links;
     float mass;
     float radius;
