@@ -1,6 +1,7 @@
 #ifndef _INCLUDED_LAYOUT_H
 #define _INCLUDED_LAYOUT_H
 
+#include <stdint.h>
 #include "common.h"
 
 // for layout_node_t.flags (default state is unset)
@@ -32,9 +33,33 @@ typedef struct _layout_node_t {
     float fy;
 } layout_node_t;
 
+// with this option enabled on a 64-bit machine the layout links use half the RAM
+#define LAYOUT_USE_COMPRESSED_LINKS 0
+
+#if LAYOUT_USE_COMPRESSED_LINKS
+// assumptions for this option to work:
+//  - 64-bit machine
+//  - layout_node_t pointer is always 8-byte aligned
+//  - addresses fit in 47 bits
+//  - weights are integers below 1024
+#define LAYOUT_LINK_GET_WEIGHT(l) ((float)((l)->data >> 44))
+#define LAYOUT_LINK_GET_NODE(l) ((layout_node_t*)(((l)->data & 0x00000fffffffffff) << 3))
+#define LAYOUT_LINK_SET_WEIGHT(l, w) do { (l)->data = ((l)->data & 0x00000fffffffffff) | (((uint64_t)truncf(w)) << 44); } while (0)
+#define LAYOUT_LINK_SET_NODE(l, n) do { assert(((uint64_t)n & 0xffff800000000007) == 0); (l)->data = ((l)->data & 0xfffff00000000000) | ((uint64_t)n >> 3 & 0xfffffffffff); } while (0)
+#else
+#define LAYOUT_LINK_GET_WEIGHT(l) ((l)->weight)
+#define LAYOUT_LINK_GET_NODE(l) ((l)->node)
+#define LAYOUT_LINK_SET_WEIGHT(l, w) do { (l)->weight = w; } while (0)
+#define LAYOUT_LINK_SET_NODE(l, n) do { (l)->node = n; } while (0)
+#endif
+
 typedef struct _layout_link_t {
+    #if LAYOUT_USE_COMPRESSED_LINKS
+    uint64_t data;
+    #else
     float weight;
     layout_node_t *node;
+    #endif
 } layout_link_t;
 
 typedef struct _layout_t {

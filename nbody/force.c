@@ -12,8 +12,8 @@ void force_compute_attractive_link_force(force_params_t *param, bool do_tred, la
     for (int i = 0; i < layout->num_nodes; i++) {
         layout_node_t *n1 = &layout->nodes[i];
         for (int j = 0; j < n1->num_links; j++) {
-            layout_node_t *n2 = n1->links[j].node;
-            double weight = n1->links[j].weight;
+            layout_node_t *n2 = LAYOUT_LINK_GET_NODE(&n1->links[j]);
+            double weight = LAYOUT_LINK_GET_WEIGHT(&n1->links[j]);
 
             double dx = n1->x - n2->x;
             double dy = n1->y - n2->y;

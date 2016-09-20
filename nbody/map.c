@@ -1034,6 +1034,7 @@ void map_env_layout_new(map_env_t *map_env, int num_coarsenings, double factor_r
     // make the layouts, each one coarser than the previous
     layout_t *l = layout_build_from_papers(map_env->num_papers, map_env->papers, false, factor_ref_link, factor_other_link);
     for (int i = 0; i < num_coarsenings && l->num_links > 1; i++) {
+        printf("building reduced layout from layout with %d nodes and %d links\n", (int)l->num_nodes, l->num_links);
         l = layout_build_reduced_from_layout(l);
     }
     map_env->layout = l;
@@ -1203,7 +1204,9 @@ void map_env_layout_link_save_to_json(map_env_t *map_env, const char *file) {
             if (j > 0) {
                 vstr_printf(vstr, ",");
             }
-            vstr_printf(vstr, "[%u,%.6g]", ln->links[j].node->paper->id, ln->links[j].weight);
+            layout_node_t *ln_n = LAYOUT_LINK_GET_NODE(&ln->links[j]);
+            float ln_w = LAYOUT_LINK_GET_WEIGHT(&ln->links[j]);
+            vstr_printf(vstr, "[%u,%.6g]", ln_n->paper->id, ln_w);
         }
         if (i + 1 < map_env->num_papers) {
             vstr_printf(vstr, "]],\n");

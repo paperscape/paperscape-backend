@@ -224,9 +224,11 @@ static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
                 layout_node_t *n = &l->nodes[i];
                 for (int j = 0; j < n->num_links; j++) {
                     layout_link_t *n2 = &n->links[j];
+                    layout_node_t *n2_node = LAYOUT_LINK_GET_NODE(n2);
+                    float n2_weight = LAYOUT_LINK_GET_WEIGHT(n2);
                     cairo_move_to(cr, n->x, n->y);
-                    cairo_line_to(cr, n2->node->x, n2->node->y);
-                    cairo_set_line_width(cr, 0.1 * n2->weight);
+                    cairo_line_to(cr, n2_node->x, n2_node->y);
+                    cairo_set_line_width(cr, 0.1 * n2_weight);
                     cairo_stroke(cr);
                 }
             }

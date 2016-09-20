@@ -14,18 +14,22 @@ static void layout_combine_duplicate_links(layout_t *layout) {
         layout_node_t *node = &layout->nodes[i];
         assert(node != NULL);
         for (int j = 0; j < node->num_links; j++) {
-            layout_node_t *node2 = node->links[j].node;
+            layout_node_t *node2 = LAYOUT_LINK_GET_NODE(&node->links[j]);
+            float weight2 = LAYOUT_LINK_GET_WEIGHT(&node->links[j]);
             assert(node2 != NULL);
             assert(node2 != node); // shouldn't be any nodes linking to themselves
             for (int k = 0; k < node2->num_links; k++) {
-                if (node2->links[k].node == node) {
+                if (LAYOUT_LINK_GET_NODE(&node2->links[k]) == node) {
                     // a duplicate link (node -> node2, and node2 -> node)
-                    node->links[j].weight += node2->links[k].weight;
+                    weight2 += LAYOUT_LINK_GET_WEIGHT(&node2->links[k]);
                     memmove(&node2->links[k], &node2->links[k + 1], (node2->num_links - k - 1) * sizeof(layout_link_t));
                     node2->num_links -= 1;
                     break;
                 }
             }
+
+            // store the updated weight
+            LAYOUT_LINK_SET_WEIGHT(&node->links[j], weight2);
         }
     }
 
@@ -110,9 +114,9 @@ layout_t *layout_build_from_papers(int num_papers, paper_t **papers, bool age_we
             //node->links[j].weight = weight;
             //node->links[j].node = paper->refs[j]->layout_node;
             //assert(node->links[j].node != NULL);
-            node->links[k].weight = weight;
-            node->links[k].node = paper->refs[j]->layout_node;
-            assert(node->links[k].node != NULL);
+            LAYOUT_LINK_SET_WEIGHT(&node->links[k], weight);
+            LAYOUT_LINK_SET_NODE(&node->links[k], paper->refs[j]->layout_node);
+            assert(LAYOUT_LINK_GET_NODE(&node->links[k]) != NULL);
             k++;
         }
 
@@ -123,9 +127,9 @@ layout_t *layout_build_from_papers(int num_papers, paper_t **papers, bool age_we
             //node->links[paper->num_refs + j].weight = 0.25; // what to use for fake link weight??
             //node->links[paper->num_refs + j].node = paper->fake_links[j]->layout_node;
             //assert(node->links[paper->num_refs + j].node != NULL);
-            node->links[k].weight = 0.25; // what to use for fake link weight??
-            node->links[k].node = paper->fake_links[j]->layout_node;
-            assert(node->links[k].node != NULL);
+            LAYOUT_LINK_SET_WEIGHT(&node->links[k], 0.25); // what to use for fake link weight??
+            LAYOUT_LINK_SET_NODE(&node->links[k], paper->fake_links[j]->layout_node);
+            assert(LAYOUT_LINK_GET_NODE(&node->links[k]) != NULL);
             k++;
         }
         
@@ -149,11 +153,53 @@ layout_t *layout_build_from_papers(int num_papers, paper_t **papers, bool age_we
     return layout;
 }
 
+// count unique links in the 2 given arrays of links
+static size_t count_links(layout_node_t *node, unsigned int num_links2, layout_link_t *links2, unsigned int num_links3, layout_link_t *links3) {
+    size_t nl = 0;
+    for (int i = 0; i < num_links2 + num_links3; ++i) {
+        layout_link_t *link_to_add;
+        if (i < num_links2) {
+            link_to_add = &links2[i];
+        } else {
+            link_to_add = &links3[i - num_links2];
+        }
+        layout_node_t *link_to_add_node_parent = LAYOUT_LINK_GET_NODE(link_to_add)->parent;
+
+        if (link_to_add_node_parent == node) {
+            // a link to itself, don't include
+            continue;
+        }
+
+        // look to see if link already exists
+        bool found = false;
+        for (int j = 0; j < i; ++j) {
+            layout_node_t *l;
+            if (j < num_links2) {
+                l = LAYOUT_LINK_GET_NODE(&links2[j]);
+            } else {
+                l = LAYOUT_LINK_GET_NODE(&links3[j - num_links2]);
+            }
+            if (l->parent == link_to_add_node_parent) {
+                found = true;
+                break;
+            }
+        }
+
+        // link does not exist, count it as a new one
+        if (!found) {
+            nl += 1;
+        }
+    }
+    return nl;
+}
+
 // adds links2 to links in node, combining weights if destination already exists in links
 static void add_links(layout_node_t *node, unsigned int num_links2, layout_link_t *links2) {
     for (int i = 0; i < num_links2; i++) {
         layout_link_t *link_to_add = &links2[i];
-        if (link_to_add->node->parent == node) {
+        layout_node_t *link_to_add_node_parent = LAYOUT_LINK_GET_NODE(link_to_add)->parent;
+        float link_to_add_weight = LAYOUT_LINK_GET_WEIGHT(link_to_add);
+        if (link_to_add_node_parent == node) {
             // a link to itself, don't include
             continue;
         }
@@ -161,9 +207,9 @@ static void add_links(layout_node_t *node, unsigned int num_links2, layout_link_
         // look to see if link already exists
         bool found = false;
         for (int j = 0; j < node->num_links; j++) {
-            if (node->links[j].node == link_to_add->node->parent) {
+            if (LAYOUT_LINK_GET_NODE(&node->links[j]) == link_to_add_node_parent) {
                 // combine weights
-                node->links[j].weight += link_to_add->weight;
+                LAYOUT_LINK_SET_WEIGHT(&node->links[j], LAYOUT_LINK_GET_WEIGHT(&node->links[j]) + link_to_add_weight);
                 found = true;
                 break;
             }
@@ -171,8 +217,8 @@ static void add_links(layout_node_t *node, unsigned int num_links2, layout_link_
 
         // link does not exist, make a new one
         if (!found) {
-            node->links[node->num_links].weight = link_to_add->weight;
-            node->links[node->num_links].node = link_to_add->node->parent;
+            LAYOUT_LINK_SET_WEIGHT(&node->links[node->num_links], link_to_add_weight);
+            LAYOUT_LINK_SET_NODE(&node->links[node->num_links], link_to_add_node_parent);
             node->num_links += 1;
         }
     }
@@ -219,8 +265,9 @@ layout_t *layout_build_reduced_from_layout(layout_t *layout) {
         if (node->num_links > 0) {
             float max_weight = 0;
             for (int i = 0; i < node->num_links; i++) {
-                if (node->links[i].weight > max_weight) {
-                    max_weight = node->links[i].weight;
+                float w = LAYOUT_LINK_GET_WEIGHT(&node->links[i]);
+                if (w > max_weight) {
+                    max_weight = w;
                 }
             }
             nodes_with_links[j].node = node;
@@ -243,15 +290,19 @@ layout_t *layout_build_reduced_from_layout(layout_t *layout) {
         }
 
         // find the link with the largest weight
-        layout_link_t *max_link = NULL;
+        layout_node_t *max_link_node = NULL;
+        float max_link_weight;
         for (int i = 0; i < node->num_links; i++) {
             layout_link_t *link = &node->links[i];
-            if (link->node->parent == NULL && (max_link == NULL || link->weight > max_link->weight)) {
-                max_link = link;
+            layout_node_t *ln = LAYOUT_LINK_GET_NODE(link);
+            float lw = LAYOUT_LINK_GET_WEIGHT(link);
+            if (ln->parent == NULL && (max_link_node == NULL || lw > max_link_weight)) {
+                max_link_node = ln;
+                max_link_weight = lw;
             }
         }
 
-        if (max_link == NULL) {
+        if (max_link_node == NULL) {
             // no available link
             continue;
         }
@@ -261,17 +312,17 @@ layout_t *layout_build_reduced_from_layout(layout_t *layout) {
         node2->flags = 0;
         node2->parent = NULL;
         node2->child1 = node;
-        node2->child2 = max_link->node;
+        node2->child2 = max_link_node;
         node2->num_links = 0;
         node2->links = NULL;
-        node2->mass = node->mass + max_link->node->mass;
-        node2->radius = sqrt(node->radius*node->radius + max_link->node->radius*max_link->node->radius);
+        node2->mass = node->mass + max_link_node->mass;
+        node2->radius = sqrt(node->radius*node->radius + max_link_node->radius*max_link_node->radius);
         node2->x = 0;
         node2->y = 0;
         node2->fx = 0;
         node2->fy = 0;
         node->parent = node2;
-        max_link->node->parent = node2;
+        max_link_node->parent = node2;
     }
     m_free(nodes_with_links);
 
@@ -327,20 +378,35 @@ layout_t *layout_build_reduced_from_layout(layout_t *layout) {
     }
     */
 
+    // count number of links needed for new, reduced layout
+    size_t total_links = 0;
+    for (int i = 0; i < num_nodes2; i++) {
+        layout_node_t *node2 = &nodes2[i];
+        total_links += count_links(node2,
+            node2->child1->num_links, node2->child1->links,
+            node2->child2 == NULL ? 0 : node2->child2->num_links,
+            node2->child2 == NULL ? NULL : node2->child2->links);
+    }
+
+    // allocate a big array for the new links
+    layout_link_t *new_links = m_new(layout_link_t, total_links);
+    layout_link_t *new_links_cur = new_links;
+
     // make links for new, reduced layout
     for (int i = 0; i < num_nodes2; i++) {
         layout_node_t *node2 = &nodes2[i];
-        node2->num_links = node2->child1->num_links;
-        if (node2->child2 != NULL) {
-            node2->num_links += node2->child2->num_links;
-        }
-        node2->links = m_new(layout_link_t, node2->num_links);
+        node2->links = new_links_cur;
         node2->num_links = 0;
         add_links(node2, node2->child1->num_links, node2->child1->links);
         if (node2->child2 != NULL) {
             add_links(node2, node2->child2->num_links, node2->child2->links);
         }
+        // use up some links from the big array
+        new_links_cur += node2->num_links;
     }
+
+    // check we didn't overflow the big array of links
+    assert(new_links_cur <= new_links + total_links);
 
     // make layout object
     layout_t *layout2 = m_new(layout_t, 1);
@@ -455,10 +521,12 @@ void layout_node_compute_best_start_position(layout_node_t *n) {
     // average x- and y-pos of links
     for (int i = 0; i < n->num_links; i++) {
         layout_link_t *l = &n->links[i];
-        if (l->node->flags & LAYOUT_NODE_POS_VALID) {
-            x += l->weight * l->node->x;
-            y += l->weight * l->node->y;
-            weight += l->weight;
+        layout_node_t *ln = LAYOUT_LINK_GET_NODE(l);
+        double lw = LAYOUT_LINK_GET_WEIGHT(l);
+        if (ln->flags & LAYOUT_NODE_POS_VALID) {
+            x += lw * ln->x;
+            y += lw * ln->y;
+            weight += lw;
         }
     }
 
