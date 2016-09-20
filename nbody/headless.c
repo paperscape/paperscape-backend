@@ -163,10 +163,7 @@ int main(int argc, char *argv[]) {
     // create the map object
     map_env_t *map_env = map_env_new(init_config,category_set);
     
-    if (arg_start_afresh && arg_no_fake_links) {
-        // if starting afresh, allow user to disable fake link generation
-        map_env_set_make_fake_links(map_env,!arg_no_fake_links);
-    }
+    map_env_set_make_fake_links(map_env,!arg_no_fake_links);
 
     // set parameters
     if (arg_anti_grav_rsq > 0) {
