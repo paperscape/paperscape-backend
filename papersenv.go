@@ -14,6 +14,7 @@ import (
 
 type PapersEnv struct {
     db *mysql.Client
+    cfg *Config
 }
 
 func (papers *PapersEnv) StatementBegin(sql string, params ...interface{}) *mysql.Statement {
@@ -152,7 +153,10 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
             return nil
         } else {
             // given an arxiv string, so properly sanitise 
-            query = fmt.Sprintf("SELECT id FROM meta_data WHERE arxiv = ?")
+            //query = fmt.Sprintf("SELECT id FROM meta_data WHERE arxiv = ?")
+            query  = "SELECT " + papers.cfg.Sql.Meta.FieldId
+            query += " FROM " +  papers.cfg.Sql.Meta.Name
+            query += " WHERE " + papers.cfg.Sql.Meta.FieldArxiv + " = ?"
             stmt := papers.StatementBegin(query,arxiv)
             if !papers.StatementBindSingleRow(stmt,&id) {
                 return nil
@@ -160,7 +164,17 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         }
     }
 
-    query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE id = %d", id)
+    //query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE id = %d", id)
+    query  = "SELECT " + papers.cfg.Sql.Meta.FieldId
+    query += "," + papers.cfg.Sql.Meta.FieldArxiv
+    query += "," + papers.cfg.Sql.Meta.FieldMaincat
+    query += "," + papers.cfg.Sql.Meta.FieldAllcats
+    query += "," + papers.cfg.Sql.Meta.FieldInspire
+    query += "," + papers.cfg.Sql.Meta.FieldAuthors
+    query += "," + papers.cfg.Sql.Meta.FieldTitle
+    query += "," + papers.cfg.Sql.Meta.FieldPubl
+    query += " FROM " + papers.cfg.Sql.Meta.Name
+    query += fmt.Sprintf(" WHERE %s = %d",papers.cfg.Sql.Meta.FieldId,id)
     row := papers.QuerySingleRow(query)
     papers.QueryEnd()
 
@@ -212,7 +226,13 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     }
 
     //// Get number of times cited, and change in number of cites
-    query = fmt.Sprintf("SELECT numRefs,numCites,dNumCites1,dNumCites5 FROM pcite WHERE id = %d", paper.id)
+    //query = fmt.Sprintf("SELECT numRefs,numCites,dNumCites1,dNumCites5 FROM pcite WHERE id = %d", paper.id)
+    query  = "SELECT " + papers.cfg.Sql.Refs.FieldNumRefs
+    query += "," + papers.cfg.Sql.Refs.FieldNumCites
+    query += "," + papers.cfg.Sql.Refs.FieldDNumCites1
+    query += "," + papers.cfg.Sql.Refs.FieldDNumCites5
+    query += " FROM " + papers.cfg.Sql.Refs.Name
+    query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Refs.FieldId, paper.id)
     row2 := papers.QuerySingleRow(query)
 
     if row2 != nil {
@@ -244,7 +264,10 @@ func (papers *PapersEnv) QueryRefs(paper *Paper, queryRefsMeta bool) {
     if len(paper.refs) != 0 { return }
 
     // perform query
-    query := fmt.Sprintf("SELECT refs FROM pcite WHERE id = %d", paper.id)
+    //query := fmt.Sprintf("SELECT refs FROM pcite WHERE id = %d", paper.id)
+    query := "SELECT " + papers.cfg.Sql.Refs.FieldRefs
+    query += " FROM " + papers.cfg.Sql.Refs.Name
+    query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Refs.FieldId, paper.id)
     row := papers.QuerySingleRow(query)
     if row == nil { papers.QueryEnd(); return }
 
@@ -275,7 +298,10 @@ func (papers *PapersEnv) QueryCites(paper *Paper, queryCitesMeta bool) {
     if len(paper.cites) != 0 { return }
 
     // perform query
-    query := fmt.Sprintf("SELECT cites FROM pcite WHERE id = %d", paper.id)
+    //query := fmt.Sprintf("SELECT cites FROM pcite WHERE id = %d", paper.id)
+    query := "SELECT " + papers.cfg.Sql.Refs.FieldCites
+    query += " FROM " + papers.cfg.Sql.Refs.Name
+    query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Refs.FieldId, paper.id)
     row := papers.QuerySingleRow(query)
     if row == nil { papers.QueryEnd(); return }
 
@@ -333,13 +359,18 @@ func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
     }
     args.WriteString(")")
 
-    loc_table := "map_data"
+    loc_table := papers.cfg.Sql.Map.Name
     if isValidTableSuffix(tableSuffix) {
         loc_table += "_" + tableSuffix
     }
 
-    sql := fmt.Sprintf("SELECT id,x,y,r FROM " + loc_table + " WHERE id IN %s LIMIT %d",args.String(),len(ids))
-
+    //sql := fmt.Sprintf("SELECT id,x,y,r FROM " + loc_table + " WHERE id IN %s LIMIT %d",args.String(),len(ids))
+    sql := "SELECT " + papers.cfg.Sql.Map.FieldId
+    sql += "," + papers.cfg.Sql.Map.FieldX
+    sql += "," + papers.cfg.Sql.Map.FieldY
+    sql += "," + papers.cfg.Sql.Map.FieldR
+    sql += " FROM " + loc_table
+    sql += fmt.Sprintf(" WHERE %s IN %s LIMIT %d", papers.cfg.Sql.Map.FieldId, args.String(), len(ids))
     // create interface of arguments for statement
     hIdsInt := make([]interface{},len(ids))
     for i, id := range ids {
@@ -392,7 +423,10 @@ func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
 
 func (papers *PapersEnv) GetAbstract(paperId uint) string {
     // get the arxiv name for this id
-    query := fmt.Sprintf("SELECT arxiv FROM meta_data WHERE id = %d", paperId)
+    //query := fmt.Sprintf("SELECT arxiv FROM meta_data WHERE id = %d", paperId)
+    query := "SELECT " + papers.cfg.Sql.Meta.FieldArxiv
+    query += " FROM " + papers.cfg.Sql.Meta.Name
+    query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Meta.FieldId, paperId)
     row := papers.QuerySingleRow(query)
     if row == nil { papers.QueryEnd(); return "(no abstract)" }
     arxiv, ok := row[0].(string)

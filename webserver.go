@@ -35,13 +35,15 @@ var VERSION_PSCPMAP = "0.3"
 // it will need to make several calls
 var ID_CONVERSION_LIMIT = 50
 
-var flagDB      = flag.String("db", "", "MySQL database to connect to")
+var flagSettingsFile   = flag.String("settings", "config/arxiv-settings.json", "Read settings from JSON file")
 var flagLogFile = flag.String("log-file", "", "file to output log information to")
+var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
+
 var flagFastCGIAddr = flag.String("fcgi", "", "listening on given address using FastCGI protocol (eg -fcgi :9100)")
 var flagHTTPAddr = flag.String("http", "", "listening on given address using HTTP protocol (eg -http :8089)")
+
 var flagTestQueryId = flag.Uint("test-id", 0, "run a test query with id")
 var flagTestQueryArxiv = flag.String("test-arxiv", "", "run a test query with arxiv")
-var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
 
 func main() {
     // pick random seed (default is Seed(1)...)
@@ -60,15 +62,22 @@ func main() {
         }
     }
 
+    // read in settings
+    config := ReadConfigFromJSON(*flagSettingsFile)
+    if config == nil {
+        log.Fatal("Could not read in config settings")
+        return
+    }
+
     // connect to db
-    db := ConnectToDB(*flagDB)
+    db := ConnectToDB()
     if db == nil {
         return
     }
     defer db.Close()
 
-    // create papers database
-    papers := NewPapersEnv(db)
+    // create papers database, and assign config to it
+    papers := NewPapersEnv(db, config)
 
     // check if we want to run a test query
     if *flagTestQueryId != 0 || *flagTestQueryArxiv != "" {
@@ -104,9 +113,10 @@ func main() {
 
 /****************************************************************/
 
-func NewPapersEnv(db *mysql.Client) *PapersEnv {
+func NewPapersEnv(db *mysql.Client, config *Config) *PapersEnv {
     papers := new(PapersEnv)
     papers.db = db
+    papers.cfg = config
     db.Reconnect = true
     return papers
 }
@@ -273,7 +283,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
     runtime.GC()
 }
 
-func ConnectToDB(dbConnection string) *mysql.Client {
+func ConnectToDB() *mysql.Client {
     // connect to MySQL database; using a socket is preferred since it's faster
     var db *mysql.Client
     var err error
@@ -285,12 +295,11 @@ func ConnectToDB(dbConnection string) *mysql.Client {
     mysql_sock := os.Getenv("PSCP_MYSQL_SOCKET")
 
     // if nothing requested, default to something sensible
-    if dbConnection == "" {
-        if fileExists(mysql_sock) {
-            dbConnection = mysql_sock
-        } else {
-            dbConnection = mysql_host
-        }
+    var dbConnection string
+    if fileExists(mysql_sock) {
+        dbConnection = mysql_sock
+    } else {
+        dbConnection = mysql_host
     }
 
     // make the connection

@@ -215,7 +215,11 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
         return
     }
     // Get date boundary
-    row := h.papers.QuerySingleRow("SELECT id FROM datebdry WHERE daysAgo = 5")
+    //query := "SELECT id FROM datebdry WHERE daysAgo = 5"
+    query := "SELECT " + h.papers.cfg.Sql.Date.FieldId
+    query += " FROM "  + h.papers.cfg.Sql.Date.Name
+    query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " = 5"
+    row := h.papers.QuerySingleRow(query)
     h.papers.QueryEnd()
     if row == nil {
         log.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from MySQL\n")
@@ -346,7 +350,16 @@ func (h *MyHTTPHandler) SearchArxivMinimal(arxivString string, rw http.ResponseW
 
 func (h *MyHTTPHandler) SearchKeyword(searchString string, rw http.ResponseWriter) {
 
-    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.keywords) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
+    //query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.keywords) AGAINST (?) LIMIT 150"
+    query := "SELECT " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
+    query += "," + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldNumCites
+    query += " FROM " + h.papers.cfg.Sql.Meta.Name + "," + h.papers.cfg.Sql.Refs.Name
+    query += " WHERE " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
+    query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId
+    query += " AND MATCH(" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldKeywords + ")"
+    query += " AGAINST (?) LIMIT 150"
+
+    stmt := h.papers.StatementBegin(query,h.papers.db.Escape(searchString))
 
     var id uint64
     var numCites uint
@@ -405,8 +418,19 @@ func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWrite
         booleanSearchString.WriteRune('"')
     }
 
-    //stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 150",h.papers.db.Escape(searchString))
-    stmt := h.papers.StatementBegin("SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE (meta_data.id = pcite.id) AND (MATCH(meta_data.authors,meta_data.keywords) AGAINST (? IN BOOLEAN MODE)) LIMIT 150",booleanSearchString.String())
+    //query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.authors,meta_data.title) AGAINST (?) LIMIT 150"
+    //stmt := h.papers.StatementBegin(query,h.papers.db.Escape(searchString))
+    
+    //query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE (meta_data.id = pcite.id) AND (MATCH(meta_data.authors,meta_data.keywords) AGAINST (? IN BOOLEAN MODE)) LIMIT 150" 
+    query := "SELECT " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
+    query += "," + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldNumCites
+    query += " FROM " + h.papers.cfg.Sql.Meta.Name + "," + h.papers.cfg.Sql.Refs.Name
+    query += " WHERE (" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
+    query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId + ")"
+    query += " AND MATCH(" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldAuthors
+    query += "," + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldTitle + ")"
+    query += " AGAINST (?) LIMIT 150"
+    stmt := h.papers.StatementBegin(query,booleanSearchString.String())
 
     var id uint64
     var numCites uint
@@ -466,7 +490,8 @@ func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
         searchString.WriteRune('"')
     }
 
-    whereClause := "MATCH (authors) AGAINST (? IN BOOLEAN MODE)"
+    //whereClause := "MATCH (authors) AGAINST (? IN BOOLEAN MODE)"
+    whereClause := "MATCH (" + h.papers.cfg.Sql.Meta.FieldAuthors + ") AGAINST (? IN BOOLEAN MODE)"
     // do the search
     h.SearchGeneric(rw, whereClause, searchString.String())
 }
@@ -488,7 +513,8 @@ func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
             searchString.WriteRune(r)
         }
     }
-    whereClause := "MATCH (title) AGAINST (? IN BOOLEAN MODE)"
+    //whereClause := "MATCH (title) AGAINST (? IN BOOLEAN MODE)"
+    whereClause := "MATCH (" + h.papers.cfg.Sql.Meta.FieldTitle + ") AGAINST (? IN BOOLEAN MODE)"
     // do the search
     h.SearchGeneric(rw, whereClause, searchString.String())
 }
@@ -521,10 +547,12 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     var catQueryStart string
     if includeCrossLists {
         // include cross lists; check "allcats" column for any occurrence of the wanted category string
-        catQueryStart = "meta_data.allcats LIKE ?"
+        //catQueryStart = "meta_data.allcats LIKE ?"
+        catQueryStart = h.papers.cfg.Sql.Meta.FieldAllcats + " LIKE ?"
     } else {
         // no cross lists; "maincat" column must match the wanted category exactly
-        catQueryStart = "meta_data.maincat=?"
+        //catQueryStart = "meta_data.maincat=?"
+        catQueryStart = h.papers.cfg.Sql.Meta.FieldMaincat + " = ?"
     }
 
     var categories []string
@@ -564,7 +592,13 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
    
     // if given non-trivial "daysago" number to lookup
     if daysagoFrom > daysagoTo {
-        stmt := h.papers.StatementBegin("SELECT daysAgo,id FROM datebdry WHERE daysAgo = ? OR daysAgo = ?",daysagoFrom,daysagoTo)
+        //query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo = ? OR daysAgo = ?"
+        query := "SELECT " + h.papers.cfg.Sql.Date.FieldDays
+        query += "," + h.papers.cfg.Sql.Date.FieldId
+        query += " FROM " + h.papers.cfg.Sql.Date.Name
+        query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " = ?"
+        query += " OR " + h.papers.cfg.Sql.Date.FieldDays + " = ?"
+        stmt := h.papers.StatementBegin(query,daysagoFrom,daysagoTo)
         var id uint64
         var results [2]uint64
         var daysAgo uint
@@ -620,7 +654,10 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
         argsInterface[i+2] = interface{}(catStr)
     }
 
-    whereClause := "meta_data.id >= ? AND meta_data.id <= ? AND " + catQuery.String()
+    //whereClause := "meta_data.id >= ? AND meta_data.id <= ? AND " + catQuery.String()
+    whereClause := h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId + " >= ?"
+    whereClause += " AND " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId + " <= ?"
+    whereClause += " AND " + catQuery.String()
     // do the search
     h.SearchGeneric(rw, whereClause, argsInterface...)
 }
@@ -629,8 +666,17 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
 // builds a JSON list with id, numCites, refs for up to 500 results
 func (h *MyHTTPHandler) SearchGeneric(rw http.ResponseWriter, whereClause string, params ...interface{}) {
 
-    query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id=pcite.id AND (" + whereClause + ")"
-    query += " AND (meta_data.arxiv IS NOT NULL OR meta_data.publ IS NOT NULL)"
+    //query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id=pcite.id AND (" + whereClause + ")"
+    //query += " AND (meta_data.arxiv IS NOT NULL OR meta_data.publ IS NOT NULL)"
+    //query += " LIMIT 500"
+    query := "SELECT " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
+    query += "," + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldNumCites
+    query += " FROM " + h.papers.cfg.Sql.Meta.Name + "," + h.papers.cfg.Sql.Refs.Name
+    query += " WHERE " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
+    query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId
+    query += " AND (" + whereClause + ")"
+    query += " AND (" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldArxiv + " IS NOT NULL"
+    query += " OR " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldPubl + " IS NOT NULL)"
     query += " LIMIT 500"
 
     stmt := h.papers.StatementBegin(query,params...)
@@ -680,7 +726,11 @@ func (h *MyHTTPHandler) SearchTrending(categories []string, rw http.ResponseWrit
         args.WriteString("?")
     }
     args.WriteString(")")
-    sql := fmt.Sprintf("SELECT field,value FROM misc WHERE field IN %s LIMIT %d",args.String(),len(categories))
+    //sql := fmt.Sprintf("SELECT field,value FROM misc WHERE field IN %s LIMIT %d",args.String(),len(categories))
+    sql := "SELECT " + h.papers.cfg.Sql.Misc.FieldField
+    sql += "," + h.papers.cfg.Sql.Misc.FieldValue
+    sql += " FROM " + h.papers.cfg.Sql.Misc.Name
+    sql += fmt.Sprintf(" WHERE %s IN %s LIMIT %d",h.papers.cfg.Sql.Misc.FieldField, args.String(), len(categories))
 
     // create interface of arguments for statement
     catsInterface := make([]interface{},len(categories))
@@ -769,12 +819,18 @@ func (h *MyHTTPHandler) MapLocationFromPaperIds(ids []uint64, tableSuffix string
     }
     args.WriteString(")")
 
-    loc_table := "map_data"
+    loc_table := h.papers.cfg.Sql.Map.Name
     if isValidTableSuffix(tableSuffix) {
         loc_table += "_" + tableSuffix
     }
 
-    sql := fmt.Sprintf("SELECT id,x,y,r FROM " + loc_table + " WHERE id IN %s LIMIT %d",args.String(),len(ids))
+    //sql := fmt.Sprintf("SELECT id,x,y,r FROM " + loc_table + " WHERE id IN %s LIMIT %d",args.String(),len(ids))
+    sql := "SELECT " + h.papers.cfg.Sql.Map.FieldId
+    sql += "," + h.papers.cfg.Sql.Map.FieldX
+    sql += "," + h.papers.cfg.Sql.Map.FieldY
+    sql += "," + h.papers.cfg.Sql.Map.FieldR
+    sql += " FROM " + loc_table
+    sql += fmt.Sprintf(" WHERE %s IN %s LIMIT %d", h.papers.cfg.Sql.Map.FieldId, args.String(), len(ids))
 
     // create interface of arguments for statement
     hIdsInt := make([]interface{},len(ids))
@@ -812,7 +868,7 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, tableSuffix string, r
     var resr uint
     var resx, resy int 
 
-    loc_table := "map_data"
+    loc_table := h.papers.cfg.Sql.Map.Name
     if isValidTableSuffix(tableSuffix) {
         loc_table += "_" + tableSuffix
     }
@@ -822,7 +878,13 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, tableSuffix string, r
     // use quad tree: order log n
     // OR try using MySQL spatial extensions
 
-    sql := "SELECT id,x,y,r FROM " + loc_table + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
+    //sql := "SELECT id,x,y,r FROM " + loc_table + " WHERE sqrt(pow(x - ?,2) + pow(y - ?,2)) - r <= 0 LIMIT 1"
+    sql := "SELECT " + h.papers.cfg.Sql.Map.FieldId
+    sql += "," + h.papers.cfg.Sql.Map.FieldX
+    sql += "," + h.papers.cfg.Sql.Map.FieldY
+    sql += "," + h.papers.cfg.Sql.Map.FieldR
+    sql += " FROM " + loc_table
+    sql += fmt.Sprintf(" WHERE sqrt(pow(%s - ?,2) + pow(%s - ?,2)) - %s <= 0 LIMIT 1", h.papers.cfg.Sql.Map.FieldX, h.papers.cfg.Sql.Map.FieldY, h.papers.cfg.Sql.Map.FieldR)
 
     stmt := h.papers.StatementBegin(sql,x,y)
     if !h.papers.StatementBindSingleRow(stmt,&id,&resx,&resy,&resr) {
@@ -894,7 +956,11 @@ func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivString string, tableSuffix 
 func (h *MyHTTPHandler) GetDateMapsVersion(rw http.ResponseWriter) (success bool) {
     success = false
 
-    query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo = 0"
+    //query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo = 0"
+    query := "SELECT " + h.papers.cfg.Sql.Date.FieldDays
+    query += "," + h.papers.cfg.Sql.Date.FieldId
+    query += " FROM " + h.papers.cfg.Sql.Date.Name
+    query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " = 0"
 
     stmt := h.papers.StatementBegin(query)
 

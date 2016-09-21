@@ -465,7 +465,11 @@ func (h *MyHTTPHandler) ResponseMyPscp(rw *MyResponseWriter, req *http.Request) 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
     success = false
 
-    query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5"
+    //query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5"
+    query := "SELECT " + h.papers.cfg.Sql.Date.FieldDays
+    query += "," + h.papers.cfg.Sql.Date.FieldId
+    query += " FROM "  + h.papers.cfg.Sql.Date.Name
+    query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " <= 5"
 
     stmt := h.papers.StatementBegin(query)
 
@@ -530,7 +534,11 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
             args.WriteString("?")
         }
         args.WriteString(")")
-        sql := fmt.Sprintf("SELECT id, arxiv FROM meta_data WHERE arxiv IN %s LIMIT %d",args.String(),len(arxivIds))
+        //sql := fmt.Sprintf("SELECT id, arxiv FROM meta_data WHERE arxiv IN %s LIMIT %d",args.String(),len(arxivIds))
+        sql := "SELECT " + h.papers.cfg.Sql.Meta.FieldId 
+        sql += "," + h.papers.cfg.Sql.Meta.FieldArxiv 
+        sql += " FROM " + h.papers.cfg.Sql.Meta.Name
+        sql += fmt.Sprintf(" WHERE %s IN %s LIMIT %d", h.papers.cfg.Sql.Meta.FieldArxiv, args.String(),len(arxivIds))
         //fmt.Println(sql)
 
         // create interface of arguments for statement
@@ -571,9 +579,14 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
             if i > 0 { 
                 args.WriteString(" OR ")
             }
-            args.WriteString("publ LIKE ?")
+            //args.WriteString("publ LIKE ?")
+            args.WriteString(h.papers.cfg.Sql.Meta.FieldPubl + " LIKE ?")
         }
-        sql := fmt.Sprintf("SELECT id, publ FROM meta_data WHERE %s LIMIT %d",args.String(),len(doiIds))
+        //sql := fmt.Sprintf("SELECT id, publ FROM meta_data WHERE %s LIMIT %d",args.String(),len(doiIds))
+        sql := "SELECT " + h.papers.cfg.Sql.Meta.FieldId 
+        sql += "," + h.papers.cfg.Sql.Meta.FieldPubl 
+        sql += " FROM " + h.papers.cfg.Sql.Meta.Name
+        sql += fmt.Sprintf(" WHERE %s LIMIT %d", args.String(),len(doiIds))
 
         // create interface of arguments for statement
         hIdsInt := make([]interface{},len(doiIds))
@@ -630,9 +643,14 @@ func (h *MyHTTPHandler) ConvertHumanToInternalIds(arxivIds []string, doiIds []st
             if i > 0 { 
                 args.WriteString(" OR ")
             }
-            args.WriteString("publ LIKE ?")
+            //args.WriteString("publ LIKE ?")
+            args.WriteString(h.papers.cfg.Sql.Meta.FieldPubl + " LIKE ?")
         }
-        sql := fmt.Sprintf("SELECT id, publ FROM meta_data WHERE %s LIMIT %d",args.String(),len(journalIds))
+        //sql := fmt.Sprintf("SELECT id, publ FROM meta_data WHERE %s LIMIT %d",args.String(),len(journalIds))
+        sql := "SELECT " + h.papers.cfg.Sql.Meta.FieldId 
+        sql += "," + h.papers.cfg.Sql.Meta.FieldPubl 
+        sql += " FROM " + h.papers.cfg.Sql.Meta.Name
+        sql += fmt.Sprintf(" WHERE %s LIMIT %d", args.String(),len(journalIds))
 
         // create interface of arguments for statement
         hIdsInt := make([]interface{},len(journalIds))
@@ -1283,10 +1301,18 @@ func (h *MyHTTPHandler) SearchNewPapers(idFrom string, idTo string, rw http.Resp
         idTo = "4000000000";
     }
 
-    query := "SELECT meta_data.id,meta_data.allcats,pcite.numCites FROM meta_data,pcite WHERE meta_data.id >= ? AND meta_data.id <= ? AND meta_data.id = pcite.id LIMIT 500"
-
+    //query := "SELECT meta_data.id,meta_data.allcats,pcite.numCites FROM meta_data,pcite WHERE meta_data.id >= ? AND meta_data.id <= ? AND meta_data.id = pcite.id LIMIT 500"
+    query := "SELECT " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId 
+    query += "," + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldAllcats 
+    query += "," + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldNumCites 
+    query += " FROM " + h.papers.cfg.Sql.Meta.Name + "," + h.papers.cfg.Sql.Refs.Name
+    query += " WHERE " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId + " >= ?"
+    query += " AND " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId + " <= ?"
+    query += " AND " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
+    query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId
+    query += " LIMIT 500"
+    
     stmt := h.papers.StatementBegin(query,idFrom,idTo)
-
     if stmt == nil {
         fmt.Println("MySQL statement error; empty")
         fmt.Fprintf(rw, "[]")
