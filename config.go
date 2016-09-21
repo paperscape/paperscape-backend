@@ -63,7 +63,7 @@ type SqlTables struct {
 }
 
 type Config struct {
-    //IdsTimeOrdered bool `json:"ids_time_ordered"`
+    IdsTimeOrdered bool `json:"ids_time_ordered"`
     Sql SqlTables `json:"sql"`
 }
 

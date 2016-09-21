@@ -214,24 +214,27 @@ func (h *MyHTTPHandler) GetDataForIDs(ids []uint, flags []uint, rw http.Response
         fmt.Fprintf(rw, "null")
         return
     }
+    
     // Get date boundary
-    //query := "SELECT id FROM datebdry WHERE daysAgo = 5"
-    query := "SELECT " + h.papers.cfg.Sql.Date.FieldId
-    query += " FROM "  + h.papers.cfg.Sql.Date.Name
-    query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " = 5"
-    row := h.papers.QuerySingleRow(query)
-    h.papers.QueryEnd()
-    if row == nil {
-        log.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from MySQL\n")
-        fmt.Fprintf(rw, "[]")
-        return
-    }
-    var ok bool
     var db uint64
-    if db, ok = row[0].(uint64); !ok {
-        log.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from Row\n")
-        fmt.Fprintf(rw, "[]")
-        return
+    if h.papers.cfg.Sql.Date.Name != "" {
+        //query := "SELECT id FROM datebdry WHERE daysAgo = 5"
+        query := "SELECT " + h.papers.cfg.Sql.Date.FieldId
+        query += " FROM "  + h.papers.cfg.Sql.Date.Name
+        query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " = 5"
+        row := h.papers.QuerySingleRow(query)
+        h.papers.QueryEnd()
+        if row == nil {
+            log.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from MySQL\n")
+            fmt.Fprintf(rw, "[]")
+            return
+        }
+        var ok bool
+        if db, ok = row[0].(uint64); !ok {
+            log.Printf("ERROR: GetNewCitesAndUpdateMetas could not get 5 day boundary from Row\n")
+            fmt.Fprintf(rw, "[]")
+            return
+        }
     }
 
     fmt.Fprintf(rw, "{\"papr\":[")
@@ -543,6 +546,10 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     // sanity check of category, and build query
     // comma is used to separate multiple categories, which means "or"
 
+    if !h.papers.cfg.IdsTimeOrdered || h.papers.cfg.Sql.Meta.FieldAllcats == "" || h.papers.cfg.Sql.Meta.FieldMaincat == "" {
+        return
+    }
+
     // choose the type of MySQL query based on whether we want cross-lists or not
     var catQueryStart string
     if includeCrossLists {
@@ -591,7 +598,7 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     if (daysagoTo <= 0 && daysagoTo > 31) { daysagoTo = 0 }
    
     // if given non-trivial "daysago" number to lookup
-    if daysagoFrom > daysagoTo {
+    if daysagoFrom > daysagoTo && h.papers.cfg.Sql.Date.Name != "" {
         //query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo = ? OR daysAgo = ?"
         query := "SELECT " + h.papers.cfg.Sql.Date.FieldDays
         query += "," + h.papers.cfg.Sql.Date.FieldId
@@ -718,6 +725,10 @@ func (h *MyHTTPHandler) SearchGeneric(rw http.ResponseWriter, whereClause string
 // searches for trending papers
 // returns list of id and numCites
 func (h *MyHTTPHandler) SearchTrending(categories []string, rw http.ResponseWriter) {
+
+    if h.papers.cfg.Sql.Misc.Name == "" {
+        return
+    }
 
     // create sql statement dynamically based on number of categories
     var args bytes.Buffer
@@ -898,36 +909,31 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, tableSuffix string, r
 }
 
 func (h *MyHTTPHandler) MapReferencesFromPaper(idString string, tableSuffix string, rw http.ResponseWriter) {
+  
+    var paper *Paper
     
-    isArxivId := false
-    if h.papers.cfg.Sql.Meta.FieldArxiv != "" {
-        // check for valid characters in arxiv string
-        isArxivId = true
+    if id, err := strconv.ParseInt(idString,10,0); err == nil { 
+        // ID was purely numeric 
+        paper = h.papers.QueryPaper(uint(id),"")
+    } else if h.papers.cfg.Sql.Meta.FieldArxiv != "" {
+        // check if it's an arxiv ID
         for _, r := range idString {
             if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
                 // invalid character
-                isArxivId = false
-                break
+                return
             }
         }
-    }
-    var paper *Paper
-    if isArxivId {
         paper = h.papers.QueryPaper(0, idString)
-    } else {
-        id, err := strconv.ParseInt(idString,10,0)
-        if err != nil { return }
-        paper = h.papers.QueryPaper(uint(id),"")
     }
-
-    // query the paper and its refs and cites
-    h.papers.QueryRefs(paper, false)
-    h.papers.QueryLocations(paper,tableSuffix)
 
     // check the paper exists
     if paper == nil {
         return
     }
+
+    // query the paper and its refs and cites
+    h.papers.QueryRefs(paper, false)
+    h.papers.QueryLocations(paper,tableSuffix)
 
     // print the json output
     fmt.Fprintf(rw, "{\"papr\":[{\"id\":%d,", paper.id)
@@ -941,34 +947,29 @@ func (h *MyHTTPHandler) MapReferencesFromPaper(idString string, tableSuffix stri
 
 func (h *MyHTTPHandler) MapCitationsFromPaper(idString string, tableSuffix string, rw http.ResponseWriter) {
     
-    isArxivId := false
-    if h.papers.cfg.Sql.Meta.FieldArxiv != "" {
-        // check for valid characters in arxiv string
-        isArxivId = true
+    var paper *Paper
+    
+    if id, err := strconv.ParseInt(idString,10,0); err == nil { 
+        // ID was purely numeric 
+        paper = h.papers.QueryPaper(uint(id),"")
+    } else if h.papers.cfg.Sql.Meta.FieldArxiv != "" {
+        // check if it's an arxiv ID
         for _, r := range idString {
             if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
                 // invalid character
-                isArxivId = false
-                break
+                return
             }
         }
-    }
-    var paper *Paper
-    if isArxivId {
         paper = h.papers.QueryPaper(0, idString)
-    } else {
-        id, err := strconv.ParseInt(idString,10,0)
-        if err != nil { return }
-        paper = h.papers.QueryPaper(uint(id),"")
     }
-    
-    h.papers.QueryCites(paper, false)
-    h.papers.QueryLocations(paper,tableSuffix)
 
     // check the paper exists
     if paper == nil {
         return
     }
+    
+    h.papers.QueryCites(paper, false)
+    h.papers.QueryLocations(paper,tableSuffix)
 
     // print the json output
     fmt.Fprintf(rw, "{\"papr\":[{\"id\":%d,", paper.id)
@@ -983,41 +984,45 @@ func (h *MyHTTPHandler) MapCitationsFromPaper(idString string, tableSuffix strin
 
 func (h *MyHTTPHandler) GetDateMapsVersion(rw http.ResponseWriter) (success bool) {
     success = false
-
-    //query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo = 0"
-    query := "SELECT " + h.papers.cfg.Sql.Date.FieldDays
-    query += "," + h.papers.cfg.Sql.Date.FieldId
-    query += " FROM " + h.papers.cfg.Sql.Date.Name
-    query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " = 0"
-
-    stmt := h.papers.StatementBegin(query)
-
-    if stmt == nil {
-        fmt.Println("MySQL statement error; empty")
-        return
-    }
-
-    var daysAgo,id uint64
-    stmt.BindResult(&daysAgo,&id)
-    defer h.papers.StatementEnd(stmt) 
     
-    fmt.Fprintf(rw, "{\"v\":\"%s\",",VERSION_PSCPMAP)
-    numResults := 0
-    for {
-        eof, err := stmt.Fetch()
+    fmt.Fprintf(rw, "{\"v\":\"%s\"",VERSION_PSCPMAP)
+    if h.papers.cfg.Sql.Date.Name != "" {
+        //query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo = 0"
+        query := "SELECT " + h.papers.cfg.Sql.Date.FieldDays
+        query += "," + h.papers.cfg.Sql.Date.FieldId
+        query += " FROM " + h.papers.cfg.Sql.Date.Name
+        query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " = 0"
+
+        stmt := h.papers.StatementBegin(query)
+
+        if stmt == nil {
+            fmt.Fprintf(rw, "}")
+            fmt.Println("MySQL statement error; empty")
+            return
+        }
+
+        var daysAgo,id uint64
+        stmt.BindResult(&daysAgo,&id)
+        defer h.papers.StatementEnd(stmt) 
+        
+        fmt.Fprintf(rw, ",")
+        numResults := 0
+        for {
+            eof, err := stmt.Fetch()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+                break
+            } else if eof { break }
+            if numResults > 0 {
+                fmt.Fprintf(rw, ",")
+            }
+            fmt.Fprintf(rw, "\"d%d\":%d", daysAgo, id)
+            numResults += 1
+        }
+        err := stmt.FreeResult()
         if err != nil {
             fmt.Println("MySQL statement error;", err)
-            break
-        } else if eof { break }
-        if numResults > 0 {
-            fmt.Fprintf(rw, ",")
         }
-        fmt.Fprintf(rw, "\"d%d\":%d", daysAgo, id)
-        numResults += 1
-    }
-    err := stmt.FreeResult()
-    if err != nil {
-        fmt.Println("MySQL statement error;", err)
     }
     fmt.Fprintf(rw, "}")
     success = true

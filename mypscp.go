@@ -465,40 +465,44 @@ func (h *MyHTTPHandler) ResponseMyPscp(rw *MyResponseWriter, req *http.Request) 
 func (h *MyHTTPHandler) GetDateBoundaries(rw http.ResponseWriter) (success bool) {
     success = false
 
-    //query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5"
-    query := "SELECT " + h.papers.cfg.Sql.Date.FieldDays
-    query += "," + h.papers.cfg.Sql.Date.FieldId
-    query += " FROM "  + h.papers.cfg.Sql.Date.Name
-    query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " <= 5"
+    fmt.Fprintf(rw, "{\"v\":\"%s\"",VERSION_MYPSCP)
+    if h.papers.cfg.Sql.Date.Name != "" {
+        //query := "SELECT daysAgo,id FROM datebdry WHERE daysAgo <= 5"
+        query := "SELECT " + h.papers.cfg.Sql.Date.FieldDays
+        query += "," + h.papers.cfg.Sql.Date.FieldId
+        query += " FROM "  + h.papers.cfg.Sql.Date.Name
+        query += " WHERE " + h.papers.cfg.Sql.Date.FieldDays + " <= 5"
 
-    stmt := h.papers.StatementBegin(query)
+        stmt := h.papers.StatementBegin(query)
 
-    if stmt == nil {
-        fmt.Println("MySQL statement error; empty")
-        return
-    }
+        if stmt == nil {
+            fmt.Fprintf(rw, "}")
+            fmt.Println("MySQL statement error; empty")
+            return
+        }
 
-    var daysAgo,id uint64
-    stmt.BindResult(&daysAgo,&id)
-    defer h.papers.StatementEnd(stmt) 
-    
-    fmt.Fprintf(rw, "{\"v\":\"%s\",",VERSION_MYPSCP)
-    numResults := 0
-    for {
-        eof, err := stmt.Fetch()
+        var daysAgo,id uint64
+        stmt.BindResult(&daysAgo,&id)
+        defer h.papers.StatementEnd(stmt) 
+        
+        fmt.Fprintf(rw, ",")
+        numResults := 0
+        for {
+            eof, err := stmt.Fetch()
+            if err != nil {
+                fmt.Println("MySQL statement error;", err)
+                break
+            } else if eof { break }
+            if numResults > 0 {
+                fmt.Fprintf(rw, ",")
+            }
+            fmt.Fprintf(rw, "\"d%d\":%d", daysAgo, id)
+            numResults += 1
+        }
+        err := stmt.FreeResult()
         if err != nil {
             fmt.Println("MySQL statement error;", err)
-            break
-        } else if eof { break }
-        if numResults > 0 {
-            fmt.Fprintf(rw, ",")
         }
-        fmt.Fprintf(rw, "\"d%d\":%d", daysAgo, id)
-        numResults += 1
-    }
-    err := stmt.FreeResult()
-    if err != nil {
-        fmt.Println("MySQL statement error;", err)
     }
     fmt.Fprintf(rw, "}")
     success = true

@@ -169,8 +169,12 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     if papers.cfg.Sql.Meta.FieldArxiv != "" {
         query += "," + papers.cfg.Sql.Meta.FieldArxiv
     }
-    query += "," + papers.cfg.Sql.Meta.FieldMaincat
-    query += "," + papers.cfg.Sql.Meta.FieldAllcats
+    if papers.cfg.Sql.Meta.FieldMaincat != "" {
+        query += "," + papers.cfg.Sql.Meta.FieldMaincat
+    }
+    if papers.cfg.Sql.Meta.FieldAllcats != "" {
+        query += "," + papers.cfg.Sql.Meta.FieldAllcats
+    }
     if papers.cfg.Sql.Meta.FieldInspire != "" {
         query += "," + papers.cfg.Sql.Meta.FieldInspire
     }
@@ -200,12 +204,16 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         }
         i += 1
     }
-    if row[i] != nil {
-        if paper.maincat, ok = row[i].(string); !ok { return nil }
+    if papers.cfg.Sql.Meta.FieldMaincat != "" {
+        if row[i] != nil {
+            if paper.maincat, ok = row[i].(string); !ok { return nil }
+        }
+        i += 1
     }
-    i += 1
-    if paper.allcats, ok = row[i].(string); !ok { paper.allcats = "" }
-    i += 1
+    if papers.cfg.Sql.Meta.FieldAllcats != "" {
+        if paper.allcats, ok = row[i].(string); !ok { paper.allcats = "" }
+        i += 1
+    }
     if papers.cfg.Sql.Meta.FieldInspire != "" {
         if row[i] != nil {
             if inspire, ok := row[i].(uint64); ok { paper.inspire = uint(inspire); }
