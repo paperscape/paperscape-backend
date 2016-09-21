@@ -1,0 +1,50 @@
+{
+"description":"Hyperwall settings for OECD Chemistry (1.04), years 2001+",
+"ids_time_ordered":false,
+"use_external_cites":false,
+"mass_cites_exponent":1.0,
+"forces":{
+    "comment":"These force parameters are used by nbody.",
+    "link_strength":2.0,
+    "anti_gravity_falloff_rsq":1e6,
+    "close_repulsion_a":1e9,
+    "close_repulsion_b":1e14,
+    "close_repulsion_c":1.1,
+    "close_repulsion_d":0.6,
+    "use_ref_freq":false,
+    "initial_close_repulsion":false
+},
+"sql":{
+    "meta_table":{
+        "comment":"This table is used to load meta data for all the papers.",
+        "name":"meta_data",
+        "where_clause":"(catcodes LIKE '%dy%' OR catcodes LIKE '%ei%' OR catcodes LIKE '%ee%' OR catcodes LIKE '%ea%' OR catcodes LIKE '%ec%' OR catcodes LIKE '%hq%' OR catcodes LIKE '%uy%' OR catcodes LIKE '%dw%' OR catcodes LIKE '%fi%') AND year >= 2001 AND title IS NOT NULL AND keywords IS NOT NULL",
+        "extra_clause":"",
+        "field_id":"id",
+        "field_maincat":"maincat",
+        "field_allcats":"catcodes",
+        "field_title":"title",
+        "field_authors":"authors",
+        "field_keywords":"keywords",
+        "field_agesort":"year",
+        "add_missing_cats":false
+    },
+    "refs_table":{
+        "comment":"This table is used to load the graph of references in nbody.",
+        "name":"pcite",
+        "field_id":"id",
+        "field_refs":"refs",
+        "rblob_order":false,
+        "rblob_freq":false,
+        "rblob_cites":true
+    },
+    "map_table":{
+        "comment":"This table is used to store output from nbody. It can serve as input for both tiles and nbody.",
+        "name":"map_data",
+        "field_id":"id",
+        "field_x":"x",
+        "field_y":"y",
+        "field_r":"r"
+    }
+}
+}
