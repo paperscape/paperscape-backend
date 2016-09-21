@@ -24,7 +24,7 @@
         "field_numcites":"numCites",
         "field_dnc1":"dNumCites1",
         "field_dnc5":"dNumCites5",
-        "rblob_order":true,
+        "rblob_order":false,
         "rblob_freq":true,
         "rblob_cites":true
     },

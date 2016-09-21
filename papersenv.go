@@ -276,8 +276,7 @@ func (papers *PapersEnv) QueryRefs(paper *Paper, queryRefsMeta bool) {
     if refStr, ok = row[0].([]byte); !ok { papers.QueryEnd(); return }
 
     // parse the ref string, creating links
-    parseRefsCitesString(paper, refStr, true)
-
+    papers.ParseRefsCitesString(paper, refStr, true)
     papers.QueryEnd()
 
     // if requested, also query the meta data of the ref links
@@ -310,8 +309,7 @@ func (papers *PapersEnv) QueryCites(paper *Paper, queryCitesMeta bool) {
     if citeStr, ok = row[0].([]byte); !ok { papers.QueryEnd(); return }
 
     // parse the cite string, creating links
-    parseRefsCitesString(paper, citeStr, false)
-
+    papers.ParseRefsCitesString(paper, citeStr, false)
     papers.QueryEnd()
 
     // if requested, also query the meta data of the ref links
@@ -502,7 +500,7 @@ func getLE16(blob []byte, i int) uint {
 func getLE32(blob []byte, i int) uint {
     return uint(blob[i]) | (uint(blob[i + 1]) << 8) | (uint(blob[i + 2]) << 16) | (uint(blob[i + 3]) << 24)
 }
-func parseRefsCitesString(paper *Paper, blob []byte, isRefStr bool) bool {
+func (papers *PapersEnv) ParseRefsCitesString(paper *Paper, blob []byte, isRefStr bool) bool {
     if len(blob) == 0 {
         // nothing to do, that's okay
         return true
@@ -515,12 +513,34 @@ func parseRefsCitesString(paper *Paper, blob []byte, isRefStr bool) bool {
         }
     }
     */
+    blobLen := 4
+    if papers.cfg.Sql.Refs.RblobOrder { blobLen += 2 }
+    if papers.cfg.Sql.Refs.RblobFreq  { blobLen += 2 }
+    if papers.cfg.Sql.Refs.RblobCites { blobLen += 2 }
 
-    for i := 0; i < len(blob); i += 10 {
+    if len(blob) % blobLen != 0 {
+        log.Printf("ERROR: blob length %d is not a multiple of %d as expected, for id=%d\n", len(blob),blobLen,paper.id)
+        return false
+    }
+
+    for i := 0; i < len(blob); i += blobLen {
         refId := getLE32(blob, i)
-        refOrder := getLE16(blob, i + 4)
-        refFreq := getLE16(blob, i + 6)
-        numCites := getLE16(blob, i + 8)
+        buf_ind := 4
+        var refOrder uint = 0
+        if papers.cfg.Sql.Refs.RblobOrder {
+            refOrder = getLE16(blob, i + buf_ind)
+            buf_ind += 2
+        }
+        var refFreq uint = 1
+        if papers.cfg.Sql.Refs.RblobFreq {
+            refFreq = getLE16(blob, i + buf_ind)
+            buf_ind += 2
+        }
+        var numCites uint = 0
+        if papers.cfg.Sql.Refs.RblobCites {
+            numCites = getLE16(blob, i + buf_ind)
+            //buf_ind += 2
+        }
         // make link and add to list in paper
         if isRefStr {
             link := &Link{uint(refId), paper.id, nil, paper, uint(refOrder), uint(refFreq), uint(numCites), paper.numCites, nil}
