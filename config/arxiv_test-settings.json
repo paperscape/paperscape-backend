@@ -26,7 +26,7 @@
         "field_title":"title",
         "field_authors":"authors",
         "field_keywords":"keywords",
-        "field_agesort":"year",
+        "field_agesort":"id",
         "add_missing_cats":true
     },
     "refs_table":{
