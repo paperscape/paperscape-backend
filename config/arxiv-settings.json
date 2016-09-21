@@ -1,6 +1,9 @@
 {
 "description":"Default Paperscape settings",
 "ids_time_ordered":true,
+"webserver":{
+    "serve_mypscp":true
+},
 "sql":{
     "meta_table":{
         "comment":"This table is used to load meta data for all the papers.",

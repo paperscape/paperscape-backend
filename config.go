@@ -7,6 +7,10 @@ import (
     "encoding/json"
 )
 
+type Settings struct {
+    ServeMyPscp   bool   `json:"serve_mypscp"`
+}
+
 type MetaTable struct {
     Name          string `json:"name"`
     FieldId       string `json:"field_id"`
@@ -63,6 +67,7 @@ type SqlTables struct {
 }
 
 type Config struct {
+    Settings Settings `json:"webserver"`
     IdsTimeOrdered bool `json:"ids_time_ordered"`
     Sql SqlTables `json:"sql"`
 }

@@ -1,6 +1,9 @@
 {
 "description":"Hyperwall chemistry settings",
 "ids_time_ordered":false,
+"webserver":{
+    "serve_mypscp":false
+},
 "sql":{
     "meta_table":{
         "comment":"This table is used to load meta data for all the papers.",

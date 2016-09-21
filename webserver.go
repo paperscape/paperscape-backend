@@ -223,7 +223,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":false}")
         } else if h.ResponsePscpGeneral(rw,req) {
         } else if h.ResponsePscpMap(rw,req) {
-        } else if h.ResponseMyPscp(rw,req) {
+        } else if h.papers.cfg.Settings.ServeMyPscp && h.ResponseMyPscp(rw,req) {
         } else {
             // unknown ajax request
             rw.logDescription = fmt.Sprintf("unknown")
@@ -258,7 +258,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
             fmt.Fprintf(rw, "{\"test\":\"success\", \"POST\":true}")
         } else if h.ResponsePscpGeneral(rw,req) {
         } else if h.ResponsePscpMap(rw,req) {
-        } else if h.ResponseMyPscp(rw,req) {
+        } else if h.papers.cfg.Settings.ServeMyPscp && h.ResponseMyPscp(rw,req) {
         } else {
             // unknown ajax request
             rw.logDescription = fmt.Sprintf("unknown")
