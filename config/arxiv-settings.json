@@ -11,8 +11,8 @@
         "field_authors":"authors",
         "field_keywords":"keywords",
         "field_publ":"publ",
-        "field_arxiv":"arxiv",
-        "field_inspire":"inspire"
+        "field_arxiv":"",
+        "field_inspire":""
     },
     "refs_table":{
         "comment":"This table holds the graph of references.",
@@ -22,9 +22,9 @@
         "field_numrefs":"numRefs",
         "field_cites":"cites",
         "field_numcites":"numCites",
-        "field_dnc1":"dNumCites1",
-        "field_dnc5":"dNumCites5",
-        "rblob_order":false,
+        "field_dnc1":"",
+        "field_dnc5":"",
+        "rblob_order":true,
         "rblob_freq":true,
         "rblob_cites":true
     },

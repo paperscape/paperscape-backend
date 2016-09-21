@@ -175,13 +175,13 @@ func (h *MyHTTPHandler) ResponsePscpMap(rw *MyResponseWriter, req *http.Request)
         rw.logDescription = fmt.Sprintf("Paper ids to map locations for")
         h.MapLocationFromPaperIds(ids,req.Form["tbl"][0],rw)
     } else if req.Form["mr2l"] != nil && req.Form["tbl"] != nil {
-        // mr2l: arxiv id to references (incl locations) 
+        // mr2l: (arxiv-)id to references (incl locations) 
         rw.logDescription = fmt.Sprintf("mr2l \"%s\"",req.Form["mr2l"][0])
-        h.MapReferencesFromArxivId(req.Form["mr2l"][0],req.Form["tbl"][0],rw)
+        h.MapReferencesFromPaper(req.Form["mr2l"][0],req.Form["tbl"][0],rw)
     } else if req.Form["mc2l"] != nil && req.Form["tbl"] != nil {
-        // mc2l: arxiv id to citations (incl locations) 
+        // mc2l: (arxiv-)id to citations (incl locations) 
         rw.logDescription = fmt.Sprintf("m2cl \"%s\"",req.Form["mc2l"][0])
-        h.MapCitationsFromArxivId(req.Form["mc2l"][0],req.Form["tbl"][0],rw)
+        h.MapCitationsFromPaper(req.Form["mc2l"][0],req.Form["tbl"][0],rw)
     } else if req.Form["ml2p[]"] != nil && req.Form["tbl"] != nil {
         // map: location to paper id
         x, erx := strconv.ParseFloat(req.Form["ml2p[]"][0], 0)
@@ -675,8 +675,11 @@ func (h *MyHTTPHandler) SearchGeneric(rw http.ResponseWriter, whereClause string
     query += " WHERE " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
     query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId
     query += " AND (" + whereClause + ")"
-    query += " AND (" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldArxiv + " IS NOT NULL"
-    query += " OR " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldPubl + " IS NOT NULL)"
+    query += " AND ("
+    if (h.papers.cfg.Sql.Meta.FieldArxiv != "") {
+        query += h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldArxiv + " IS NOT NULL OR "
+    }
+    query += h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldPubl + " IS NOT NULL)"
     query += " LIMIT 500"
 
     stmt := h.papers.StatementBegin(query,params...)
@@ -894,17 +897,30 @@ func (h *MyHTTPHandler) MapPaperIdAtLocation(x, y float64, tableSuffix string, r
     fmt.Fprintf(rw, "{\"id\":%d,\"x\":%d,\"y\":%d,\"r\":%d}",id,resx,resy,resr)
 }
 
-func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, tableSuffix string, rw http.ResponseWriter) {
-    // check for valid characters in arxiv string
-    for _, r := range arxivString {
-        if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
-            // invalid character
-            return
+func (h *MyHTTPHandler) MapReferencesFromPaper(idString string, tableSuffix string, rw http.ResponseWriter) {
+    
+    isArxivId := false
+    if h.papers.cfg.Sql.Meta.FieldArxiv != "" {
+        // check for valid characters in arxiv string
+        isArxivId = true
+        for _, r := range idString {
+            if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
+                // invalid character
+                isArxivId = false
+                break
+            }
         }
+    }
+    var paper *Paper
+    if isArxivId {
+        paper = h.papers.QueryPaper(0, idString)
+    } else {
+        id, err := strconv.ParseInt(idString,10,0)
+        if err != nil { return }
+        paper = h.papers.QueryPaper(uint(id),"")
     }
 
     // query the paper and its refs and cites
-    paper := h.papers.QueryPaper(0, arxivString)
     h.papers.QueryRefs(paper, false)
     h.papers.QueryLocations(paper,tableSuffix)
 
@@ -923,17 +939,29 @@ func (h *MyHTTPHandler) MapReferencesFromArxivId(arxivString string, tableSuffix
     fmt.Fprintf(rw, "}]}")
 }
 
-func (h *MyHTTPHandler) MapCitationsFromArxivId(arxivString string, tableSuffix string, rw http.ResponseWriter) {
-    // check for valid characters in arxiv string
-    for _, r := range arxivString {
-        if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
-            // invalid character
-            return
+func (h *MyHTTPHandler) MapCitationsFromPaper(idString string, tableSuffix string, rw http.ResponseWriter) {
+    
+    isArxivId := false
+    if h.papers.cfg.Sql.Meta.FieldArxiv != "" {
+        // check for valid characters in arxiv string
+        isArxivId = true
+        for _, r := range idString {
+            if !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '/' || r == '.') {
+                // invalid character
+                isArxivId = false
+                break
+            }
         }
     }
-
-    // query the paper and its refs and cites
-    paper := h.papers.QueryPaper(0, arxivString)
+    var paper *Paper
+    if isArxivId {
+        paper = h.papers.QueryPaper(0, idString)
+    } else {
+        id, err := strconv.ParseInt(idString,10,0)
+        if err != nil { return }
+        paper = h.papers.QueryPaper(uint(id),"")
+    }
+    
     h.papers.QueryCites(paper, false)
     h.papers.QueryLocations(paper,tableSuffix)
 

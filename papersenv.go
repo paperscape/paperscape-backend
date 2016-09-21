@@ -149,7 +149,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     var query string
 
     if id == 0 {
-        if len(arxiv) == 0 {
+        if len(arxiv) == 0 || papers.cfg.Sql.Meta.FieldArxiv == "" {
             return nil
         } else {
             // given an arxiv string, so properly sanitise 
@@ -166,10 +166,14 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
 
     //query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE id = %d", id)
     query  = "SELECT " + papers.cfg.Sql.Meta.FieldId
-    query += "," + papers.cfg.Sql.Meta.FieldArxiv
+    if papers.cfg.Sql.Meta.FieldArxiv != "" {
+        query += "," + papers.cfg.Sql.Meta.FieldArxiv
+    }
     query += "," + papers.cfg.Sql.Meta.FieldMaincat
     query += "," + papers.cfg.Sql.Meta.FieldAllcats
-    query += "," + papers.cfg.Sql.Meta.FieldInspire
+    if papers.cfg.Sql.Meta.FieldInspire != "" {
+        query += "," + papers.cfg.Sql.Meta.FieldInspire
+    }
     query += "," + papers.cfg.Sql.Meta.FieldAuthors
     query += "," + papers.cfg.Sql.Meta.FieldTitle
     query += "," + papers.cfg.Sql.Meta.FieldPubl
@@ -182,71 +186,97 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
 
     // get the fields
     paper := new(Paper)
-    if idNum, ok := row[0].(uint64); !ok {
+    i := 0
+    if idNum, ok := row[i].(uint64); !ok {
         return nil
     } else {
         paper.id = uint(idNum)
     }
     var ok bool
-    if row[1] != nil {
-        if paper.arxiv, ok = row[1].(string); !ok { return nil }
+    i += 1
+    if papers.cfg.Sql.Meta.FieldArxiv != "" {
+        if row[i] != nil {
+            if paper.arxiv, ok = row[i].(string); !ok { return nil }
+        }
+        i += 1
     }
-    if row[2] != nil {
-        if paper.maincat, ok = row[2].(string); !ok { return nil }
+    if row[i] != nil {
+        if paper.maincat, ok = row[i].(string); !ok { return nil }
     }
-    if paper.allcats, ok = row[3].(string); !ok { paper.allcats = "" }
-    if row[4] != nil {
-        if inspire, ok := row[4].(uint64); ok { paper.inspire = uint(inspire); }
+    i += 1
+    if paper.allcats, ok = row[i].(string); !ok { paper.allcats = "" }
+    i += 1
+    if papers.cfg.Sql.Meta.FieldInspire != "" {
+        if row[i] != nil {
+            if inspire, ok := row[i].(uint64); ok { paper.inspire = uint(inspire); }
+        }
+        i += 1
     }
-    if row[5] == nil {
+    if row[i] == nil {
         paper.authors = "(unknown authors)"
-    } else if au, ok := row[5].([]byte); !ok {
-        log.Printf("ERROR: cannot get authors for id=%d; %v\n", paper.id, row[5])
+    } else if au, ok := row[i].([]byte); !ok {
+        log.Printf("ERROR: cannot get authors for id=%d; %v\n", paper.id, row[i])
         return nil
     } else {
         paper.authors = string(au)
     }
-    if row[6] == nil {
+    i += 1
+    if row[i] == nil {
         paper.authors = "(unknown title)"
-    } else if title, ok := row[6].(string); !ok {
-        log.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[6])
+    } else if title, ok := row[i].(string); !ok {
+        log.Printf("ERROR: cannot get title for id=%d; %v\n", paper.id, row[i])
         return nil
     } else {
         paper.title = title
     }
-    if row[7] == nil {
+    i += 1
+    if row[i] == nil {
         paper.publJSON = "";
-    } else if publ, ok := row[7].(string); !ok {
-        log.Printf("ERROR: cannot get publ for id=%d; %v\n", paper.id, row[7])
+    } else if publ, ok := row[i].(string); !ok {
+        log.Printf("ERROR: cannot get publ for id=%d; %v\n", paper.id, row[i])
         paper.publJSON = "";
     } else {
         publ2 := string(publ) // convert to string so marshalling does the correct thing
         publ3, _ := json.Marshal(publ2)
         paper.publJSON = string(publ3)
     }
+    //i += 1
 
     //// Get number of times cited, and change in number of cites
     //query = fmt.Sprintf("SELECT numRefs,numCites,dNumCites1,dNumCites5 FROM pcite WHERE id = %d", paper.id)
     query  = "SELECT " + papers.cfg.Sql.Refs.FieldNumRefs
     query += "," + papers.cfg.Sql.Refs.FieldNumCites
-    query += "," + papers.cfg.Sql.Refs.FieldDNumCites1
-    query += "," + papers.cfg.Sql.Refs.FieldDNumCites5
+    if papers.cfg.Sql.Refs.FieldDNumCites1 != "" {
+        query += "," + papers.cfg.Sql.Refs.FieldDNumCites1
+    }
+    if papers.cfg.Sql.Refs.FieldDNumCites5 != "" {
+        query += "," + papers.cfg.Sql.Refs.FieldDNumCites5
+    }
     query += " FROM " + papers.cfg.Sql.Refs.Name
     query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Refs.FieldId, paper.id)
     row2 := papers.QuerySingleRow(query)
 
     if row2 != nil {
-        if numRefs, ok := row2[0].(uint64); ok {
+        i := 0
+        if numRefs, ok := row2[i].(uint64); ok {
             paper.numRefs = uint(numRefs)
         }
-        if numCites, ok := row2[1].(uint64); ok {
+        i += 1
+        if numCites, ok := row2[i].(uint64); ok {
             paper.numCites = uint(numCites)
         }
-        if dNumCites1, ok := row2[2].(int64); ok {
-            paper.dNumCites1 = uint(dNumCites1)
+        i += 1
+        if papers.cfg.Sql.Refs.FieldDNumCites1 != "" {
+            if dNumCites1, ok := row2[i].(int64); ok {
+                paper.dNumCites1 = uint(dNumCites1)
+            }
+            i += 1
         }
-        if dNumCites5, ok := row2[3].(int64); ok {
-            paper.dNumCites5 = uint(dNumCites5)
+        if papers.cfg.Sql.Refs.FieldDNumCites5 != "" {
+            if dNumCites5, ok := row2[i].(int64); ok {
+                paper.dNumCites5 = uint(dNumCites5)
+            }
+            //i += 1
         }
     } else {
         log.Printf("ERROR: cannot get pcite data for id=%d\n", paper.id)
