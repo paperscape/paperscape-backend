@@ -431,7 +431,7 @@ func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWrite
     query += " WHERE (" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
     query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId + ")"
     query += " AND MATCH(" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldAuthors
-    query += "," + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldTitle + ")"
+    query += "," + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldKeywords + ")"
     query += " AGAINST (?) LIMIT 150"
     stmt := h.papers.StatementBegin(query,booleanSearchString.String())
 
