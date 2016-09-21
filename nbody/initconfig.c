@@ -48,68 +48,77 @@ bool init_config_new(const char *filename, init_config_t **config) {
         (*config)->ids_time_ordered = (ito_val.kind == JSMN_VALUE_TRUE);
     }
 
-    // look for member: use_external_cites
+    // look for member: nbody
     // =================================
     // set defaults
-    (*config)->use_external_cites = false;
+    (*config)->nbody.use_external_cites = false;
+    (*config)->nbody.mass_cites_exponent = 1.;
+    (*config)->nbody.forces.close_repulsion_a        = 1e9;
+    (*config)->nbody.forces.close_repulsion_b        = 1e14;
+    (*config)->nbody.forces.close_repulsion_c        = 1.1;
+    (*config)->nbody.forces.close_repulsion_d        = 0.6;
+    (*config)->nbody.forces.link_strength            = 1.17;
+    (*config)->nbody.forces.anti_gravity_falloff_rsq = 1e6;
+    (*config)->nbody.forces.use_ref_freq             = true;
+    (*config)->nbody.forces.initial_close_repulsion  = false;
     // attempt to set from JSON file
-    jsmn_env_token_value_t ues_val;
-    if(jsmn_env_get_object_member_value_boolean(&jsmn_env, jsmn_env.js_tok, "use_external_cites", &ues_val)) {
-        (*config)->use_external_cites = (ues_val.kind == JSMN_VALUE_TRUE);
+    jsmntok_t *nbody_tok;
+    if(jsmn_env_get_object_member_token(&jsmn_env, jsmn_env.js_tok, "nbody", JSMN_OBJECT, &nbody_tok)) {
+        // look for member: use_external_cites
+        // =================================
+        jsmn_env_token_value_t ues_val;
+        if(jsmn_env_get_object_member_value_boolean(&jsmn_env, nbody_tok, "use_external_cites", &ues_val)) {
+            (*config)->nbody.use_external_cites = (ues_val.kind == JSMN_VALUE_TRUE);
+        }
+        // look for member: mass_cites_exponent
+        // =================================
+        jsmn_env_token_value_t mce_val;
+        if(jsmn_env_get_object_member_value(&jsmn_env, nbody_tok, "mass_cites_exponent", JSMN_VALUE_REAL, &mce_val)) {
+            (*config)->nbody.mass_cites_exponent = mce_val.real;
+        }
+        // look for member: forces
+        // =======================
+        jsmntok_t *forces_tok;
+        if(jsmn_env_get_object_member_token(&jsmn_env, nbody_tok, "forces", JSMN_OBJECT, &forces_tok)) {
+            jsmn_env_token_value_t do_cr_val, use_rf_val, cr_a_val, cr_b_val, cr_c_val, cr_d_val, link_val, anti_grav_val;
+            if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "close_repulsion_a", JSMN_VALUE_REAL, &cr_a_val)) {
+                (*config)->nbody.forces.close_repulsion_a        = cr_a_val.real;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "close_repulsion_b", JSMN_VALUE_REAL, &cr_b_val)) {
+                (*config)->nbody.forces.close_repulsion_b        = cr_b_val.real;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "close_repulsion_c", JSMN_VALUE_REAL, &cr_c_val)) {
+                (*config)->nbody.forces.close_repulsion_c        = cr_c_val.real;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "close_repulsion_d", JSMN_VALUE_REAL, &cr_d_val)) {
+                (*config)->nbody.forces.close_repulsion_d        = cr_d_val.real;
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "link_strength", JSMN_VALUE_REAL, &link_val)) {
+                (*config)->nbody.forces.link_strength            = link_val.real;
+            }
+            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, forces_tok, "use_ref_freq", &use_rf_val)) {
+                (*config)->nbody.forces.use_ref_freq             = (use_rf_val.kind == JSMN_VALUE_TRUE);
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "anti_gravity_falloff_rsq", JSMN_VALUE_REAL, &anti_grav_val)) {
+                (*config)->nbody.forces.anti_gravity_falloff_rsq = anti_grav_val.real;
+            }
+            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, forces_tok, "initial_close_repulsion", &do_cr_val)) {
+                (*config)->nbody.forces.initial_close_repulsion  = (do_cr_val.kind == JSMN_VALUE_TRUE);
+            }
+        }
+        // look for member: map_orientation
+        // ================================
+        jsmntok_t *map_orient_tok;
+        if(jsmn_env_get_object_member_token(&jsmn_env, nbody_tok, "map_orientation", JSMN_OBJECT, &map_orient_tok)) {
+            jsmn_env_token_value_t cat_val, angle_val;
+            if(jsmn_env_get_object_member_value(&jsmn_env, map_orient_tok, "category", JSMN_VALUE_STRING, &cat_val)) {
+                (*config)->nbody.map_orientation.category = strdup(cat_val.str);
+            }
+            if(jsmn_env_get_object_member_value(&jsmn_env, map_orient_tok, "angle", JSMN_VALUE_REAL, &angle_val)) {
+                (*config)->nbody.map_orientation.angle    = angle_val.real;
+            }
+        }
     }
-
-    // look for member: mass_cites_exponent
-    // =================================
-    // set defaults
-    (*config)->mass_cites_exponent = 1.;
-    // attempt to set from JSON file
-    jsmn_env_token_value_t mce_val;
-    if(jsmn_env_get_object_member_value(&jsmn_env, jsmn_env.js_tok, "mass_cites_exponent", JSMN_VALUE_REAL, &mce_val)) {
-        (*config)->mass_cites_exponent = mce_val.real;
-    }
-
-    // look for member: forces
-    // =======================
-    // set defaults
-    (*config)->forces.close_repulsion_a        = 1e9;
-    (*config)->forces.close_repulsion_b        = 1e14;
-    (*config)->forces.close_repulsion_c        = 1.1;
-    (*config)->forces.close_repulsion_d        = 0.6;
-    (*config)->forces.link_strength            = 1.17;
-    (*config)->forces.anti_gravity_falloff_rsq = 1e6;
-    (*config)->forces.use_ref_freq             = true;
-    (*config)->forces.initial_close_repulsion  = false;
-    // attempt to set from JSON file
-    jsmntok_t *forces_tok;
-    if(jsmn_env_get_object_member_token(&jsmn_env, jsmn_env.js_tok, "forces", JSMN_OBJECT, &forces_tok)) {
-        jsmn_env_token_value_t do_cr_val, use_rf_val, cr_a_val, cr_b_val, cr_c_val, cr_d_val, link_val, anti_grav_val;
-        if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "close_repulsion_a", JSMN_VALUE_REAL, &cr_a_val)) {
-            (*config)->forces.close_repulsion_a        = cr_a_val.real;
-        }
-        if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "close_repulsion_b", JSMN_VALUE_REAL, &cr_b_val)) {
-            (*config)->forces.close_repulsion_b        = cr_b_val.real;
-        }
-        if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "close_repulsion_c", JSMN_VALUE_REAL, &cr_c_val)) {
-            (*config)->forces.close_repulsion_c        = cr_c_val.real;
-        }
-        if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "close_repulsion_d", JSMN_VALUE_REAL, &cr_d_val)) {
-            (*config)->forces.close_repulsion_d        = cr_d_val.real;
-        }
-        if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "link_strength", JSMN_VALUE_REAL, &link_val)) {
-            (*config)->forces.link_strength            = link_val.real;
-        }
-        if(jsmn_env_get_object_member_value_boolean(&jsmn_env, forces_tok, "use_ref_freq", &use_rf_val)) {
-            (*config)->forces.use_ref_freq             = (use_rf_val.kind == JSMN_VALUE_TRUE);
-        }
-        if(jsmn_env_get_object_member_value(&jsmn_env, forces_tok, "anti_gravity_falloff_rsq", JSMN_VALUE_REAL, &anti_grav_val)) {
-            (*config)->forces.anti_gravity_falloff_rsq = anti_grav_val.real;
-        }
-        if(jsmn_env_get_object_member_value_boolean(&jsmn_env, forces_tok, "initial_close_repulsion", &do_cr_val)) {
-            (*config)->forces.initial_close_repulsion  = (do_cr_val.kind == JSMN_VALUE_TRUE);
-        }
-    }
-
-
 
     // look for member: sql 
     // ====================

@@ -227,9 +227,11 @@ int main(int argc, char *argv[]) {
 
     // align the map in a fixed direction
     if (!arg_start_afresh) {
-        // TODO currently hardcoded for Paperscape
-        category_info_t *c = category_set_get_by_name(category_set, "hep-ph", strlen("hep-ph"));
-        map_env_orient_using_category(map_env, c, 4.2);
+        const char *cat_name = init_config->nbody.map_orientation.category;
+        category_info_t *c = category_set_get_by_name(category_set, cat_name, strlen(cat_name));
+        if (c != NULL) {
+            map_env_orient_using_category(map_env, c, init_config->nbody.map_orientation.angle);
+        }
     } else if (num_papers > 0) {
         map_env_orient_using_paper(map_env, &papers[0], 0);
     }

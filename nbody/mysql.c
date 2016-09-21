@@ -394,7 +394,7 @@ static bool env_load_refs(env_t *env) {
                         }
                         if (env->config->sql.refs_table.rblob_cites) {
                             // refs blob contain reference cites info
-                            if (env->config->use_external_cites) {
+                            if (env->config->nbody.use_external_cites) {
                                 paper->refs[paper->num_refs]->num_graph_cites = decode_le16(buf + buf_index);
                             }
                         }

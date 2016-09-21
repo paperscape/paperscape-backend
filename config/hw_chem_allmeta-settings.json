@@ -1,18 +1,24 @@
 {
 "description":"Hyperwall settings for OECD Chemistry (1.04), years 2001+",
 "ids_time_ordered":false,
-"use_external_cites":false,
-"mass_cites_exponent":1.0,
-"forces":{
-    "comment":"These force parameters are used by nbody.",
-    "link_strength":2.0,
-    "anti_gravity_falloff_rsq":1e6,
-    "close_repulsion_a":1e9,
-    "close_repulsion_b":1e14,
-    "close_repulsion_c":1.1,
-    "close_repulsion_d":0.6,
-    "use_ref_freq":false,
-    "initial_close_repulsion":false
+"nbody":{
+    "use_external_cites":false,
+    "mass_cites_exponent":1.0,
+    "forces":{
+        "comment":"These force parameters are used by nbody.",
+        "link_strength":2.0,
+        "anti_gravity_falloff_rsq":1e6,
+        "close_repulsion_a":1e9,
+        "close_repulsion_b":1e14,
+        "close_repulsion_c":1.1,
+        "close_repulsion_d":0.6,
+        "use_ref_freq":false,
+        "initial_close_repulsion":false
+    },
+    "map_orientation":{
+        "category":"uy",
+        "angle":5.0
+    }
 },
 "sql":{
     "meta_table":{

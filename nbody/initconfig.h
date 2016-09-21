@@ -6,19 +6,27 @@
 typedef struct _init_config_t {
 
     bool   ids_time_ordered;
-    bool   use_external_cites;
-    double mass_cites_exponent;
     
-    struct _config_forces_t {
-        bool   use_ref_freq;
-        bool   initial_close_repulsion;
-        double close_repulsion_a;
-        double close_repulsion_b;
-        double close_repulsion_c;
-        double close_repulsion_d;
-        double link_strength;
-        double anti_gravity_falloff_rsq;
-    } forces;
+    struct _config_nbody_t {
+        bool   use_external_cites;
+        double mass_cites_exponent;
+        
+        struct _config_forces_t {
+            bool   use_ref_freq;
+            bool   initial_close_repulsion;
+            double close_repulsion_a;
+            double close_repulsion_b;
+            double close_repulsion_c;
+            double close_repulsion_d;
+            double link_strength;
+            double anti_gravity_falloff_rsq;
+        } forces;
+
+        struct _config_map_orientation_t {
+            const char *category;
+            double angle;
+        } map_orientation;
+    } nbody;
 
     struct _config_sql_t {
         
