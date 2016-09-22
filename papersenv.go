@@ -458,70 +458,86 @@ func (papers *PapersEnv) QueryLocations(paper *Paper, tableSuffix string) {
 }
 
 func (papers *PapersEnv) GetAbstract(paperId uint) string {
-    // get the arxiv name for this id
-    //query := fmt.Sprintf("SELECT arxiv FROM meta_data WHERE id = %d", paperId)
-    query := "SELECT " + papers.cfg.Sql.Meta.FieldArxiv
-    query += " FROM " + papers.cfg.Sql.Meta.Name
-    query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Meta.FieldId, paperId)
-    row := papers.QuerySingleRow(query)
-    if row == nil { papers.QueryEnd(); return "(no abstract)" }
-    arxiv, ok := row[0].(string)
-    papers.QueryEnd()
-    if !ok { return "(no abstract)" }
+    
+    if papers.cfg.Sql.Abst.Name == "" && papers.cfg.Sql.Meta.FieldArxiv != "" {
+        // get the arxiv name for this id
+        //query := fmt.Sprintf("SELECT arxiv FROM meta_data WHERE id = %d", paperId)
+        query := "SELECT " + papers.cfg.Sql.Meta.FieldArxiv
+        query += " FROM " + papers.cfg.Sql.Meta.Name
+        query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Meta.FieldId, paperId)
+        row := papers.QuerySingleRow(query)
+        if row == nil { papers.QueryEnd(); return "(no abstract)" }
+        arxiv, ok := row[0].(string)
+        papers.QueryEnd()
+        if !ok { return "(no abstract)" }
 
-    // work out the meta filename for this arxiv
-    var filename string
-    if (len(arxiv) == 9 || len(arxiv) == 10) && arxiv[4] == '.' {
-        filename = fmt.Sprintf("%s/%sxx/%s/%s.xml", *flagMetaBaseDir, arxiv[:2], arxiv[:4], arxiv)
-    } else if len(arxiv) >= 10 {
-        l := len(arxiv)
-        filename = fmt.Sprintf("%s/%sxx/%s/%s%s.xml", *flagMetaBaseDir, arxiv[l - 7 : l - 5], arxiv[l - 7 : l - 3], arxiv[:l - 8], arxiv[l - 7:])
-    } else {
-        return "(no abstract)"
-    }
-
-    // open the meta file
-    file, _ := os.Open(filename)
-    if file == nil {
-        return "(no abstract)"
-    }
-    defer file.Close()
-    reader := bufio.NewReader(file)
-
-    // parse the meta file, looking for the <abstract> tag
-    for {
-        r, _, err := reader.ReadRune()
-        if err != nil {
-            break
+        // work out the meta filename for this arxiv
+        var filename string
+        if (len(arxiv) == 9 || len(arxiv) == 10) && arxiv[4] == '.' {
+            filename = fmt.Sprintf("%s/%sxx/%s/%s.xml", *flagMetaBaseDir, arxiv[:2], arxiv[:4], arxiv)
+        } else if len(arxiv) >= 10 {
+            l := len(arxiv)
+            filename = fmt.Sprintf("%s/%sxx/%s/%s%s.xml", *flagMetaBaseDir, arxiv[l - 7 : l - 5], arxiv[l - 7 : l - 3], arxiv[:l - 8], arxiv[l - 7:])
+        } else {
+            return "(no abstract)"
         }
-        if r == '<' {
-            tag, err := reader.ReadString('>')
-            if err == nil {
-                if tag == "abstract>" {
-                    // found the tag, now get the abstract contents
-                    var abs bytes.Buffer
-                    firstNonSpace := false
-                    needSpace := false
-                    for {
-                        r, _, err := reader.ReadRune()
-                        if err != nil || r == '<' {
-                            break
-                        }
-                        if unicode.IsSpace(r) {
-                            needSpace = firstNonSpace
-                        } else {
-                            if needSpace {
-                                abs.WriteRune(' ')
-                                needSpace = false
+
+        // open the meta file
+        file, _ := os.Open(filename)
+        if file == nil {
+            return "(no abstract)"
+        }
+        defer file.Close()
+        reader := bufio.NewReader(file)
+
+        // parse the meta file, looking for the <abstract> tag
+        for {
+            r, _, err := reader.ReadRune()
+            if err != nil {
+                break
+            }
+            if r == '<' {
+                tag, err := reader.ReadString('>')
+                if err == nil {
+                    if tag == "abstract>" {
+                        // found the tag, now get the abstract contents
+                        var abs bytes.Buffer
+                        firstNonSpace := false
+                        needSpace := false
+                        for {
+                            r, _, err := reader.ReadRune()
+                            if err != nil || r == '<' {
+                                break
                             }
-                            firstNonSpace = true
-                            abs.WriteRune(r)
+                            if unicode.IsSpace(r) {
+                                needSpace = firstNonSpace
+                            } else {
+                                if needSpace {
+                                    abs.WriteRune(' ')
+                                    needSpace = false
+                                }
+                                firstNonSpace = true
+                                abs.WriteRune(r)
+                            }
                         }
+                        // return the abstract
+                        return abs.String()
                     }
-                    // return the abstract
-                    return abs.String()
                 }
             }
+        }
+    } else if papers.cfg.Sql.Abst.Name != "" {
+        query := "SELECT " + papers.cfg.Sql.Abst.FieldAbstract
+        query += " FROM " + papers.cfg.Sql.Abst.Name
+        query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Abst.FieldId, paperId)
+        row := papers.QuerySingleRow(query)
+        if row == nil { papers.QueryEnd(); return "(no abstract)" }
+        abstract, ok := row[0].(string)
+        papers.QueryEnd()
+        if !ok { 
+            return "(no abstract)" 
+        } else {
+            return abstract
         }
     }
 

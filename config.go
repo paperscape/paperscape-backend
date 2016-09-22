@@ -58,12 +58,19 @@ type MiscTable struct {
     FieldValue string `json:"field_value"`
 }
 
+type AbstractTable struct {
+    Name          string `json:"name"`
+    FieldId       string `json:"field_id"`
+    FieldAbstract string `json:"field_abstract"`
+}
+
 type SqlTables struct {
-    Meta MetaTable `json:"meta_table"`
-    Refs RefsTable `json:"refs_table"`
-    Map  MapTable  `json:"map_table"`
-    Date DateTable `json:"date_table"`
-    Misc MiscTable `json:"misc_table"`
+    Meta MetaTable     `json:"meta_table"`
+    Refs RefsTable     `json:"refs_table"`
+    Map  MapTable      `json:"map_table"`
+    Date DateTable     `json:"date_table"`
+    Misc MiscTable     `json:"misc_table"`
+    Abst AbstractTable `json:"misc_table"`
 }
 
 type Config struct {

@@ -10,13 +10,18 @@
         "name":"meta_data",
         "field_id":"id",
         "field_maincat":"maincat",
-        "field_allcats":"allcats",
+        "field_allcats":"catcodes",
         "field_title":"title",
         "field_authors":"authors",
         "field_keywords":"keywords",
         "field_publ":"publ",
         "field_arxiv":"",
         "field_inspire":""
+    },
+    "abstract_table":{
+        "name":"abstracts",
+        "field_id":"id",
+        "field_abstract":"abstract"
     },
     "refs_table":{
         "comment":"This table holds the graph of references.",
@@ -28,8 +33,8 @@
         "field_numcites":"numCites",
         "field_dnc1":"",
         "field_dnc5":"",
-        "rblob_order":true,
-        "rblob_freq":true,
+        "rblob_order":false,
+        "rblob_freq":false,
         "rblob_cites":true
     },
     "map_table":{
