@@ -2,7 +2,8 @@
 "description":"Default Paperscape settings",
 "ids_time_ordered":true,
 "webserver":{
-    "serve_mypscp":true
+    "serve_mypscp":true,
+    "search_map_only":false
 },
 "sql":{
     "meta_table":{

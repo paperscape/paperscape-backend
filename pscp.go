@@ -40,6 +40,7 @@ type Paper struct {
     authors    string   // authors
     title      string   // title
     publJSON   string   // publication string in JSON format
+    auxJSON    string   // auxillary data string in JSON format
     refs       []*Link  // makes references to
     cites      []*Link  // cited by 
     numRefs    uint     // number of times refered to
@@ -151,6 +152,21 @@ func (h *MyHTTPHandler) ResponsePscpGeneral(rw *MyResponseWriter, req *http.Requ
             buf.WriteString(str)
         }
         rw.logDescription = fmt.Sprintf("str \"%s\"",buf.String())
+    } else if req.Form["saux"] != nil && req.Form["min"] != nil && req.Form["max"] != nil {
+        // search auxillary integer fields with a given index in the range {min,max}
+        var index uint64
+        var min, max int64
+        if req.Form["saux"] != nil {
+            index, _ = strconv.ParseUint(req.Form["saux"][0], 10, 0)
+        }
+        if req.Form["min"] != nil {
+            min, _ = strconv.ParseInt(req.Form["min"][0], 10, 0)
+        }
+        if req.Form["max"] != nil {
+            max, _ = strconv.ParseInt(req.Form["max"][0], 10, 0)
+        }
+        h.SearchAuxillaryInt(uint(index), int(min), int(max), rw)
+        rw.logDescription = fmt.Sprintf("saux \"%s\" index %s in (%s,%s)",req.Form["saux"][0],min,max)
     } else {
         requestFound = false
     }
@@ -350,15 +366,28 @@ func (h *MyHTTPHandler) SearchArxivMinimal(arxivString string, rw http.ResponseW
     fmt.Fprintf(rw, "[{\"id\":%d,\"nc\":%d}]", paper.id, paper.numCites)
 }
 
-
 func (h *MyHTTPHandler) SearchKeyword(searchString string, rw http.ResponseWriter) {
 
     //query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id = pcite.id AND MATCH(meta_data.keywords) AGAINST (?) LIMIT 150"
-    query := "SELECT " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
-    query += "," + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldNumCites
-    query += " FROM " + h.papers.cfg.Sql.Meta.Name + "," + h.papers.cfg.Sql.Refs.Name
-    query += " WHERE " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
-    query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId
+    meta_table := h.papers.cfg.Sql.Meta.Name
+    refs_table := h.papers.cfg.Sql.Refs.Name
+    map_table  := h.papers.cfg.Sql.Map.Name
+    meta_id    := meta_table + "." + h.papers.cfg.Sql.Meta.FieldId
+    refs_id    := refs_table + "." + h.papers.cfg.Sql.Refs.FieldId
+    map_id     := map_table  + "." + h.papers.cfg.Sql.Map.FieldId
+    // Construct query
+    query := "SELECT " + meta_id
+    query += "," + refs_table + "." + h.papers.cfg.Sql.Refs.FieldNumCites
+    query += " FROM " + meta_table + "," + refs_table
+    if h.papers.cfg.Settings.SearchMapOnly && map_table != "" {
+        // only return results that are in map table
+        query += "," + map_table
+    }
+    query += " WHERE " + meta_id + " = " + refs_id
+    if h.papers.cfg.Settings.SearchMapOnly && map_table != "" {
+        // only return results that are in map table
+        query += " AND (" + meta_id + " = " + map_id + ")"
+    }
     query += " AND MATCH(" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldKeywords + ")"
     query += " AGAINST (?) LIMIT 150"
 
@@ -425,11 +454,25 @@ func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWrite
     //stmt := h.papers.StatementBegin(query,h.papers.db.Escape(searchString))
     
     //query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE (meta_data.id = pcite.id) AND (MATCH(meta_data.authors,meta_data.keywords) AGAINST (? IN BOOLEAN MODE)) LIMIT 150" 
-    query := "SELECT " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
-    query += "," + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldNumCites
-    query += " FROM " + h.papers.cfg.Sql.Meta.Name + "," + h.papers.cfg.Sql.Refs.Name
-    query += " WHERE (" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
-    query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId + ")"
+    meta_table := h.papers.cfg.Sql.Meta.Name
+    refs_table := h.papers.cfg.Sql.Refs.Name
+    map_table  := h.papers.cfg.Sql.Map.Name
+    meta_id    := meta_table + "." + h.papers.cfg.Sql.Meta.FieldId
+    refs_id    := refs_table + "." + h.papers.cfg.Sql.Refs.FieldId
+    map_id     := map_table  + "." + h.papers.cfg.Sql.Map.FieldId
+    // Construct query
+    query := "SELECT " + meta_id
+    query += "," + refs_table + "." + h.papers.cfg.Sql.Refs.FieldNumCites
+    query += " FROM " + meta_table + "," + refs_table
+    if h.papers.cfg.Settings.SearchMapOnly && map_table != "" {
+        // only return results that are in map table
+        query += "," + map_table
+    }
+    query += " WHERE " + meta_id + " = " + refs_id
+    if h.papers.cfg.Settings.SearchMapOnly && map_table != "" {
+        // only return results that are in map table
+        query += " AND (" + meta_id + " = " + map_id + ")"
+    }
     query += " AND MATCH(" + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldAuthors
     query += "," + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldKeywords + ")"
     query += " AGAINST (?) LIMIT 150"
@@ -496,7 +539,7 @@ func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
     //whereClause := "MATCH (authors) AGAINST (? IN BOOLEAN MODE)"
     whereClause := "MATCH (" + h.papers.cfg.Sql.Meta.FieldAuthors + ") AGAINST (? IN BOOLEAN MODE)"
     // do the search
-    h.SearchGeneric(rw, whereClause, searchString.String())
+    h.SearchGeneric(rw, whereClause, 500, searchString.String())
 }
 
 func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
@@ -519,7 +562,7 @@ func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
     //whereClause := "MATCH (title) AGAINST (? IN BOOLEAN MODE)"
     whereClause := "MATCH (" + h.papers.cfg.Sql.Meta.FieldTitle + ") AGAINST (? IN BOOLEAN MODE)"
     // do the search
-    h.SearchGeneric(rw, whereClause, searchString.String())
+    h.SearchGeneric(rw, whereClause, 500, searchString.String())
 }
 
 func sanityCheckId(id string) bool {
@@ -666,28 +709,61 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     whereClause += " AND " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId + " <= ?"
     whereClause += " AND " + catQuery.String()
     // do the search
-    h.SearchGeneric(rw, whereClause, argsInterface...)
+    h.SearchGeneric(rw, whereClause, 500, argsInterface...)
+}
+
+
+func (h *MyHTTPHandler) SearchAuxillaryInt(index uint, min int, max int, rw http.ResponseWriter) {
+    
+    var auxIntField string
+    if index == 1 {
+        auxIntField += h.papers.cfg.Sql.Meta.FieldAuxInt1
+    } else if index == 2 {
+        auxIntField += h.papers.cfg.Sql.Meta.FieldAuxInt2
+    } else {
+        return
+    }
+    whereClause := h.papers.cfg.Sql.Meta.Name + "." + auxIntField + " >= ?"
+    whereClause += " AND " + h.papers.cfg.Sql.Meta.Name + "." + auxIntField + " <= ?"
+    // do the search
+    h.SearchGeneric(rw, whereClause, -1, min, max)
 }
 
 // searches for papers using the given where-clause and associated statement inputs
 // builds a JSON list with id, numCites, refs for up to 500 results
-func (h *MyHTTPHandler) SearchGeneric(rw http.ResponseWriter, whereClause string, params ...interface{}) {
+func (h *MyHTTPHandler) SearchGeneric(rw http.ResponseWriter, whereClause string, results_limit int, params ...interface{}) {
 
     //query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id=pcite.id AND (" + whereClause + ")"
     //query += " AND (meta_data.arxiv IS NOT NULL OR meta_data.publ IS NOT NULL)"
     //query += " LIMIT 500"
-    query := "SELECT " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
-    query += "," + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldNumCites
-    query += " FROM " + h.papers.cfg.Sql.Meta.Name + "," + h.papers.cfg.Sql.Refs.Name
-    query += " WHERE " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId
-    query += " = " + h.papers.cfg.Sql.Refs.Name + "." + h.papers.cfg.Sql.Refs.FieldId
+    meta_table := h.papers.cfg.Sql.Meta.Name
+    refs_table := h.papers.cfg.Sql.Refs.Name
+    map_table  := h.papers.cfg.Sql.Map.Name
+    meta_id    := meta_table + "." + h.papers.cfg.Sql.Meta.FieldId
+    refs_id    := refs_table + "." + h.papers.cfg.Sql.Refs.FieldId
+    map_id     := map_table  + "." + h.papers.cfg.Sql.Map.FieldId
+    // Construct query
+    query := "SELECT " + meta_id
+    query += "," + refs_table + "." + h.papers.cfg.Sql.Refs.FieldNumCites
+    query += " FROM " + meta_table + "," + refs_table
+    if h.papers.cfg.Settings.SearchMapOnly && map_table != "" {
+        // only return results that are in map table
+        query += "," + map_table
+    }
+    query += " WHERE " + meta_id + " = " + refs_id
     query += " AND (" + whereClause + ")"
     query += " AND ("
     if (h.papers.cfg.Sql.Meta.FieldArxiv != "") {
-        query += h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldArxiv + " IS NOT NULL OR "
+        query += meta_table + "." + h.papers.cfg.Sql.Meta.FieldArxiv + " IS NOT NULL OR "
     }
-    query += h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldPubl + " IS NOT NULL)"
-    query += " LIMIT 500"
+    query += meta_table + "." + h.papers.cfg.Sql.Meta.FieldPubl + " IS NOT NULL)"
+    if h.papers.cfg.Settings.SearchMapOnly && map_table != "" {
+        // only return results that are in map table
+        query += " AND (" + meta_id + " = " + map_id + ")"
+    }
+    if results_limit > 0 {
+        query += " LIMIT " + strconv.Itoa(results_limit)
+    }
 
     stmt := h.papers.StatementBegin(query,params...)
 
@@ -1059,6 +1135,9 @@ func printJSONMetaInfo(w io.Writer, paper *Paper) {
     }
     if len(paper.publJSON) > 0 {
         fmt.Fprintf(w, ",\"publ\":%s", paper.publJSON)
+    }
+    if len(paper.auxJSON) > 0 {
+        fmt.Fprintf(w, ",\"aux\":%s", paper.auxJSON)
     }
 }
 

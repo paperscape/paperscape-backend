@@ -8,6 +8,7 @@ import (
     "encoding/json"
     "bytes"
     "log"
+    "strconv"
     //"GoMySQL"
     "github.com/yanatan16/GoMySQL"
 )
@@ -164,6 +165,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         }
     }
 
+    // Construct the query
     //query = fmt.Sprintf("SELECT id,arxiv,maincat,allcats,inspire,authors,title,publ FROM meta_data WHERE id = %d", id)
     query  = "SELECT " + papers.cfg.Sql.Meta.FieldId
     if papers.cfg.Sql.Meta.FieldArxiv != "" {
@@ -181,8 +183,22 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     query += "," + papers.cfg.Sql.Meta.FieldAuthors
     query += "," + papers.cfg.Sql.Meta.FieldTitle
     query += "," + papers.cfg.Sql.Meta.FieldPubl
+    if papers.cfg.Sql.Meta.FieldAuxInt1 != "" {
+        query += "," + papers.cfg.Sql.Meta.FieldAuxInt1
+    }
+    if papers.cfg.Sql.Meta.FieldAuxInt2 != "" {
+        query += "," + papers.cfg.Sql.Meta.FieldAuxInt2
+    }
+    if papers.cfg.Sql.Meta.FieldAuxStr1 != "" {
+        query += "," + papers.cfg.Sql.Meta.FieldAuxStr1
+    }
+    if papers.cfg.Sql.Meta.FieldAuxStr2 != "" {
+        query += "," + papers.cfg.Sql.Meta.FieldAuxStr2
+    }
     query += " FROM " + papers.cfg.Sql.Meta.Name
     query += fmt.Sprintf(" WHERE %s = %d",papers.cfg.Sql.Meta.FieldId,id)
+    
+    // Run the query
     row := papers.QuerySingleRow(query)
     papers.QueryEnd()
 
@@ -197,28 +213,28 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         paper.id = uint(idNum)
     }
     var ok bool
-    i += 1
+    i++
     if papers.cfg.Sql.Meta.FieldArxiv != "" {
         if row[i] != nil {
             if paper.arxiv, ok = row[i].(string); !ok { return nil }
         }
-        i += 1
+        i++
     }
     if papers.cfg.Sql.Meta.FieldMaincat != "" {
         if row[i] != nil {
             if paper.maincat, ok = row[i].(string); !ok { return nil }
         }
-        i += 1
+        i++
     }
     if papers.cfg.Sql.Meta.FieldAllcats != "" {
         if paper.allcats, ok = row[i].(string); !ok { paper.allcats = "" }
-        i += 1
+        i++
     }
     if papers.cfg.Sql.Meta.FieldInspire != "" {
         if row[i] != nil {
             if inspire, ok := row[i].(uint64); ok { paper.inspire = uint(inspire); }
         }
-        i += 1
+        i++
     }
     if row[i] == nil {
         paper.authors = "(unknown authors)"
@@ -228,7 +244,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     } else {
         paper.authors = string(au)
     }
-    i += 1
+    i++
     if row[i] == nil {
         paper.authors = "(unknown title)"
     } else if title, ok := row[i].(string); !ok {
@@ -237,7 +253,7 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
     } else {
         paper.title = title
     }
-    i += 1
+    i++
     if row[i] == nil {
         paper.publJSON = "";
     } else if publ, ok := row[i].(string); !ok {
@@ -248,7 +264,55 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         publ3, _ := json.Marshal(publ2)
         paper.publJSON = string(publ3)
     }
-    //i += 1
+    i++
+    // handle loading of auxillary fields
+    auxObjectJSON := "{"
+    first_entry := true
+    if papers.cfg.Sql.Meta.FieldAuxInt1 != "" {
+        if row[i] != nil {
+            if auxint, ok := row[i].(uint64); ok {
+                first_entry = false
+                auxObjectJSON += "\"int1\":" + strconv.Itoa(int(auxint))
+            }
+        }
+        i++
+    }
+    if papers.cfg.Sql.Meta.FieldAuxInt2 != "" {
+        if row[i] != nil {
+            if auxint, ok := row[i].(uint64); ok {
+                if !first_entry { auxObjectJSON += "," }
+                first_entry = false
+                auxObjectJSON += "\"int2\":" + strconv.Itoa(int(auxint))
+            }
+        }
+        i++
+    }
+    if papers.cfg.Sql.Meta.FieldAuxStr1 != "" {
+        if row[i] != nil {
+            if auxstr, ok := row[i].([]byte); ok {
+                // NOTE no check for good JSON 
+                if !first_entry { auxObjectJSON += "," }
+                first_entry = false
+                auxObjectJSON += "\"str1\":\"" + string(auxstr) + "\""
+            }
+        }
+        i++
+    }
+    if papers.cfg.Sql.Meta.FieldAuxStr2 != "" {
+        if row[i] != nil {
+            if auxstr, ok := row[i].([]byte); ok {
+                // NOTE no check for good JSON 
+                if !first_entry { auxObjectJSON += "," }
+                first_entry = false
+                auxObjectJSON += "\"str2\":\"" + string(auxstr) + "\""
+            }
+        }
+        i++
+    }
+    auxObjectJSON += "}"
+    if len(auxObjectJSON) > 2 {
+        paper.auxJSON = auxObjectJSON
+    }
 
     //// Get number of times cited, and change in number of cites
     //query = fmt.Sprintf("SELECT numRefs,numCites,dNumCites1,dNumCites5 FROM pcite WHERE id = %d", paper.id)
@@ -269,22 +333,22 @@ func (papers *PapersEnv) QueryPaper(id uint, arxiv string) *Paper {
         if numRefs, ok := row2[i].(uint64); ok {
             paper.numRefs = uint(numRefs)
         }
-        i += 1
+        i++
         if numCites, ok := row2[i].(uint64); ok {
             paper.numCites = uint(numCites)
         }
-        i += 1
+        i++
         if papers.cfg.Sql.Refs.FieldDNumCites1 != "" {
             if dNumCites1, ok := row2[i].(int64); ok {
                 paper.dNumCites1 = uint(dNumCites1)
             }
-            i += 1
+            i++
         }
         if papers.cfg.Sql.Refs.FieldDNumCites5 != "" {
             if dNumCites5, ok := row2[i].(int64); ok {
                 paper.dNumCites5 = uint(dNumCites5)
             }
-            //i += 1
+            i++
         }
     } else {
         log.Printf("ERROR: cannot get pcite data for id=%d\n", paper.id)
@@ -531,13 +595,18 @@ func (papers *PapersEnv) GetAbstract(paperId uint) string {
         query += " FROM " + papers.cfg.Sql.Abst.Name
         query += fmt.Sprintf(" WHERE %s = %d", papers.cfg.Sql.Abst.FieldId, paperId)
         row := papers.QuerySingleRow(query)
-        if row == nil { papers.QueryEnd(); return "(no abstract)" }
-        abstract, ok := row[0].(string)
+        if row == nil { 
+            fmt.Printf("here...\n")
+            papers.QueryEnd(); 
+            return "(no abstract)" 
+        }
+        abstract, ok := row[0].([]byte)
         papers.QueryEnd()
         if !ok { 
+            fmt.Printf("or here...\n")
             return "(no abstract)" 
         } else {
-            return abstract
+            return string(abstract)
         }
     }
 

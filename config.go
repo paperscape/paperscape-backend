@@ -9,6 +9,7 @@ import (
 
 type Settings struct {
     ServeMyPscp   bool   `json:"serve_mypscp"`
+    SearchMapOnly bool   `json:"search_map_only"`
 }
 
 type MetaTable struct {
@@ -22,6 +23,10 @@ type MetaTable struct {
     FieldPubl     string `json:"field_publ"`
     FieldArxiv    string `json:"field_arxiv"`
     FieldInspire  string `json:"field_inspire"`
+    FieldAuxInt1  string `json:"field_auxint1"`
+    FieldAuxInt2  string `json:"field_auxint2"`
+    FieldAuxStr1  string `json:"field_auxstr1"`
+    FieldAuxStr2  string `json:"field_auxstr2"`
 }
 
 type RefsTable struct {
@@ -70,7 +75,7 @@ type SqlTables struct {
     Map  MapTable      `json:"map_table"`
     Date DateTable     `json:"date_table"`
     Misc MiscTable     `json:"misc_table"`
-    Abst AbstractTable `json:"misc_table"`
+    Abst AbstractTable `json:"abstract_table"`
 }
 
 type Config struct {

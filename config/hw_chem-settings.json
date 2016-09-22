@@ -2,7 +2,8 @@
 "description":"Hyperwall chemistry settings",
 "ids_time_ordered":false,
 "webserver":{
-    "serve_mypscp":false
+    "serve_mypscp":false,
+    "search_map_only":true
 },
 "sql":{
     "meta_table":{
@@ -16,7 +17,11 @@
         "field_keywords":"keywords",
         "field_publ":"publ",
         "field_arxiv":"",
-        "field_inspire":""
+        "field_inspire":"",
+        "field_auxint1":"year",
+        "field_auxint2":"nummpg",
+        "field_auxstr1":"catcodes",
+        "field_auxstr2":"cocodes"
     },
     "abstract_table":{
         "name":"abstracts",
