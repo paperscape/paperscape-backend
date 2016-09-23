@@ -172,7 +172,7 @@ static int paper_cmp_radius(const void *in1, const void *in2) {
 static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
     // clear bg
     //cairo_set_source_rgb(cr, 0.133, 0.267, 0.4);
-    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_set_source_rgb(cr, map_env->background_col[0], map_env->background_col[1], map_env->background_col[2]);
     cairo_rectangle(cr, 0, 0, width, height);
     cairo_fill(cr);
 
@@ -306,7 +306,7 @@ static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
 
     if (map_env->full_draw && map_env->layout->child_layout == NULL) {
         // paper text
-        cairo_set_source_rgb(cr, 0, 0, 0);
+        cairo_set_source_rgb(cr, map_env->background_col[0], map_env->background_col[1], map_env->background_col[2]);
         cairo_set_font_size(cr, 10);
         for (int i = 0; i < map_env->num_papers; i++) {
             paper_t *p = map_env->papers[i];
@@ -321,7 +321,7 @@ static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
 
     // category labels
     if (map_env->draw_categories) {
-        cairo_set_source_rgb(cr, 1, 1, 1);
+        cairo_set_source_rgb(cr, map_env->foreground_col[0], map_env->foreground_col[1], map_env->foreground_col[2]);
         cairo_set_font_size(cr, 12);
         draw_category_labels(cr, map_env);
     }

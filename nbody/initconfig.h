@@ -28,6 +28,10 @@ typedef struct _init_config_t {
         } map_orientation;
     } nbody;
 
+    struct _config_tiles_t {
+        float background_col[3];
+    } tiles;
+
     struct _config_sql_t {
         
         struct _config_sql_meta_table_t {

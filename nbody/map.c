@@ -63,6 +63,13 @@ map_env_t *map_env_new(init_config_t *init_config, category_set_t *cats) {
     map_env->force_params.anti_gravity_falloff_rsq     = init_config->nbody.forces.anti_gravity_falloff_rsq;
     map_env->force_params.anti_gravity_falloff_rsq_inv = 1.0 / map_env->force_params.anti_gravity_falloff_rsq;
 
+    map_env->background_col[0] = init_config->tiles.background_col[0];
+    map_env->background_col[1] = init_config->tiles.background_col[1];
+    map_env->background_col[2] = init_config->tiles.background_col[2];
+    map_env->foreground_col[0] = 1. - init_config->tiles.background_col[0];
+    map_env->foreground_col[1] = 1. - init_config->tiles.background_col[1];
+    map_env->foreground_col[2] = 1. - init_config->tiles.background_col[2];
+
     return map_env;
 }
 

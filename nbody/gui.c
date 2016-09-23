@@ -150,13 +150,13 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
     double rstar = sqrt(map_env_get_anti_gravity(map_env)), dummy_y = 0;
     map_env_world_to_screen(map_env, &rstar, &dummy_y);
     cairo_identity_matrix(cr);
-    cairo_set_source_rgb(cr, 1, 1, 1);
+    cairo_set_source_rgb(cr, map_env->foreground_col[0], map_env->foreground_col[1], map_env->foreground_col[2]);
     cairo_set_line_width (cr, 1.5);
     cairo_helper_draw_horizontal_scale(cr,width-20,height-20,rstar,"r* scale",true);
 
     // draw info to canvas
     cairo_identity_matrix(cr);
-    cairo_set_source_rgb(cr, 1, 1, 1);
+    cairo_set_source_rgb(cr, map_env->foreground_col[0], map_env->foreground_col[1], map_env->foreground_col[2]);
     cairo_set_font_size(cr, 10);
     cairo_helper_draw_text_lines(cr, 10, 20, vstr);
 

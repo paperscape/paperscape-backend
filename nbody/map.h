@@ -57,6 +57,10 @@ typedef struct _map_env_t {
 
     // info for each category
     category_set_t *category_set;
+
+    // for drawing in gui
+    float background_col[3];
+    float foreground_col[3];
 } map_env_t;
 
 map_env_t *map_env_new(init_config_t *init_config, category_set_t *cats);

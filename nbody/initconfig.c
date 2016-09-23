@@ -120,6 +120,42 @@ bool init_config_new(const char *filename, init_config_t **config) {
         }
     }
 
+    // look for member: tiles
+    // =================================
+    // set defaults
+    (*config)->tiles.background_col[0] = 0;
+    (*config)->tiles.background_col[1] = 0;
+    (*config)->tiles.background_col[2] = 0;
+    // attempt to set from JSON file
+    jsmntok_t *tiles_tok;
+    if(jsmn_env_get_object_member_token(&jsmn_env, jsmn_env.js_tok, "tiles", JSMN_OBJECT, &tiles_tok)) {
+        // look for member: background_col
+        // =================================
+        jsmntok_t *bkgd_tok;
+        if (jsmn_env_get_object_member_token(&jsmn_env, tiles_tok, "background_col", JSMN_ARRAY, &bkgd_tok)) {
+            if (bkgd_tok->size != 3) {
+                return jsmn_env_error(&jsmn_env,"expecting an array of size 3");
+            }
+            // parse the r,g,b values
+            for (int i = 0; i < 3; i++) {
+                // get current element
+                jsmn_env_token_value_t elem_val;
+                if (!jsmn_env_get_array_member(&jsmn_env, bkgd_tok, i, NULL, &elem_val)) {
+                    return false;
+                }
+
+                // check the element is a number
+                if (elem_val.kind == JSMN_VALUE_UINT) {
+                    (*config)->tiles.background_col[i] = elem_val.uint;
+                } else if (elem_val.kind == JSMN_VALUE_REAL) {
+                    (*config)->tiles.background_col[i] = elem_val.real;
+                } else {
+                    return jsmn_env_error(&jsmn_env,"expecting a number");
+                }
+            }
+        }
+    }
+
     // look for member: sql 
     // ====================
     // set defaults
