@@ -133,13 +133,39 @@ func (h *MyHTTPHandler) ResponsePscpGeneral(rw *MyResponseWriter, req *http.Requ
             tId = "0"
         }
         if req.Form["fd"] != nil {
-            fd, _ = strconv.ParseUint(req.Form["fd"][0], 10, 0)
+            if res, err := strconv.ParseUint(req.Form["fd"][0], 10, 0); err == nil {
+                fd = res 
+            }
         }
         if req.Form["td"] != nil {
-            td, _ = strconv.ParseUint(req.Form["td"][0], 10, 0)
+            if res, err := strconv.ParseUint(req.Form["td"][0], 10, 0); err == nil {
+                td = res 
+            }
         }
         h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", fId, tId, uint(fd), uint(td), rw)
         rw.logDescription = fmt.Sprintf("sca \"%s\" (%s,%s,%d,%d)", req.Form["sca"][0], fId,tId,fd,td)
+    } else if req.Form["scax"] != nil && req.Form["ind"] != nil && req.Form["min"] != nil && req.Form["max"] != nil {
+        // search-category-auxillary: search papers on auxillary integer field in the range {min,max}, in given category
+        // x = include cross lists
+        var index uint
+        var min, max int
+        if req.Form["ind"] != nil {
+            if res, err := strconv.ParseUint(req.Form["ind"][0], 10, 0); err == nil {
+                index = uint(res)
+            }
+        }
+        if req.Form["min"] != nil {
+            if res, err := strconv.ParseInt(req.Form["min"][0], 10, 0); err == nil {
+                min = int(res)
+            }
+        }
+        if req.Form["max"] != nil {
+            if res, err := strconv.ParseInt(req.Form["max"][0], 10, 0); err == nil {
+                max = int(res)
+            }
+        }
+        h.SearchCategoryAuxInt(req.Form["scax"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", index, min, max, rw)
+        rw.logDescription = fmt.Sprintf("scax \"%s\" index %d in (%d,%d)",req.Form["scax"][0],index,min,max)
     } else if req.Form["str[]"] != nil {
         // search-trending: search papers that are "trending"
         h.SearchTrending(req.Form["str[]"], rw)
@@ -152,21 +178,6 @@ func (h *MyHTTPHandler) ResponsePscpGeneral(rw *MyResponseWriter, req *http.Requ
             buf.WriteString(str)
         }
         rw.logDescription = fmt.Sprintf("str \"%s\"",buf.String())
-    } else if req.Form["saux"] != nil && req.Form["min"] != nil && req.Form["max"] != nil {
-        // search auxillary integer fields with a given index in the range {min,max}
-        var index uint64
-        var min, max int64
-        if req.Form["saux"] != nil {
-            index, _ = strconv.ParseUint(req.Form["saux"][0], 10, 0)
-        }
-        if req.Form["min"] != nil {
-            min, _ = strconv.ParseInt(req.Form["min"][0], 10, 0)
-        }
-        if req.Form["max"] != nil {
-            max, _ = strconv.ParseInt(req.Form["max"][0], 10, 0)
-        }
-        h.SearchAuxillaryInt(uint(index), int(min), int(max), rw)
-        rw.logDescription = fmt.Sprintf("saux \"%s\" index %s in (%s,%s)",req.Form["saux"][0],min,max)
     } else {
         requestFound = false
     }
@@ -583,29 +594,20 @@ func sanityCheckId(id string) bool {
     return true
 }
 
-// searches for all papers within the id range, with main category as given
-// returns id, numCites, refs for up to 500 results
-func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, idFrom string, idTo string, daysagoFrom uint, daysagoTo uint, rw http.ResponseWriter) {
-    // sanity check of category, and build query
-    // comma is used to separate multiple categories, which means "or"
-
-    if !h.papers.cfg.IdsTimeOrdered || h.papers.cfg.Sql.Meta.FieldAllcats == "" || h.papers.cfg.Sql.Meta.FieldMaincat == "" {
-        return
-    }
+func buildCategoryQuery(category string, includeCrossLists bool, cfg *Config) (queryString string, categories []string ) {
 
     // choose the type of MySQL query based on whether we want cross-lists or not
     var catQueryStart string
     if includeCrossLists {
         // include cross lists; check "allcats" column for any occurrence of the wanted category string
         //catQueryStart = "meta_data.allcats LIKE ?"
-        catQueryStart = h.papers.cfg.Sql.Meta.FieldAllcats + " LIKE ?"
+        catQueryStart = cfg.Sql.Meta.FieldAllcats + " LIKE ?"
     } else {
         // no cross lists; "maincat" column must match the wanted category exactly
         //catQueryStart = "meta_data.maincat=?"
-        catQueryStart = h.papers.cfg.Sql.Meta.FieldMaincat + " = ?"
+        catQueryStart = cfg.Sql.Meta.FieldMaincat + " = ?"
     }
 
-    var categories []string
     var catQuery,catName bytes.Buffer
     catQuery.WriteString("(")
     catQuery.WriteString(catQueryStart)
@@ -636,6 +638,20 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     }
     categories = append(categories,catName.String())
     catQuery.WriteString(")")
+    queryString = catQuery.String()
+    return
+}
+
+
+// searches for all papers within the id range, with main category as given
+// returns id, numCites, refs for up to 500 results
+func (h *MyHTTPHandler) SearchCategory(categoryList string, includeCrossLists bool, idFrom string, idTo string, daysagoFrom uint, daysagoTo uint, rw http.ResponseWriter) {
+    // sanity check of category, and build query
+    // comma is used to separate multiple categories, which means "or"
+
+    if !h.papers.cfg.IdsTimeOrdered {
+        return
+    }
 
     if (daysagoFrom <= 0 && daysagoFrom > 31) { daysagoFrom = 0 }
     if (daysagoTo <= 0 && daysagoTo > 31) { daysagoTo = 0 }
@@ -677,7 +693,7 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
             idTo = strconv.FormatUint(results[1],10)
         }
     }
-
+    
     // sanity check of id numbers
     if !sanityCheckId(idFrom) || idFrom == "0" {
         return
@@ -690,6 +706,12 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     if idTo == "0" {
         idTo = "4000000000"
     }
+
+    if h.papers.cfg.Sql.Meta.FieldAllcats == "" || h.papers.cfg.Sql.Meta.FieldMaincat == "" {
+        return
+    }
+
+    catQuery, categories := buildCategoryQuery(categoryList, includeCrossLists, h.papers.cfg)
 
     // create interface of arguments for statement
     argsInterface := make([]interface{},len(categories)+2)
@@ -707,14 +729,14 @@ func (h *MyHTTPHandler) SearchCategory(category string, includeCrossLists bool, 
     //whereClause := "meta_data.id >= ? AND meta_data.id <= ? AND " + catQuery.String()
     whereClause := h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId + " >= ?"
     whereClause += " AND " + h.papers.cfg.Sql.Meta.Name + "." + h.papers.cfg.Sql.Meta.FieldId + " <= ?"
-    whereClause += " AND " + catQuery.String()
+    whereClause += " AND " + catQuery
     // do the search
     h.SearchGeneric(rw, whereClause, 500, argsInterface...)
 }
 
 
-func (h *MyHTTPHandler) SearchAuxillaryInt(index uint, min int, max int, rw http.ResponseWriter) {
-    
+func (h *MyHTTPHandler) SearchCategoryAuxInt(categoryList string, includeCrossLists bool, index uint, min int, max int, rw http.ResponseWriter) {
+
     var auxIntField string
     if index == 1 {
         auxIntField += h.papers.cfg.Sql.Meta.FieldAuxInt1
@@ -723,10 +745,31 @@ func (h *MyHTTPHandler) SearchAuxillaryInt(index uint, min int, max int, rw http
     } else {
         return
     }
+
+    if h.papers.cfg.Sql.Meta.FieldAllcats == "" || h.papers.cfg.Sql.Meta.FieldMaincat == "" {
+        return
+    }
+
+    catQuery, categories := buildCategoryQuery(categoryList, includeCrossLists, h.papers.cfg)
+
+    // create interface of arguments for statement
+    argsInterface := make([]interface{},len(categories)+2)
+    argsInterface[0] = min
+    argsInterface[1] = max
+    for i, cat := range categories {
+        catStr := h.papers.db.Escape(cat)
+        if includeCrossLists {
+            // padding for the LIKE query
+            catStr = "%%" + catStr + "%%"
+        }
+        argsInterface[i+2] = interface{}(catStr)
+    }
+
     whereClause := h.papers.cfg.Sql.Meta.Name + "." + auxIntField + " >= ?"
     whereClause += " AND " + h.papers.cfg.Sql.Meta.Name + "." + auxIntField + " <= ?"
+    whereClause += " AND " + catQuery
     // do the search
-    h.SearchGeneric(rw, whereClause, -1, min, max)
+    h.SearchGeneric(rw, whereClause, -1, argsInterface...)
 }
 
 // searches for papers using the given where-clause and associated statement inputs
@@ -736,15 +779,19 @@ func (h *MyHTTPHandler) SearchGeneric(rw http.ResponseWriter, whereClause string
     //query := "SELECT meta_data.id,pcite.numCites FROM meta_data,pcite WHERE meta_data.id=pcite.id AND (" + whereClause + ")"
     //query += " AND (meta_data.arxiv IS NOT NULL OR meta_data.publ IS NOT NULL)"
     //query += " LIMIT 500"
-    meta_table := h.papers.cfg.Sql.Meta.Name
-    refs_table := h.papers.cfg.Sql.Refs.Name
-    map_table  := h.papers.cfg.Sql.Map.Name
-    meta_id    := meta_table + "." + h.papers.cfg.Sql.Meta.FieldId
-    refs_id    := refs_table + "." + h.papers.cfg.Sql.Refs.FieldId
-    map_id     := map_table  + "." + h.papers.cfg.Sql.Map.FieldId
+    
+    // define some variables for better readability
+    meta_table    := h.papers.cfg.Sql.Meta.Name
+    refs_table    := h.papers.cfg.Sql.Refs.Name
+    map_table     := h.papers.cfg.Sql.Map.Name
+    meta_id       := meta_table + "." + h.papers.cfg.Sql.Meta.FieldId
+    refs_id       := refs_table + "." + h.papers.cfg.Sql.Refs.FieldId
+    refs_numCites := refs_table + "." + h.papers.cfg.Sql.Refs.FieldNumCites
+    map_id        := map_table  + "." + h.papers.cfg.Sql.Map.FieldId
+    
     // Construct query
     query := "SELECT " + meta_id
-    query += "," + refs_table + "." + h.papers.cfg.Sql.Refs.FieldNumCites
+    query += "," + refs_numCites
     query += " FROM " + meta_table + "," + refs_table
     if h.papers.cfg.Settings.SearchMapOnly && map_table != "" {
         // only return results that are in map table
