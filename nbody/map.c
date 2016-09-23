@@ -25,6 +25,7 @@ map_env_t *map_env_new(init_config_t *init_config, category_set_t *cats) {
     map_env->make_fake_links = true;
     map_env->other_links_veto = false;
 
+    map_env->full_draw = false;
     map_env->do_tred = false;
     map_env->draw_grid = false;
     map_env->draw_paper_links = false;
@@ -228,6 +229,10 @@ void map_env_set_anti_gravity(map_env_t *map_env, double val) {
 
 void map_env_set_link_strength(map_env_t *map_env, double val) {
     map_env->force_params.link_strength = val;
+}
+
+void map_env_set_full_draw(map_env_t *map_env, bool value) {
+    map_env->full_draw = value;
 }
 
 void map_env_toggle_do_tred(map_env_t *map_env) {

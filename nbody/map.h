@@ -27,6 +27,7 @@ typedef struct _map_env_t {
 
     bool use_external_cites;
     bool ids_time_ordered;
+    bool full_draw;
     bool do_tred;
     bool draw_grid;
     bool draw_paper_links;
@@ -83,6 +84,7 @@ void map_env_set_make_fake_links(map_env_t *map_env, bool value);
 void map_env_set_other_links_veto(map_env_t *map_env, bool value);
 void map_env_set_anti_gravity(map_env_t *map_env, double val);
 void map_env_set_link_strength(map_env_t *map_env, double val);
+void map_env_set_full_draw(map_env_t *map_env, bool value);
 void map_env_toggle_do_tred(map_env_t *map_env);
 void map_env_toggle_draw_grid(map_env_t *map_env);
 void map_env_toggle_draw_paper_links(map_env_t *map_env);

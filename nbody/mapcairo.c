@@ -12,6 +12,9 @@
 #include "map.h"
 #include "mapcairo.h"
 
+// maximum number of papers to draw when in fast drawing mode
+#define DRAW_FAST_MAX_PAPERS (100000)
+
 static void paper_colour(paper_t *p, category_set_t *cats, double *r, double *g, double *b) {
     category_info_t *c = category_set_get_by_id(cats, p->allcats[0]);
     *r = c->r;
@@ -240,28 +243,50 @@ static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
     if (map_env->layout->child_layout == NULL) {
         // at the finest layout, so draw individual papers
 
-        // sort the papers array by radius, smallest first
-        qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_radius);
+        if (!map_env->full_draw && map_env->num_papers > DRAW_FAST_MAX_PAPERS) {
+            // draw only a certain number of papers
+            int n_skip = map_env->num_papers / DRAW_FAST_MAX_PAPERS;
+            if (n_skip <= 0) {
+                n_skip = 1;
+            }
+            for (int i = 0; i < map_env->num_papers; i += n_skip) {
+                paper_t *p = map_env->papers[i];
+                draw_paper(cr, map_env, p);
+            }
+        } else {
+            // sort the papers array by radius, smallest first
+            qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_radius);
 
-        // papers background halo (smallest first, so big ones take over the bg)
-        /*
-        for (int i = 0; i < map_env->num_papers; i++) {
-            paper_t *p = map_env->papers[i];
-            draw_paper_bg(cr, map_env, p);
+            // papers background halo (smallest first, so big ones take over the bg)
+            /*
+            for (int i = 0; i < map_env->num_papers; i++) {
+                paper_t *p = map_env->papers[i];
+                draw_paper_bg(cr, map_env, p);
+            }
+            */
+
+            // papers (biggest first, so small ones are drawn over the top)
+            for (int i = map_env->num_papers - 1; i >= 0; i--) {
+                paper_t *p = map_env->papers[i];
+                draw_paper(cr, map_env, p);
+            }
+
+            // sort the papers array by id, to put it back the way it was
+            qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_id);
         }
-        */
-
-        // papers (biggest first, so small ones are drawn over the top)
-        for (int i = map_env->num_papers - 1; i >= 0; i--) {
-            paper_t *p = map_env->papers[i];
-            draw_paper(cr, map_env, p);
-        }
-
-        // sort the papers array by id, to put it back the way it was
-        qsort(map_env->papers, map_env->num_papers, sizeof(paper_t*), paper_cmp_id);
     } else {
         // draw the layout-nodes
-        for (int i = 0; i < map_env->layout->num_nodes; i++) {
+
+        int n_skip = 1;
+        if (!map_env->full_draw) {
+            // draw only a certain number of papers, at most
+            n_skip = map_env->layout->num_nodes / DRAW_FAST_MAX_PAPERS;
+            if (n_skip <= 0) {
+                n_skip = 1;
+            }
+        }
+
+        for (int i = 0; i < map_env->layout->num_nodes; i += n_skip) {
             layout_node_t *n = &map_env->layout->nodes[i];
             cairo_set_source_rgb(cr, 0.7, 0.7, 0.5);
             cairo_arc(cr, n->x, n->y, n->radius, 0, 2 * M_PI);
@@ -279,7 +304,7 @@ static void draw_all(map_env_t *map_env, cairo_t *cr, int width, int height) {
     cairo_identity_matrix(cr);
     cairo_translate(cr, 0.5 * width, 0.5 * height);
 
-    if (map_env->layout->child_layout == NULL) {
+    if (map_env->full_draw && map_env->layout->child_layout == NULL) {
         // paper text
         cairo_set_source_rgb(cr, 0, 0, 0);
         cairo_set_font_size(cr, 10);
