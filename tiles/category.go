@@ -7,26 +7,21 @@ import (
     "encoding/json"
 )
 
-// this struct is used only for parsing the JSON
-// the names must match the JSON format
-type CategoryJSON struct {
-    Cat     string
-    Col     []float32
-}
-
-// this structure is exposed to the user
 type Category struct {
-    name    string
-    r, g, b float32
+    Name    string      `json:"cat"`
+    Col     []float32   `json:"col"`
+    DimFacs []float32   `json:"dim_facs"`
 }
 
 type CategorySet struct {
-    cats    []*Category
+    DefaultCol      []float32   `json:"default_col"`
+    DefaultDimFacs  []float32   `json:"default_dim_facs"`
+    Cats            []Category  `json:"cats"`
 }
 
 func MakeDefaultCategory(name string) *Category {
     c := new(Category)
-    *c = Category{name, 0.7, 1, 0.3}
+    *c = Category{name, []float32{0.7, 1, 0.3}, []float32{0.5, 0.5}}
     return c
 }
 
@@ -43,8 +38,8 @@ func ReadCategoriesFromJSON(filename string) *CategorySet {
 
     // decode JSON
     dec := json.NewDecoder(file)
-    var cats []CategoryJSON
-    if err := dec.Decode(&cats); err != nil {
+    catSet := new(CategorySet)
+    if err := dec.Decode(catSet); err != nil {
         log.Println(err)
         return nil
     }
@@ -52,33 +47,31 @@ func ReadCategoriesFromJSON(filename string) *CategorySet {
     // close file
     file.Close()
 
-    // create the category set object
-    catSet := new(CategorySet)
-    for _, c := range cats {
-        c2 := new(Category)
-        c2.name = c.Cat
-        c2.r = c.Col[0]
-        c2.g = c.Col[1]
-        c2.b = c.Col[2]
-        catSet.cats = append(catSet.cats, c2)
-
+    // set defaults for categories that don't provide the values
+    for i := range catSet.Cats {
+        if len(catSet.Cats[i].Col) != 3 {
+            catSet.Cats[i].Col = catSet.DefaultCol
+        }
+        if len(catSet.Cats[i].DimFacs) != 2 {
+            catSet.Cats[i].DimFacs = catSet.DefaultDimFacs
+        }
     }
 
     // print info
-    fmt.Printf("read %v categories\n", len(catSet.cats))
+    fmt.Printf("read %v categories\n", len(catSet.Cats))
 
     return catSet
 }
 
 func (catSet *CategorySet) Lookup(name string) *Category {
-    for _, cat := range catSet.cats {
-        if cat.name == name {
-            return cat
+    for _, cat := range catSet.Cats {
+        if cat.Name == name {
+            return &cat
         }
     }
 
     // not found! create a new category with default colour
-    c := MakeDefaultCategory(name)
-    catSet.cats = append(catSet.cats, c)
-    return c
+    c := Category{name, catSet.DefaultCol, catSet.DefaultDimFacs}
+    catSet.Cats = append(catSet.Cats, c)
+    return &catSet.Cats[len(catSet.Cats) - 1]
 }

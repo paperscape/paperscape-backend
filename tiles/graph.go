@@ -138,14 +138,9 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
     
     } else {
 
-        col.r = paper.maincat.r
-        col.g = paper.maincat.g
-        col.b = paper.maincat.b
-
-        // brighten papers in categories that are mostly tiny dots
-        // this is arXiv specific
-        brighten := paper.maincat.name == "math" || paper.maincat.name == "cs"
-
+        col.r = paper.maincat.Col[0]
+        col.g = paper.maincat.Col[1]
+        col.b = paper.maincat.Col[2]
 
         // foreground colour; select one by making its if condition true
         if (false) {
@@ -166,12 +161,7 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
             var saturation float32 = 0.1 + 0.3 * (1 - paper.age)
             //var saturation float32 = 0.0
             //var dim_factor float32 = 0.4 + 0.6 * float32(math.Exp(float64(-10*age*age)))
-            var dim_factor float32
-            if brighten {
-                dim_factor = 0.8 + 0.20 * float32(math.Exp(float64(-4*(1-paper.age)*(1-paper.age))))
-            } else {
-                dim_factor = 0.55 + 0.48 * float32(math.Exp(float64(-4*(1-paper.age)*(1-paper.age))))
-            }
+            dim_factor := paper.maincat.DimFacs[0] + paper.maincat.DimFacs[1] * float32(math.Exp(float64(-4*(1-paper.age)*(1-paper.age))))
             if dim_factor > 1 {
                 dim_factor = 1
             }
@@ -237,7 +227,7 @@ func (graph *Graph) CalculateCategoryLabels() {
         var sumMass, sumMassX, sumMassY int64
         var minX,minY,maxX,maxY int
         for _, paper := range(graph.papers) {
-            if paper.maincat.name == category.maincat {
+            if paper.maincat.Name == category.maincat {
                 mass := int64(paper.radius*paper.radius)
                 sumMass += mass
                 sumMassX += mass*int64(paper.x)

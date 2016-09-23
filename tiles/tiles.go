@@ -90,7 +90,7 @@ func main() {
         resx, _ := strconv.ParseUint(geom[0], 10, 32)
         resy, _ := strconv.ParseUint(geom[1], 10, 32)
         zoomFactor, _ := strconv.ParseFloat(geom[2], 64)
-        DrawSingleImage(graph, int(resx), int(resy), zoomFactor, outPrefix, COLOUR_NORMAL)
+        DrawSingleImage(config, graph, int(resx), int(resy), zoomFactor, outPrefix, COLOUR_NORMAL)
     } else if *flagDoPoster {
         // A0 at 300 dpi: 9933 x 14043
         // A0 at 72 dpi: 2348 x 3370 
@@ -136,7 +136,7 @@ func main() {
             fmt.Fprintf(w,",\"lastdl\":\"%s\"",graph.LastMetaDownload)
         }
 
-        GenerateAllTiles(graph, w, outPrefix)
+        GenerateAllTiles(config, graph, w, outPrefix)
         runtime.GC()
 
         GenerateAllLabelZones(graph, w, outPrefix)
@@ -391,10 +391,10 @@ func ReadGraph(config *Config, jsonLocationFile string, catSet *CategorySet) *Gr
 }
 
 
-func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeight int, filename string, colourScheme int) {
+func DrawTile(config *Config, graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeight int, filename string, colourScheme int) {
 
     surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidth, surfHeight)
-    surf.SetSourceRGBA(0, 0, 0, 0)
+    surf.SetSourceRGBA(0, 0, 0, 0) // transparent background
     surf.Paint()
 
     matrix := new(cairo.Matrix)
@@ -416,22 +416,27 @@ func DrawTile(graph *Graph, worldWidth, worldHeight, xi, yi, surfWidth, surfHeig
     //surf.SetFontSize(35)
 
     surf.SetMatrix(*matrix)
-    surf.SetLineWidth(3)
+    surf.SetLineWidth(5)
     // Need to add largest radius to dimensions to ensure we don't miss any papers
 
     // foreground
     graph.qt.ApplyIfWithin(int(x), int(y), int(rx)+graph.qt.MaxR, int(ry)+graph.qt.MaxR, func(paper *Paper) {
-        pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
+        r := float64(paper.radius)
+        pixelRadius, _ := matrix.TransformDistance(r, r)
         if pixelRadius < 0.09 {
             newRadius, _ := matrixInv.TransformDistance(0.09, 0.09)
-            surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
-        } else {
-            surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+            r = newRadius
         }
         col := paper.GetColour(colourScheme)
         //surf.SetSourceRGB(float64(paper.col.r), float64(paper.col.g), float64(paper.col.b))
         surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
+        surf.Arc(float64(paper.x), float64(paper.y), r, 0, 2 * math.Pi)
         surf.Fill()
+        if config.Tiles.DrawPaperOutline {
+            surf.SetSourceRGB(float64(paper.maincat.Col[0]), float64(paper.maincat.Col[1]), float64(paper.maincat.Col[2]));
+            surf.Arc(float64(paper.x), float64(paper.y), r, 0, 2 * math.Pi)
+            surf.Stroke()
+        }
     })
 
     if err := os.MkdirAll(filepath.Dir(filename),0755); err != nil {
@@ -508,24 +513,24 @@ func GenerateLabelZone(graph *Graph, scale, width, height, depth, xi, yi int, sh
     w.Flush()
 }
 
-func ParallelDrawTile(graph *Graph, outPrefix string, depth, worldDim, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
+func ParallelDrawTile(config *Config, graph *Graph, outPrefix string, depth, worldDim, xiFirst, xiLast, yiFirst, yiLast int, channel chan int) {
     var filename string
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
             // Draw normal tile
             if !*flagSkipTiles {
                 filename = fmt.Sprintf("%s/tiles/%d/%d/%d", outPrefix, depth, xi, yi)
-                DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_NORMAL)
+                DrawTile(config, graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_NORMAL)
             }
             // Draw heatmap tile
             if *flagHeatMap {
                 filename = fmt.Sprintf("%s/tiles-hm/%d/%d/%d", outPrefix, depth, xi, yi)
-                DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_HEATMAP)
+                DrawTile(config, graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_HEATMAP)
             }
             // Draw grayscale tile
             if *flagGrayScale {
                 filename = fmt.Sprintf("%s/tiles-bw/%d/%d/%d", outPrefix, depth, xi, yi)
-                DrawTile(graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_GRAYSCALE)
+                DrawTile(config, graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_GRAYSCALE)
             }
         }
     }
@@ -542,7 +547,7 @@ func ParallelGenerateLabelZone(graph *Graph, outPrefix string, depth, scale, wid
     channel <- 1 // signal that this set of tiles is done
 }
 
-func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
+func GenerateAllTiles(config *Config, graph *Graph, w *bufio.Writer, outPrefix string) {
 
     fmt.Fprintf(w,",\"tilings\":[")
 
@@ -586,7 +591,7 @@ func GenerateAllTiles(graph *Graph, w *bufio.Writer, outPrefix string) {
             if xiLast > divs {
                 xiLast = divs
             }
-            go ParallelDrawTile(graph, outPrefix, depth, worldDim, xi, xiLast, 1, divs, channel)
+            go ParallelDrawTile(config, graph, outPrefix, depth, worldDim, xi, xiLast, 1, divs, channel)
             numRoutines += 1
             xi = xiLast + 1
         }
@@ -670,7 +675,7 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
     fmt.Fprintf(w,"]")
 }
 
-func DrawSingleImage(graph *Graph, surfWidthInt, surfHeightInt int, zoomFactor float64, filename string, colourScheme int) {
+func DrawSingleImage(config *Config, graph *Graph, surfWidthInt, surfHeightInt int, zoomFactor float64, filename string, colourScheme int) {
 
     // convert width & height to floats for convenience
     surfWidth := float64(surfWidthInt)
@@ -678,9 +683,10 @@ func DrawSingleImage(graph *Graph, surfWidthInt, surfHeightInt int, zoomFactor f
 
     // create surface to draw on
     surf := cairo.NewSurface(cairo.FORMAT_ARGB32, surfWidthInt, surfHeightInt)
+    surf.SetLineWidth(5)
 
     // a black background
-    surf.SetSourceRGBA(0, 0, 0, 1)
+    surf.SetSourceRGBA(config.Tiles.BackgroundCol[0], config.Tiles.BackgroundCol[1], config.Tiles.BackgroundCol[2], 1)
     surf.Paint()
 
     // work out scaling so that the entire graph fits on the surface
@@ -699,16 +705,21 @@ func DrawSingleImage(graph *Graph, surfWidthInt, surfHeightInt int, zoomFactor f
 
     // the papers
     for _, paper := range graph.papers {
-        pixelRadius, _ := matrix.TransformDistance(float64(paper.radius), float64(paper.radius))
+        r := float64(paper.radius)
+        pixelRadius, _ := matrix.TransformDistance(r, r)
         if pixelRadius < 0.09 {
             newRadius, _ := matrixInv.TransformDistance(0.09, 0.09)
-            surf.Arc(float64(paper.x), float64(paper.y), newRadius, 0, 2 * math.Pi)
-        } else {
-            surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
+            r = newRadius
         }
         col := paper.GetColour(colourScheme)
         surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
+        surf.Arc(float64(paper.x), float64(paper.y), r, 0, 2 * math.Pi)
         surf.Fill()
+        if config.Tiles.DrawPaperOutline {
+            surf.SetSourceRGB(float64(paper.maincat.Col[0]), float64(paper.maincat.Col[1]), float64(paper.maincat.Col[2]));
+            surf.Arc(float64(paper.x), float64(paper.y), r, 0, 2 * math.Pi)
+            surf.Stroke()
+        }
     }
 
     if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
