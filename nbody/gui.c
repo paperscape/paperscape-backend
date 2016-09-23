@@ -35,15 +35,25 @@ double mouse_last_x = 0, mouse_last_y = 0;
 layout_node_t *mouse_layout_node_held = NULL;
 layout_node_t *mouse_layout_node_prev = NULL;
 
+static bool redraw_pending = false;
+static void schedule_redraw(void) {
+    if (!redraw_pending) {
+        gtk_widget_queue_draw(window);
+        redraw_pending = true;
+    }
+}
 
 static int iterate_counter = 0;
 static double iters_per_sec = 1.; 
 static int converged_counter = 0;
 static gboolean map_env_update(map_env_t *map_env) {
+    // get starting time
     struct timeval tp;
     gettimeofday(&tp, NULL);
-    int start_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-    for (int i = 1; i <= 5; i++) {
+    int start_time_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+
+    // do a single iteration
+    {
         iterate_counter += 1;
         if (map_env_iterate(map_env, mouse_layout_node_held, boost_step_size > 0, false)) {
             converged_counter += 1;
@@ -53,12 +63,12 @@ static gboolean map_env_update(map_env_t *map_env) {
         if (boost_step_size > 0) {
             boost_step_size -= 1;
         }
-        if (i == 5) {
-            gettimeofday(&tp, NULL);
-            int end_time = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-            iters_per_sec = 5.0 * 1000.0 / (end_time - start_time);
-        }
     }
+
+    // compute how long an iteration takes
+    gettimeofday(&tp, NULL);
+    int end_time_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+    iters_per_sec = 1000.0 / (end_time_ms - start_time_ms);
 
     if (auto_refine) {
         if (iterate_counter_full_refine > 0 && iterate_counter > iterate_counter_full_refine) {
@@ -88,7 +98,7 @@ static gboolean map_env_update(map_env_t *map_env) {
 
     if (iterate_counter % 10 == 0) {
         // force a redraw
-        gtk_widget_queue_draw(window);
+        schedule_redraw();
     }
 
     return TRUE; // yes, we want to be called again
@@ -128,6 +138,7 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
             map_env_set_zoom_to_fit_n_standard_deviations(map_env, 3.0, width, height);
         }
         map_env_draw(map_env, cr, width, height, vstr);
+        map_env_set_full_draw(map_env, false); // always reset to doing a faster draw
     }
     vstr_printf(vstr, "\n");
     vstr_printf(vstr, "(A) auto refine: %d\n", auto_refine);
@@ -149,6 +160,9 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, map_env_t *map_env
     cairo_set_font_size(cr, 10);
     cairo_helper_draw_text_lines(cr, 10, 20, vstr);
 
+    // record the fact that we have done a redraw
+    redraw_pending = false;
+
     return FALSE;
 }
 
@@ -167,7 +181,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         }
 
     } else if (event->keyval == GDK_KEY_Return) {
-        gtk_widget_queue_draw(window);
+        schedule_redraw();
 
     } else if (event->keyval == GDK_KEY_Tab) {
         boost_step_size += 1;
@@ -204,6 +218,9 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
     } else if (event->keyval == GDK_KEY_e) {
         map_env_inc_num_papers(map_env, 10000);
         */
+
+    } else if (event->keyval == GDK_KEY_f) {
+        map_env_set_full_draw(map_env, true);
 
     } else if (event->keyval == GDK_KEY_g) {
         map_env_toggle_draw_grid(map_env);
@@ -299,9 +316,7 @@ static gboolean key_press_event_callback(GtkWidget *widget, GdkEventKey *event, 
         map_env_flip_x(map_env);
     }
 
-    if (!update_running) {
-        gtk_widget_queue_draw(window);
-    }
+    schedule_redraw();
 
     return TRUE; // we handled the event, stop processing
 }
@@ -346,7 +361,7 @@ static gboolean button_release_event_callback(GtkWidget *widget, GdkEventButton 
             mouse_layout_node_prev->y = y;
             printf("moved paper %u to (%.2f,%.2f)\n", ((paper_t*)mouse_layout_node_prev->paper)->id, x, y);
             if (!update_running) {
-                gtk_widget_queue_draw(window);
+                schedule_redraw();
             }
         }
     }
@@ -364,7 +379,7 @@ static gboolean scroll_event_callback(GtkWidget *widget, GdkEventScroll *event, 
     }
 
     if (!update_running) {
-        gtk_widget_queue_draw(window);
+        schedule_redraw();
     }
 
     return TRUE; // we handled the event, stop processing
@@ -395,7 +410,7 @@ static gboolean pointer_motion_event_callback(GtkWidget *widget, GdkEventMotion 
         }
 
         if (!update_running) {
-            gtk_widget_queue_draw(window);
+            schedule_redraw();
         }
     }
     return TRUE;
@@ -497,12 +512,14 @@ void build_gui(map_env_t *map_env, const char *papers_string) {
     printf(
         "key bindings\n"
         " space- play/pause the physics update\n"
+        " enter- force a redraw\n"
         /*
         "    a - decrease whole id range by 1/10 of a year\n"
         "    b - increase whole id range by 1/10 of a year\n"
         "    c - decrease end of id range by 1/10 of a year\n"
         "    d - increase end of id range by 1/10 of a year\n"
         */
+        "    f - do a full draw for one frame\n"
         "    t - turn tred on/off\n"
         "    l - turn links on/off\n"
         "    j - make a small jolt\n"
