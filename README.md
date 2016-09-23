@@ -38,7 +38,9 @@ Served data
 The web server serves data from a MySQL database containing the following tables:
 - *meta_data* - paper meta data
 - *pcite* - paper reference and citation information
+- *map_data* - paper locations and size in the map
 - *datebdry* - current date boundaries
+- *misc* - current date boundaries
 - *userdata** - user login and saved profile information
 - *sharedata** - shared profile link information
 
@@ -74,6 +76,7 @@ _Only relevant fields listed_
 | publ       | varchar(200)     | Journal publication information               |
 | title      | varchar(500)     | Paper title                                   |
 | authors    | text             | Paper authors                                 |
+| keywords   | text             | Paper keywords                                |
 
 The _id_ field is ordered by publication date (version 1) as follows:
 ```
@@ -91,7 +94,7 @@ _Only relevant fields listed_
 | id         | int(10) unsigned | Unique paper identifier                       |
 | refs       | blob             | Binary blob encoding references               |
 | numRefs    | int(10) unsigned | Number of references                          |
-| cites      | blob             | Binary blob encoding citation                 |
+| cites      | mediumblob       | Binary blob encoding citation                 |
 | numCites   | int(10) unsigned | Number of citations                           |
 | dNumCites1 | tinyint(4)       | Change in number citations past 1 day         |
 | dNumCites5 | tinyint(4)       | Change in number citations past 5 days        |
@@ -115,6 +118,17 @@ Likewise the _cites_ field has a similar encoding:
 | order of (A) in bibliography of (C)      | unsigned little-endian 16-bit int -> 2 bytes |
 | frequency - how often (A) appears in (C) | unsigned little-endian 16-bit int -> 2 bytes |
 | number of citations of citing paper (C)  | unsigned little-endian 16-bit int -> 2 bytes |
+
+#### map_data table ####
+
+This table can be created as output by the n-body map generator, and used as input to the tile generator.
+
+| Field      | Type             | Description                                   |
+| ---------- | ---------------- | --------------------------------------------- |
+| id         | int(10) unsigned | Unique paper identifier                       |
+| x          | int(11)          | X coordinate in map                           |
+| y          | int(11)          | X coordinate in map                           |
+| r          | int(11)          | Circle radius in map                          |
 
 #### datebdry table ####
 
