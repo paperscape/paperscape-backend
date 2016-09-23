@@ -1,4 +1,7 @@
-[
+{
+"default_col": [0.7, 0.3, 0.6],
+"default_dim_facs": [0.55, 0.48],
+"cats": [
     {"cat":"acc-phys", "col":[0.7, 1, 0.3]},
     {"cat":"adap-org", "col":[0.7, 1, 0.3]},
     {"cat":"alg-geom", "col":[0.7, 1, 0.3]},
@@ -26,7 +29,7 @@
     {"cat":"cond-mat.stat-mech", "col":[0.7, 1, 0.3]},
     {"cat":"cond-mat.str-el", "col":[0.7, 1, 0.3]},
     {"cat":"cond-mat.supr-con", "col":[0.7, 1, 0.3]},
-    {"cat":"cs", "col":[0.7, 0.3, 0.6]},
+    {"cat":"cs", "col":[0.7, 0.3, 0.6], "dim_facs":[0.8, 0.2]},
     {"cat":"cs.AI", "col":[0.7, 0.3, 0.6]},
     {"cat":"cs.AR", "col":[0.7, 0.3, 0.6]},
     {"cat":"cs.CC", "col":[0.7, 0.3, 0.6]},
@@ -74,7 +77,7 @@
     {"cat":"hep-lat", "col":[0.7, 0.36, 0.2]},
     {"cat":"hep-ph", "col":[0, 1, 0]},
     {"cat":"hep-th", "col":[0, 0, 1]},
-    {"cat":"math", "col":[0.62, 0.86, 0.24]},
+    {"cat":"math", "col":[0.62, 0.86, 0.24], "dim_facs":[0.8, 0.2]},
     {"cat":"math.AC", "col":[0.7, 1, 0.3]},
     {"cat":"math.AG", "col":[0.7, 1, 0.3]},
     {"cat":"math.AP", "col":[0.7, 1, 0.3]},
@@ -172,3 +175,4 @@
     {"cat":"supr-con", "col":[0.7, 1, 0.3]},
     {"cat":"inspire", "col":[0, 1, 1]}
 ]
+}

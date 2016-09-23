@@ -20,6 +20,10 @@
         "angle":4.2
     }
 },
+"tiles":{
+    "background_col":[0, 0, 0],
+    "draw_paper_outline":false
+},
 "sql":{
     "meta_table":{
         "comment":"This table is used to load meta data for all the papers.",
