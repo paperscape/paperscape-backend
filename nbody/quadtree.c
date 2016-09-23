@@ -159,6 +159,11 @@ void quadtree_build(layout_t *layout, quadtree_t *qt) {
         //printf("quad tree bounding box: (%f,%f) -- (%f,%f)\n", qt->min_x, qt->min_y, qt->max_x, qt->max_y);
     }
 
+    if (!isfinite(qt->min_x) || !isfinite(qt->min_y) || !isfinite(qt->max_x) || !isfinite(qt->max_y)) {
+        printf("ERROR: quad tree bounds are not finite; exiting\n");
+        exit(1);
+    }
+
     // build the quad tree
     quad_tree_pool_free_all(qt->quad_tree_pool);
     for (int i = 0; i < layout->num_nodes; i++) {
