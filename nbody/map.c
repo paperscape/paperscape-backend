@@ -621,6 +621,9 @@ bool map_env_iterate(map_env_t *map_env, layout_node_t *hold_still, bool boost_s
         energy += fmag;
 
         double dt = map_env->step_size / fmag;
+        if (!isfinite(dt)) {
+            dt = 1;
+        }
 
         if (!(n == hold_still || (n->flags & LAYOUT_NODE_HOLD_STILL))) {
             n->x += dt * n->fx;
