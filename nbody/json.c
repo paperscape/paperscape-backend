@@ -43,26 +43,36 @@ static bool load_categories(jsmn_env_t *env, json_data_t *data) {
 
     // start the JSON stream
     bool more_objects;
-    if (!jsmn_env_reset(env, &more_objects)) {
+    if (!jsmn_env_next_object(env, &more_objects)) {
+        return false;
+    }
+    if (more_objects) {
         return false;
     }
 
-    // iterate through the JSON stream
-    int n_cats = 0;
-    while (more_objects) {
-        if (!jsmn_env_next_object(env, &more_objects)) {
+    // look for member: cats
+    jsmntok_t *cats_tok;
+    if (!jsmn_env_get_object_member_token(env, env->js_tok, "cats", JSMN_ARRAY, &cats_tok)) {
+        return false;
+    }
+
+    // iterate through the list of cats
+    int n_cats;
+    for (n_cats = 0; n_cats < cats_tok->size; ++n_cats) {
+        jsmntok_t *cat_tok;
+        if (!jsmn_env_get_array_member(env, cats_tok, n_cats, &cat_tok, NULL)) {
             return false;
         }
 
         // look for the cat member
         jsmn_env_token_value_t cat_val;
-        if (!jsmn_env_get_object_member_value(env, env->js_tok, "cat", JSMN_VALUE_STRING, &cat_val)) {
+        if (!jsmn_env_get_object_member_value(env, cat_tok, "cat", JSMN_VALUE_STRING, &cat_val)) {
             return false;
         }
 
         // look for the col member
         jsmntok_t *col_tok;
-        if (!jsmn_env_get_object_member_token(env, env->js_tok, "col", JSMN_ARRAY, &col_tok)) {
+        if (!jsmn_env_get_object_member_token(env, cat_tok, "col", JSMN_ARRAY, &col_tok)) {
             return false;
         }
 
@@ -94,7 +104,6 @@ static bool load_categories(jsmn_env_t *env, json_data_t *data) {
         if(!category_set_add_category(data->category_set, cat_val.str, strlen(cat_val.str), rgb)) {
             exit(1);
         }
-        n_cats += 1;
     }
 
     printf("read %d categories\n", n_cats);
