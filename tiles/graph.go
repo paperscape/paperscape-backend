@@ -262,7 +262,7 @@ func (graph *Graph) QueryLastMetaDownload(config *Config) {
 
     // construct query
     if config.Sql.Misc.Name == "" {
-        fmt.Println("MySQL no misc table specified")
+        fmt.Println("MySQL no misc table specified so can't query last meta download")
         return
     }
     query := fmt.Sprintf("SELECT %s FROM %s WHERE %s = \"lastmetadownload\"", config.Sql.Misc.FieldValue, config.Sql.Misc.Name, config.Sql.Misc.FieldField)
@@ -313,7 +313,7 @@ func (graph *Graph) QueryNewPapersId(config *Config) {
 
     // construct query
     if config.Sql.Date.Name == "" {
-        fmt.Println("MySQL no date table specified")
+        fmt.Println("MySQL no date table specified so can't query new papers")
         return
     }
     //query := fmt.Sprintf("SELECT max(datebdry.id) FROM datebdry WHERE datebdry.id < %d",graph.LatestId)
