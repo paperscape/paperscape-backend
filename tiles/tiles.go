@@ -91,7 +91,13 @@ func main() {
         resx, _ := strconv.ParseUint(geom[0], 10, 32)
         resy, _ := strconv.ParseUint(geom[1], 10, 32)
         zoomFactor, _ := strconv.ParseFloat(geom[2], 64)
-        DrawSingleImage(config, graph, int(resx), int(resy), zoomFactor, outPrefix, COLOUR_NORMAL)
+        colourScheme := COLOUR_NORMAL
+        if *flagHeatMap {
+            colourScheme = COLOUR_HEATMAP
+        } else if *flagGrayScale {
+            colourScheme = COLOUR_GRAYSCALE
+        }
+        DrawSingleImage(config, graph, int(resx), int(resy), zoomFactor, outPrefix, colourScheme)
     } else if *flagDoPoster {
         // A0 at 300 dpi: 9933 x 14043
         // A0 at 72 dpi: 2348 x 3370 
@@ -103,7 +109,7 @@ func main() {
         // A4 at 72 dpi: 595 x 842 
         //resy := 9933; resx := 14043
         resy := 7016; resx := 9933
-        DrawPoster(graph, resx, resy, outPrefix, COLOUR_NORMAL)
+        DrawPoster(config, graph, resx, resy, outPrefix, COLOUR_NORMAL)
     } else {
         // Create index file
         indexFile := outPrefix + "/world_index.json"
@@ -321,7 +327,6 @@ func ReadGraph(config *Config, jsonLocationFile string, catSet *CategorySet) *Gr
         fmt.Printf("read %v papers from db\n", len(graph.papers))
     }
 
-    graph.ComputeAges(config)
     graph.QueryCategories(config, catSet)
 
     if !*flagNoLabels {
@@ -337,10 +342,14 @@ func ReadGraph(config *Config, jsonLocationFile string, catSet *CategorySet) *Gr
     //    paper.DetermineLabel()
     //}
 
+    if !*flagNoTiles {
+        graph.ComputeAges(config)
+    }
+
     // Only if using heat calc
-    //if *flagHeatMap {
-    //    graph.QueryHeat(config)
-    //}
+    if *flagHeatMap {
+        graph.QueryHeat(config)
+    }
     
     var sumMass, sumMassX, sumMassY int64
 
@@ -428,13 +437,14 @@ func DrawTile(config *Config, graph *Graph, worldWidth, worldHeight, xi, yi, sur
             newRadius, _ := matrixInv.TransformDistance(0.09, 0.09)
             r = newRadius
         }
-        col := paper.GetColour(colourScheme)
+        col := paper.GetColour(config,colourScheme,true)
         //surf.SetSourceRGB(float64(paper.col.r), float64(paper.col.g), float64(paper.col.b))
         surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
         surf.Arc(float64(paper.x), float64(paper.y), r, 0, 2 * math.Pi)
         surf.Fill()
         if config.Tiles.DrawPaperOutline {
-            surf.SetSourceRGB(float64(paper.maincat.Col[0]), float64(paper.maincat.Col[1]), float64(paper.maincat.Col[2]));
+            col := paper.GetColour(config,colourScheme,false)
+            surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
             surf.Arc(float64(paper.x), float64(paper.y), r, 0, 2 * math.Pi)
             surf.Stroke()
         }
@@ -552,16 +562,10 @@ func GenerateAllTiles(config *Config, graph *Graph, w *bufio.Writer, outPrefix s
 
     fmt.Fprintf(w,",\"tilings\":[")
 
-    //divisionSet := [...]int{4,8,24}
-    //divisionSet := [...]int{4,8,24,72}
-    //divisionSet := [...]int{4,8,24,72,216}
-    //divisionSet := [...]int{4,8,16,32}
-
     //divisionSet := [...]int{4,8,16,32,64}
     //divisionSet := [...]int{4,8,16,32,64,128}
     divisionSet := [...]int{4,8,16,32,64,128,256}
 
-    //depths := *flagTileDepth
     first := true
     //var depth uint
     //for depth = 0; depth <= depths; depth++ {
@@ -712,12 +716,13 @@ func DrawSingleImage(config *Config, graph *Graph, surfWidthInt, surfHeightInt i
             newRadius, _ := matrixInv.TransformDistance(0.09, 0.09)
             r = newRadius
         }
-        col := paper.GetColour(colourScheme)
+        col := paper.GetColour(config,colourScheme,true)
         surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
         surf.Arc(float64(paper.x), float64(paper.y), r, 0, 2 * math.Pi)
         surf.Fill()
         if config.Tiles.DrawPaperOutline {
-            surf.SetSourceRGB(float64(paper.maincat.Col[0]), float64(paper.maincat.Col[1]), float64(paper.maincat.Col[2]));
+            col := paper.GetColour(config,colourScheme,false)
+            surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
             surf.Arc(float64(paper.x), float64(paper.y), r, 0, 2 * math.Pi)
             surf.Stroke()
         }
@@ -734,7 +739,7 @@ func DrawSingleImage(config *Config, graph *Graph, surfWidthInt, surfHeightInt i
     surf.Finish()
 }
 
-func DrawPoster(graph *Graph, surfWidthInt, surfHeightInt int, filename string, colourScheme int) {
+func DrawPoster(config *Config, graph *Graph, surfWidthInt, surfHeightInt int, filename string, colourScheme int) {
 
     // convert width & height to floats for convenience
     surfWidth := float64(surfWidthInt)
@@ -797,7 +802,7 @@ func DrawPoster(graph *Graph, surfWidthInt, surfHeightInt int, filename string, 
         } else {
             surf.Arc(float64(paper.x), float64(paper.y), float64(paper.radius), 0, 2 * math.Pi)
         }
-        col := paper.GetColour(colourScheme)
+        col := paper.GetColour(config,colourScheme,true)
         surf.SetSourceRGB(float64(col.r), float64(col.g), float64(col.b))
         surf.Fill()
     }

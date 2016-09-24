@@ -8,9 +8,17 @@ import (
     "github.com/yanatan16/GoMySQL"
 )
 
-type TilesTables struct {
-    BackgroundCol       []float64   `json:"background_col"`
-    DrawPaperOutline    bool        `json:"draw_paper_outline"`
+type HeatmapSettings struct {
+    SqlMetaField    string      `json:"sql_meta_field"`
+    SqlMetaType     string      `json:"sql_meta_type"`
+    ColdCol         []float32   `json:"cold_col"`
+    WarmCol         []float32   `json:"warm_col"`
+}
+
+type TilesSettings struct {
+    Heatmap             HeatmapSettings `json:"heatmap"`
+    BackgroundCol       []float64       `json:"background_col"`
+    DrawPaperOutline    bool            `json:"draw_paper_outline"`
 }
 
 type MetaTable struct {
@@ -55,7 +63,7 @@ type SqlTables struct {
 
 type Config struct {
     IdsTimeOrdered bool `json:"ids_time_ordered"`
-    Tiles TilesTables `json:"tiles"`
+    Tiles TilesSettings `json:"tiles"`
     Sql SqlTables `json:"sql"`
     db *mysql.Client `json:"-"` // ignored by JSON
 }

@@ -109,32 +109,37 @@ func idToDaysAgo(id uint) uint {
     return days
 }
 
-func (paper *Paper) GetColour(colourScheme int) *CairoColor {
+func (paper *Paper) GetColour(cfg *Config, colourScheme int, saturateByAge bool) *CairoColor {
     // basic colour of paper
     col := new(CairoColor)
 
     if colourScheme == COLOUR_HEATMAP {
         
         // Try pure heatmap instead
-        var coldR, coldG, coldB, hotR, hotG, hotB, dim float32
-        
-        dim = 0.10
-        coldR, coldG, coldB = dim, dim, dim 
-        hotR, hotG, hotB = 1, dim, dim
-        //col.r = (hotR - coldR)*paper.heat + coldR
-        //col.g = (hotG - coldG)*paper.heat + coldG
-        //col.b = (hotB - coldB)*paper.heat + coldB
+        //var coldR, coldG, coldB, hotR, hotG, hotB, dim float32
+        //dim = 0.10
+        //coldR, coldG, coldB = dim, dim, dim 
+        //hotR, hotG, hotB = 1, dim, dim
+        coldR := cfg.Tiles.Heatmap.ColdCol[0]
+        coldG := cfg.Tiles.Heatmap.ColdCol[1]
+        coldB := cfg.Tiles.Heatmap.ColdCol[2]
+        warmR := cfg.Tiles.Heatmap.WarmCol[0]
+        warmG := cfg.Tiles.Heatmap.WarmCol[1]
+        warmB := cfg.Tiles.Heatmap.WarmCol[2]
+        col.r = (warmR - coldR)*paper.heat + coldR
+        col.g = (warmG - coldG)*paper.heat + coldG
+        col.b = (warmB - coldB)*paper.heat + coldB
 
         //heat := float32(math.Exp(-math.Pow(float64(idToDaysAgo(paper.id))/730.,2)/2.))
         // voigt distro
-        gamma := float64(0.0001)
-        sigma := float64(365*4)
-        t := float64(idToDaysAgo(paper.id))
-        heat := float32(math.Exp(-math.Pow(t/sigma,2)/2. - gamma*t))
-
-        col.r = (hotR - coldR)*heat + coldR
-        col.g = (hotG - coldG)*heat + coldG
-        col.b = (hotB - coldB)*heat + coldB
+        // Moved to QueryHeat
+        //gamma := float64(0.0001)
+        //sigma := float64(365*4)
+        //t := float64(idToDaysAgo(paper.id))
+        //heat := float32(math.Exp(-math.Pow(t/sigma,2)/2. - gamma*t))
+        //col.r = (hotR - coldR)*heat + coldR
+        //col.g = (hotG - coldG)*heat + coldG
+        //col.b = (hotB - coldB)*heat + coldB
     
     } else {
 
@@ -156,7 +161,7 @@ func (paper *Paper) GetColour(colourScheme int) *CairoColor {
             col.r = saturation + (col.r * (1 - age2) + age2) * (1 - saturation)
             col.g = saturation + (col.g * (1 - age2)      ) * (1 - saturation)
             col.b = saturation + (col.b * (1 - age2)      ) * (1 - saturation)
-        } else if (true) {
+        } else if (saturateByAge) {
             // older papers are saturated and dark, newer papers are coloured and bright
             var saturation float32 = 0.1 + 0.3 * (1 - paper.age)
             //var saturation float32 = 0.0
@@ -353,7 +358,103 @@ func getLE32(blob []byte, i int) uint {
     return uint(blob[i]) | (uint(blob[i + 1]) << 8) | (uint(blob[i + 2]) << 16) | (uint(blob[i + 3]) << 24)
 }
 
-/*
+
+func (graph *Graph) QueryHeat(cfg *Config) {
+
+    if cfg.IdsTimeOrdered && cfg.Tiles.Heatmap.SqlMetaField == "" {
+        // Calculate heat based on time ordered IDs
+        for _, paper := range (graph.papers) {
+            gamma := float64(0.0001)
+            sigma := float64(365*4)
+            t := float64(idToDaysAgo(paper.id))
+            paper.heat = float32(math.Exp(-math.Pow(t/sigma,2)/2. - gamma*t))
+        }
+    } else if cfg.Tiles.Heatmap.SqlMetaField != "" && cfg.Tiles.Heatmap.SqlMetaType != "" {
+        
+        fmt.Printf("Querying heat using %s field from %s\n",cfg.Tiles.Heatmap.SqlMetaField,cfg.Sql.Meta.Name)
+        // construct query
+        query := "SELECT " + cfg.Sql.Meta.FieldId
+        query += "," + cfg.Tiles.Heatmap.SqlMetaField
+        query += " FROM " + cfg.Sql.Meta.Name
+
+        // execute the query
+        err := cfg.db.Query(query)
+        if err != nil {
+            fmt.Println("MySQL query error;", err)
+            return
+        }
+
+        // get result set
+        result, err := cfg.db.UseResult()
+        if err != nil {
+            fmt.Println("MySQL use result error;", err)
+            return
+        }
+
+        // for normalizing heat
+        var maxHeat float32
+        //var totalHeat float32
+
+        // get each row from the result
+        for {
+            row := result.FetchRow()
+            if row == nil {
+                break
+            }
+
+            var id uint64
+            var ok bool
+            var heat float32
+            if id, ok = row[0].(uint64); !ok { continue }
+            if cfg.Tiles.Heatmap.SqlMetaType == "uint" {
+                var res uint64
+                if res, ok = row[1].(uint64); !ok { continue }
+                heat = float32(res)
+            } else if cfg.Tiles.Heatmap.SqlMetaType == "int" {
+                var res int64
+                if res, ok = row[1].(int64); !ok { continue }
+                heat = float32(res)
+            } else if cfg.Tiles.Heatmap.SqlMetaType == "real" {
+                var res float64
+                if res, ok = row[1].(float64); !ok { continue }
+                heat = float32(res)
+            } else {
+                fmt.Println("ERROR: invalid heatmap SqlMetaType")
+                break
+            }
+
+            
+            if paper := graph.GetPaperById(uint(id)); paper != nil {
+                paper.heat = heat
+                if heat > maxHeat { maxHeat = heat }
+            }
+        }
+
+        // normalise
+        if maxHeat > 0 {
+            for _, paper := range graph.papers {
+                paper.heat /= maxHeat
+            }
+        }
+
+        // hack
+        for _, paper := range graph.papers {
+            if paper.heat > 0 {
+                paper.heat = 1
+            } else {
+                paper.heat = 0
+            }
+        }
+
+
+    } else {
+        fmt.Println("ERROR: could not query paper heat")
+    }
+
+
+}
+
+/* **OBSOLETE** old version
 func (graph *Graph) QueryHeat(config *Config) {
 
     // execute the query
