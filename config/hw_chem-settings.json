@@ -20,7 +20,7 @@
         "field_inspire":"",
         "field_auxint1":"year",
         "field_auxint2":"nummpg",
-        "field_auxstr1":"",
+        "field_auxstr1":"catcodes",
         "field_auxstr2":"cocodes"
     },
     "abstract_table":{
