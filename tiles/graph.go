@@ -199,35 +199,15 @@ func (graph *Graph) GetPaperById(id uint) *Paper {
     return nil
 }
 
-func (graph *Graph) CalculateCategoryLabels() {
-    categories := []struct{
-        maincat, label string
-    }{
-        {"hep-th","high energy theory,(hep-th),,"},
-        {"hep-ph","high energy phenomenology,(hep-ph),,"},
-        {"hep-ex","high energy experiment,(hep-ex),,"},
-        {"gr-qc","general relativity/quantum cosmology,(gr-gc),,"},
-        {"hep-lat","high energy lattice,(hep-lat),,"},
-        {"astro-ph","astrophysics,(astro-ph),,"},
-        {"cond-mat","condensed matter,(cond-mat),,"},
-        {"math-ph","mathematical physics,(math-ph),,"},
-        {"math","mathematics,(math),,"},
-        {"cs","computer science,(cs),,"},
-        {"nucl-ex","nuclear experiment,(nucl-ex),,"},
-        //{"nucl-th","nuclear theory,(nucl-th),,"},
-        {"quant-ph","quantum physics,(quant-ph),,"},
-        //{"physics","general physics,(physics),,"}, this cat is so scattered that its centre of mass is no good
-        {"q-bio","quantitative biology,(q-bio),,"},
-        {"q-fin","quantitative finance,(q-fin),,"},
-        {"stat","statistics,(stat),,"},
-    }
+func (graph *Graph) CalculateCategoryLabels(catSet *CategorySet) {
 
-    for _, category := range(categories) {
+    for _, category := range(catSet.Cats) {
+        if category.Display == "" { continue } 
 
         var sumMass, sumMassX, sumMassY int64
         var minX,minY,maxX,maxY int
         for _, paper := range(graph.papers) {
-            if paper.maincat.Name == category.maincat {
+            if paper.maincat.Name == category.Name {
                 mass := int64(paper.radius*paper.radius)
                 sumMass += mass
                 sumMassX += mass*int64(paper.x)
@@ -240,7 +220,7 @@ func (graph *Graph) CalculateCategoryLabels() {
         }
         if sumMass > 0 {
             label := new(CategoryLabel)
-            label.label = category.label
+            label.label = category.Display
 
             label.X = int(sumMassX/sumMass)
             label.Y = int(sumMassY/sumMass)

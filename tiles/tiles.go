@@ -29,12 +29,13 @@ var COLOUR_GRAYSCALE   = 2
 var flagSettingsFile   = flag.String("settings", "../config/arxiv-settings.json", "Read settings from JSON file")
 var flagCatsFile       = flag.String("categories", "../config/arxiv-categories.json", "Read categories from JSON file")
 var flagLayoutFile     = flag.String("layout", "", "Read paper locations from JSON file instead of DB")
-var flagRegionsFile    = flag.String("regions", "regions/arxiv-regions.json", "Read region labels from JSON file")
+var flagRegionsFile    = flag.String("regions", "", "Read region labels from JSON file")
 
-var flagSkipTiles      = flag.Bool("skip-tiles", false, "Do not generate normal tiles (still generates index information)")
-var flagSkipLabels     = flag.Bool("skip-labels", false, "Do not generate labels (still generates index information)")
 var flagGrayScale      = flag.Bool("gs", false, "Generate grayscale tiles")
 var flagHeatMap        = flag.Bool("hm", false, "Generate heatmap tiles")
+
+var flagNoTiles        = flag.Bool("no-tiles", false, "Do not generate normal tiles (still generates index information)")
+var flagNoLabels       = flag.Bool("no-labels", false, "Do not generate labels (still generates index information)")
 
 var flagCentreGraph    = flag.Bool("centre", false, "Whether to centre the graph on the total centre of mass")
 
@@ -323,9 +324,9 @@ func ReadGraph(config *Config, jsonLocationFile string, catSet *CategorySet) *Gr
     graph.ComputeAges(config)
     graph.QueryCategories(config, catSet)
 
-    if !*flagSkipLabels {
+    if !*flagNoLabels {
         graph.QueryLabels(config)
-        graph.CalculateCategoryLabels()
+        graph.CalculateCategoryLabels(catSet)
         if *flagRegionsFile != "" {
             graph.ReadRegionLabels(*flagRegionsFile)
         }
@@ -518,7 +519,7 @@ func ParallelDrawTile(config *Config, graph *Graph, outPrefix string, depth, wor
     for xi := xiFirst; xi <= xiLast; xi++ {
         for yi := yiFirst; yi <= yiLast; yi++ {
             // Draw normal tile
-            if !*flagSkipTiles {
+            if !*flagNoTiles {
                 filename = fmt.Sprintf("%s/tiles/%d/%d/%d", outPrefix, depth, xi, yi)
                 DrawTile(config, graph, worldDim, worldDim, xi, yi, TILE_PIXEL_LEN, TILE_PIXEL_LEN, filename,COLOUR_NORMAL)
             }
@@ -639,7 +640,7 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
         first = false
         fmt.Fprintf(w,"{\"z\":%d,\"s\":%d,\"w\":%d,\"h\":%d,\"nx\":%d,\"ny\":%d}",depth, scale, tile_width, tile_height,labelDepth.tdivs,labelDepth.tdivs)
 
-        if !*flagSkipLabels {
+        if !*flagNoLabels {
             fmt.Printf("Generating label zones at depth %d\n",depth)
             // TODO if graph far from from square, shorten tile directions accordingly
 

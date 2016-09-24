@@ -9,6 +9,7 @@ import (
 
 type Category struct {
     Name    string      `json:"cat"`
+    Display string      `json:"display"`
     Col     []float32   `json:"col"`
     DimFacs []float32   `json:"dim_facs"`
 }
@@ -21,7 +22,7 @@ type CategorySet struct {
 
 func MakeDefaultCategory(name string) *Category {
     c := new(Category)
-    *c = Category{name, []float32{0.7, 1, 0.3}, []float32{0.5, 0.5}}
+    *c = Category{name, "", []float32{0.7, 1, 0.3}, []float32{0.5, 0.5}}
     return c
 }
 
@@ -71,7 +72,7 @@ func (catSet *CategorySet) Lookup(name string) *Category {
     }
 
     // not found! create a new category with default colour
-    c := Category{name, catSet.DefaultCol, catSet.DefaultDimFacs}
+    c := Category{name, "", catSet.DefaultCol, catSet.DefaultDimFacs}
     catSet.Cats = append(catSet.Cats, c)
     return &catSet.Cats[len(catSet.Cats) - 1]
 }
