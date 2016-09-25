@@ -16,8 +16,8 @@
         "initial_close_repulsion":false
     },
     "map_orientation":{
-        "category":"uy",
-        "angle":5.0
+        "category":"ee",
+        "angle":0.8
     }
 },
 "tiles":{
