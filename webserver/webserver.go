@@ -35,7 +35,7 @@ var VERSION_PSCPMAP = "0.3"
 // it will need to make several calls
 var ID_CONVERSION_LIMIT = 50
 
-var flagSettingsFile   = flag.String("settings", "config/arxiv-settings.json", "Read settings from JSON file")
+var flagSettingsFile   = flag.String("settings", "../config/arxiv-settings.json", "Read settings from JSON file")
 var flagLogFile = flag.String("log-file", "", "file to output log information to")
 var flagMetaBaseDir = flag.String("meta", "", "Base directory for meta file data (abstracts etc.)")
 

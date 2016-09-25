@@ -16,18 +16,18 @@ Once these dependencies have been met, the web server can be built with the comm
 go build
 ```
 
-This should create a binary named after the parent directory.
+This should create the program _webserver_, named after its parent directory.
 The web server can be run using the FactCGI or HTTP protocols using the command-line arguments `--fcgi :<port number>` or `--http :<port number>`, respectively.
 For example
 
 ```shell
-./paperscape-webserver --http :8089
+./webserver --http :8089
 ```
 
 To see a full list of command-line arguments run
 
 ```shell
-./paperscape-webserver --help
+./webserver --help
 ```
 
 The web server is run on the Paperscape server using the _run-webserver_ script.
@@ -69,14 +69,14 @@ _Only relevant fields listed_
 | Field      | Type             | Description                                   |
 | ---------- |----------------- | --------------------------------------------- |
 | id         | int(10) unsigned | Unique paper identifier                       |
-| arxiv      | varchar(16)      | Unique arXiv identifier                       |
-| maincat    | varchar(8)       | Main arXiv category                           |
-| allcats    | varchar(130)     | List of arXiv categories (comma separated)    |
-| inspire    | int(8) unsigned  | Inspire record number                         |
-| publ       | varchar(200)     | Journal publication information               |
+| allcats    | varchar(130)     | List of categories (comma separated)          |
 | title      | varchar(500)     | Paper title                                   |
-| authors    | text             | Paper authors                                 |
-| keywords   | text             | Paper keywords                                |
+| authors    | text             | Paper authors (comma separated)               |
+| keywords   | text             | Paper keywords (comma separated)              |
+| arxiv      | varchar(16)      | unique arXiv identifier                       | 
+| maincat    | varchar(8)       | Main arXiv category                           |
+| publ       | varchar(200)     | Journal publication information               |
+| inspire    | int(8) unsigned  | Inspire record number                         |
 
 By default the _id_ field is ordered by publication date (version 1) as follows:
 ```
@@ -148,6 +148,8 @@ Note that use of this table assumes that the ids are time ordered.
 | --------| ------------- | --------------------------------- |
 | field   | varchar(16)   | Name of misc field                |
 | value   | varchar(4096) | Value of misc field               |
+
+The misc table is used to access miscellaneous information, such as the last download date of arXiv meta data.
 
 #### Abstract meta data ####
 
