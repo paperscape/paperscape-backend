@@ -6,6 +6,13 @@ The source code of the [browser-based map client](https://github.com/paperscape/
 
 For more details and progress on Paperscape please visit the [development blog](http://blog.paperscape.org).
 
+This file is organised as follows:
+- Map generation using N-body simulation
+- Tile and label generation for map
+- Data formats
+- About the Paperscape map
+- Copyright
+
 Map generation using N-body simulation
 --------------------------------------
 
@@ -104,8 +111,6 @@ In addition to normal tiles, which are coloured according to their categories, i
 By default the heatmap tiles are coloured according to their age spectrum. 
 An alternative heat parameter can be specified in the configuration file. 
 
-TODO labels
-
 The generated tiles are saved in PNG format and can be optimized slightly to reduce disk space with the _optitiles_ script.
 This script can be run on the chosen output directory:
 
@@ -144,15 +149,19 @@ If both a socket and hostname are specified, the socket is used.
 
 This table can be used as input by both the n-body map generator and the tile generator.
 
-_Only relevant fields listed_
+_Only relevant fields listed; Req. = Required, Opt = Optional._
 
-| Field      | Type             | Description                                   |
-| ---------- |----------------- | --------------------------------------------- |
-| id         | int(10) unsigned | Unique paper identifier                       |
-| allcats    | varchar(130)     | List of categories (comma separated)          |
-| keywords   | text             | List of keywords (comma separated)            |
-| title      | varchar(500)     | Paper title (for gui display only)            |
-| authors    | text             | Paper authors (for gui display only)          |
+| Field      | Type             | Description                           | nbody | tiles | webserver |
+| ---------- |----------------- | ------------------------------------- | ----- | ----- | --------- |
+| id         | int(10) unsigned | Unique paper identifier               |  Req. |  Req. |      Req. |
+| allcats    | varchar(130)     | List of categories (comma separated)  |  Req. |       |      Req. |
+| maincat    | varchar(8)       | Main arXiv category                   |  Opt. |  Req. |      Req. |
+| title      | varchar(500)     | Paper title                           |  Opt. |  Opt. |      Req. |
+| authors    | text             | Paper authors (comma separated)       |  Opt. |  Opt. |      Req. |
+| keywords   | text             | Paper keywords (comma separated)      |  Opt. |  Opt. |      Req. |
+| arxiv      | varchar(16)      | unique arXiv identifier               |       |       |      Opt. |
+| publ       | varchar(200)     | Journal publication information       |       |       |      Req. |
+| inspire    | int(8) unsigned  | Inspire record number                 |       |       |      Opt. |
 
 By default the `id` field is ordered by publication date (version 1) as follows:
 ```
@@ -161,7 +170,7 @@ ymdh = (year - 1800) * 10000000
        + (day - 1)   * 15625
 unique_id = ymdh + 4*num
 ```
-If this is not the case, the `ids_time_ordered` flag should be set to false in the configuration Json file.
+If this is not the case, the `ids_time_ordered` flag should be set to `false` in the configuration Json file.
 
 In the _nbody_ programs, categories and keywords are used for creating fake links between disconnected graphs.
 In _nbody-gui_ categories are also used for colouring papers in the gui display.
@@ -170,12 +179,18 @@ In _nbody-gui_ categories are also used for colouring papers in the gui display.
 
 This table can be used as input by both the n-body map generator and the tile generator.
 
-_Only relevant fields listed_
+_Req. = Required, Opt. = Optional._
 
-| Field      | Type             | Description                                   |
-| ---------- | ---------------- | --------------------------------------------- |
-| id         | int(10) unsigned | Unique paper identifier                       |
-| refs       | blob             | Binary blob encoding references               |
+| Field      | Type             | Description                             | nbody | tiles | webserver |
+| ---------- | ---------------- | --------------------------------------- | ----- | ----- | --------- |
+| id         | int(10) unsigned | Unique paper identifier                 |  Req. |       |      Req. |
+| refs       | blob             | Binary blob encoding references         |  Req. |       |      Req. |
+| numRefs    | int(10) unsigned | Number of references                    |       |       |      Req. |
+| cites      | mediumblob       | Binary blob encoding citation           |       |       |      Req. |
+| numCites   | int(10) unsigned | Number of citations                     |       |       |      Req. |
+| dNumCites1 | tinyint(4)       | Change in number citations past 1 day   |       |       |      Opt. |
+| dNumCites5 | tinyint(4)       | Change in number citations past 5 days  |       |       |      Opt. |
+
 
 For a given paper (A), a _reference_ is a paper (B) that paper (A) refers to in its text, while a _citation_ is a paper (C) that refers to paper (A) ie a reverse _reference_.
 
@@ -188,16 +203,28 @@ The _refs_ field encodes a list of references in binary, with each reference rep
 | frequency - how often (B) appears in (A) | unsigned little-endian 16-bit int -> 2 bytes |
 | number of citations referenced paper (B) | unsigned little-endian 16-bit int -> 2 bytes |
 
+Likewise the _cites_ field has a similar encoding:
+
+| Citation fields                          | Encoding                                     |
+| ---------------------------------------- | -------------------------------------------- |
+| id of citing paper (C)                   | unsigned little-endian 32-bit int -> 4 bytes |
+| order of (A) in bibliography of (C)      | unsigned little-endian 16-bit int -> 2 bytes |
+| frequency - how often (A) appears in (C) | unsigned little-endian 16-bit int -> 2 bytes |
+| number of citations of citing paper (C)  | unsigned little-endian 16-bit int -> 2 bytes |
+
+Note that the above encoding is the default in Paperscape.
+It is possible to disable the encoding/decoding of the last three 2-byte fields in the configuration file.
+
 #### map_data table ####
 
 This table can be created as output by the n-body map generator, and used as input to the tile generator.
 
-| Field      | Type             | Description                                   |
-| ---------- | ---------------- | --------------------------------------------- |
-| id         | int(10) unsigned | Unique paper identifier                       |
-| x          | int(11)          | X coordinate in map                           |
-| y          | int(11)          | X coordinate in map                           |
-| r          | int(11)          | Circle radius in map                          |
+| Field      | Type             | Description               |
+| ---------- | ---------------- | ------------------------- |
+| id         | int(10) unsigned | Unique paper identifier   |
+| x          | int(11)          | X coordinate in map       |
+| y          | int(11)          | X coordinate in map       |
+| r          | int(11)          | Circle radius in map      |
 
 #### Json reference data ####
 
@@ -228,7 +255,6 @@ The following Json format is used:
 
 where _input-id_, _input-x_, _input-y_, and _input-r_ are integers.
 
-
 About the Paperscape map
 ------------------------
 
@@ -251,6 +277,7 @@ Copyright
 ---------
 
 The MIT License (MIT)
+
 Copyright (C) 2011-2016 Damien P. George and Robert Knegjens
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
