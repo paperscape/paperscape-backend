@@ -60,6 +60,9 @@ i.e. the above command is equivalent to:
 
 The web server is run on the Paperscape server using the _run-webserver_ script.
 
+Data formats
+------------
+
 #### MySQL database access ####
 
 Access to the MySQL database requires the following environment variables to be set:
@@ -75,7 +78,6 @@ Access to the MySQL database requires the following environment variables to be 
 If both a socket and hostname are specified, the socket is used.
 
 #### meta_data table ####
-_Only relevant fields listed_
 
 _Only relevant fields listed; Req. = Required, Opt = Optional._
 
@@ -101,9 +103,8 @@ unique_id = ymdh + 4*num
 If this is not the case, the `ids_time_ordered` flag should be set to `false` in the configuration Json file.
 
 #### pcite table ####
-_Only relevant fields listed_
 
-_Only relevant fields listed; Req. = Required, Opt = Optional._
+_Req. = Required, Opt = Optional._
 
 | Field      | Type             | Description                             | nbody | tiles | webserver |
 | ---------- | ---------------- | --------------------------------------- | ----- | ----- | --------- |
