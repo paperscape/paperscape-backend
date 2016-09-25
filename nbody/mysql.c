@@ -241,7 +241,7 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
                             // print unknown categories; for adding to input JSON file
                             //printf("warning: no colour for category %.*s\n", (int)(cur - start), start);
                         }
-                        if (env->config->sql.meta_table.add_missing_cats) {
+                        if (env->config->nbody.add_missing_cats) {
                             // include it in category set anyway, as it may still be needed to make fake links
                             if(category_set_add_category(env->category_set, start, cur - start, def_col)) {
                                 // NOTE: WoS exceeds 256 categories hard limit, so check if limit exceeded

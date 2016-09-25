@@ -4,6 +4,7 @@
 "nbody":{
     "use_external_cites":false,
     "mass_cites_exponent":1.0,
+    "add_missing_cats":false,
     "forces":{
         "comment":"These force parameters are used by nbody.",
         "link_strength":1.25,
@@ -17,7 +18,7 @@
     },
     "map_orientation":{
         "category":"ee",
-        "angle":0.8
+        "angle":3.93
     }
 },
 "tiles":{
@@ -43,8 +44,7 @@
         "field_title":"title",
         "field_authors":"authors",
         "field_keywords":"keywords",
-        "field_agesort":"year",
-        "add_missing_cats":false
+        "field_agesort":"year"
     },
     "refs_table":{
         "comment":"This table is used to load the graph of references in nbody.",

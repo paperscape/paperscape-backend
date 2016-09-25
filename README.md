@@ -104,7 +104,7 @@ In addition to normal tiles, which are coloured according to their categories, i
 By default the heatmap tiles are coloured according to their age spectrum. 
 An alternative heat parameter can be specified in the configuration file. 
 
-
+TODO labels
 
 The generated tiles are saved in PNG format and can be optimized slightly to reduce disk space with the _optitiles_ script.
 This script can be run on the chosen output directory:
@@ -114,9 +114,9 @@ This script can be run on the chosen output directory:
 ```
 
 The generated labels are saved as Json files.
-A Json file called _world_index.json_ is also generated at the base of the chosen output directory.
+A Json file called *world_index.json* is also generated at the base of the chosen output directory.
 It describes the dimensions and location paths of the tiles and labels created for the browser-based map client, which reads this file statically.
-To reduce the size of both _world_index.json_ and the generated labels the _gzipjson_ script can be run on the output directory:
+To reduce the size of both *world_index.json* and the generated labels the *gzipjson* script can be run on the output directory:
 
 ```shell
 ./gzipjson <output_dir>
@@ -154,16 +154,17 @@ _Only relevant fields listed_
 | title      | varchar(500)     | Paper title (for gui display only)            |
 | authors    | text             | Paper authors (for gui display only)          |
 
-The `id` field is ordered by publication date (version 1) as follows:
+By default the `id` field is ordered by publication date (version 1) as follows:
 ```
 ymdh = (year - 1800) * 10000000
        + (month - 1) * 625000
        + (day - 1)   * 15625
 unique_id = ymdh + 4*num
 ```
+If this is not the case, the `ids_time_ordered` flag should be set to false in the configuration Json file.
 
-Categories and keywords are used for creating fake links between disconnected graphs.
-Categories are also used for colouring papers in the gui display.
+In the _nbody_ programs, categories and keywords are used for creating fake links between disconnected graphs.
+In _nbody-gui_ categories are also used for colouring papers in the gui display.
 
 #### pcite table ####
 

@@ -53,6 +53,7 @@ bool init_config_new(const char *filename, init_config_t **config) {
     // set defaults
     (*config)->nbody.use_external_cites = false;
     (*config)->nbody.mass_cites_exponent = 1.;
+    (*config)->nbody.add_missing_cats = false;
     (*config)->nbody.forces.close_repulsion_a        = 1e9;
     (*config)->nbody.forces.close_repulsion_b        = 1e14;
     (*config)->nbody.forces.close_repulsion_c        = 1.1;
@@ -75,6 +76,12 @@ bool init_config_new(const char *filename, init_config_t **config) {
         jsmn_env_token_value_t mce_val;
         if(jsmn_env_get_object_member_value(&jsmn_env, nbody_tok, "mass_cites_exponent", JSMN_VALUE_REAL, &mce_val)) {
             (*config)->nbody.mass_cites_exponent = mce_val.real;
+        }
+        // look for member: add_missing_cats
+        // =======================
+        jsmn_env_token_value_t missing_cats_val;
+        if(jsmn_env_get_object_member_value_boolean(&jsmn_env, nbody_tok, "add_missing_cats", &missing_cats_val)) {
+            (*config)->nbody.add_missing_cats = (missing_cats_val.kind == JSMN_VALUE_TRUE);
         }
         // look for member: forces
         // =======================
@@ -181,7 +188,7 @@ bool init_config_new(const char *filename, init_config_t **config) {
         // ---------------------------
         jsmntok_t *meta_tok;
         if(jsmn_env_get_object_member_token(&jsmn_env, sql_tok, "meta_table", JSMN_OBJECT, &meta_tok)) {
-            jsmn_env_token_value_t name_val, where_clause_val, extra_clause_val, id_val, title_val,authors_val,allcats_val, keywords_val, missing_cats_val;
+            jsmn_env_token_value_t name_val, where_clause_val, extra_clause_val, id_val, title_val,authors_val,allcats_val, keywords_val;
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "name", JSMN_VALUE_STRING, &name_val)) {
                 (*config)->sql.meta_table.name = strdup(name_val.str);
             }
@@ -205,9 +212,6 @@ bool init_config_new(const char *filename, init_config_t **config) {
             }
             if(jsmn_env_get_object_member_value(&jsmn_env, meta_tok, "field_keywords", JSMN_VALUE_STRING, &keywords_val)) {
                 (*config)->sql.meta_table.field_keywords = strdup(keywords_val.str);
-            }
-            if(jsmn_env_get_object_member_value_boolean(&jsmn_env, meta_tok, "add_missing_cats", &missing_cats_val)) {
-                (*config)->sql.meta_table.add_missing_cats = (missing_cats_val.kind == JSMN_VALUE_TRUE);
             }
         }
         // look for member: refs_table

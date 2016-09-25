@@ -10,6 +10,7 @@ typedef struct _init_config_t {
     struct _config_nbody_t {
         bool   use_external_cites;
         double mass_cites_exponent;
+        bool add_missing_cats;
         
         struct _config_forces_t {
             bool   use_ref_freq;
@@ -43,7 +44,6 @@ typedef struct _init_config_t {
             const char *field_authors;
             const char *field_allcats;
             const char *field_keywords;
-            bool add_missing_cats;
         } meta_table;
 
         struct _config_sql_refs_table_t {
