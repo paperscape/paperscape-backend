@@ -41,10 +41,10 @@ The web server serves data from a MySQL database containing the following tables
 - *map_data* - paper locations and size in the map
 - *datebdry* - current date boundaries
 - *misc* - current date boundaries
-- *userdata** - user login and saved profile information
-- *sharedata** - shared profile link information
+- *userdata*\* - user login and saved profile information
+- *sharedata*\* - shared profile link information
 
-The tables with a * are only used by the _My Paperscape_ project ie not the map project.
+The tables with a \* are only used by the _My Paperscape_ project i.e. not the map project.
 Detailing their schemas is currently beyond the scope of this documentation.
 
 The web server also serves paper abstracts from a local directory specified by the `--meta` flag.
@@ -78,13 +78,14 @@ _Only relevant fields listed_
 | authors    | text             | Paper authors                                 |
 | keywords   | text             | Paper keywords                                |
 
-The _id_ field is ordered by publication date (version 1) as follows:
+By default the _id_ field is ordered by publication date (version 1) as follows:
 ```
 ymdh = (year - 1800) * 10000000
        + (month - 1) * 625000
        + (day - 1)   * 15625
 unique_id = ymdh + 4*num
 ```
+If this is not the case, the `ids_time_ordered` flag should be set to false in the configuration Json file.
 
 #### pcite table ####
 _Only relevant fields listed_
@@ -139,6 +140,14 @@ This table can be created as output by the n-body map generator, and used as inp
 
 The cut-off _id_ does not refer to an actual paper, but is the maximum paper id for that day + 1.
 The _id_ for _daysAgo_ = 1 is therefore a lower-bound for all papers of the current (submission) day, and an upper-bound for all papers from the day before.
+Note that use of this table assumes that the ids are time ordered.
+
+#### misc table ####
+
+| Field   | Type          | Description                       |
+| --------| ------------- | --------------------------------- |
+| field   | varchar(16)   | Name of misc field                |
+| value   | varchar(4096) | Value of misc field               |
 
 #### Abstract meta data ####
 
