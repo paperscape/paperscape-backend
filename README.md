@@ -2,10 +2,9 @@ Paperscape Map Generation
 =========================
 
 This is the source code of the backend map generation for the [Paperscape map](http://paperscape.org).
-The source code of the [browser-based map client](https://github.com/paperscape/paperscape-mapclient) and [web server](https://github.com/paperscape/paperscape-webserver), as well as [Paperscape data](https://github.com/paperscape/paperscape-data), are also available on Github. 
-For more details and progress on Paperscape please visit the [development blog](http://blog.paperscape.org).
+The source code of the [browser-based map client](https://github.com/paperscape/paperscape-mapclient) and [web server](https://github.com/paperscape/paperscape-webserver), as well as [Paperscape data](https://github.com/paperscape/paperscape-data), are also available on Github.
 
-**NOTE:** while the code is fully functional, this README is still a work in progress.
+For more details and progress on Paperscape please visit the [development blog](http://blog.paperscape.org).
 
 Map generation using N-body simulation
 --------------------------------------
@@ -39,14 +38,31 @@ Run any of the nbody programs with the `--help` command-line flag to see a list 
 ./nbody-gui --help
 ```
 
-Running _nbody-gui_ with no command-line options,
+Both _nbody-gui_ and _nbody-headless_ can read in Json files to set initial configuration settings, category colours and an existing map layout.
+Default configuration files are located in the `config/` directory, and also contain comments to explain some of the available features.
+Running the _nbody_ programs with no command-line options loads the default configuration settings and category colours for the arXiv map
+i.e. the following two commands are equivalent:
 
 ```shell
 ./nbody-gui
+./nbody-gui --settings ../config/arxiv-settings.json --categories ../config/arxiv-categories.json
 ```
 
-defaults to loading all available arXiv papers from the database and starts building a new map.
-Keyboard shortcuts for controlling the map in the gui are printed to the terminal.
+This will load all available arXiv papers from the database and begin building a new map.
+The default behaviour of _nbody-headless_, on the other hand, is to load an existing layout from the *map_data* MySQL table, check for new papers,
+and run a fixed number of iterations.
+To load an existing layout from the *map_data* MySQL table in _nbody-gui_ add the flag `--layout-db`.
+To instead load an existing map layout from a Json file use `--layout <filename>` in both _nbody_ programs.
+
+Keyboard shortcuts for controlling the map in _nbody-gui_ are printed to the terminal.
+Here are some useful keyboard shortcuts:
+- By default the view is locked and will adjust its zoom as the graph rotates - the graph rotates to eliminate quadtree artifacts in the force calculation.
+To enable manual panning and zooming, toggle the view lock with __V__.
+- Pressing ___space___ pauses or resumes graph updates.
+- By default a maximum of 100k papers are shown to speed up draw times. To force a full draw of all papers press ___f___. 
+- To write the current map layout positions to a Json file press ___J___.
+- To draw the current map layout positions to a png image file press ___w___.
+
 
 Tile and label generation for map
 ---------------------------------
@@ -61,7 +77,7 @@ Once these dependencies have been met, the web server can be built by running th
 go build
 ```
 
-This should create the binary _tiles_, named after its parent directory.
+This should create the program _tiles_, named after its parent directory.
 
 To see a full list of command-line arguments run
 
@@ -74,6 +90,21 @@ The _tiles_ program requires an output directory to be specified, and by default
 ```shell
 ./tiles <output_dir>
 ```
+
+The _tiles_ program can read in Json files to set initial configuration settings, category colours and the map layout.
+Default configuration files are located in the `config/` directory, and also contain comments to explain some of the available features.
+Running the _tiles_ program with no command-line options loads the default configuration settings and category colours for the arXiv map
+i.e. the above command is equivalent to:
+
+```shell
+./tiles --settings ../config/arxiv-settings.json --categories ../config/arxiv-categories.json <output_dir>
+```
+
+In addition to normal tiles, which are coloured according to their categories, it is also possible to generate heatmap and grayscale tiles with the flags `--hm` and `--gs`, respectively.
+By default the heatmap tiles are coloured according to their age spectrum. 
+An alternative heat parameter can be specified in the configuration file. 
+
+
 
 The generated tiles are saved in PNG format and can be optimized slightly to reduce disk space with the _optitiles_ script.
 This script can be run on the chosen output directory:
