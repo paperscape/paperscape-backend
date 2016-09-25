@@ -5,6 +5,24 @@ This is the source code of the web server that runs the [Paperscape map](http://
 The source code of the [map generation](https://github.com/paperscape/paperscape-mapgen) and [browser-based map client](https://github.com/paperscape/paperscape-mapclient), as well as [Paperscape data](https://github.com/paperscape/paperscape-data), are also available on Github. 
 For more details and progress on Paperscape please visit the [development blog](http://blog.paperscape.org).
 
+Served data
+-----------
+
+The web server serves data from a MySQL database containing the following tables (schemas are detailed below):
+- *meta_data* - paper meta data
+- *pcite* - paper reference and citation information
+- *map_data* - paper locations and size in the map
+- *datebdry* - current date boundaries
+- *misc* - current date boundaries
+- *userdata*\* - user login and saved profile information
+- *sharedata*\* - shared profile link information
+
+The tables with a \* are only used by the _My Paperscape_ project i.e. not the map project.
+Detailing their schemas is currently beyond the scope of this documentation.
+
+The web server serves paper abstracts from a local directory specified by the `--meta` flag by default.
+Alternatively it can also read absracts from an *abstracts* table.
+
 Installation and Usage
 ----------------------
 
@@ -17,12 +35,6 @@ go build
 ```
 
 This should create the program _webserver_, named after its parent directory.
-The web server can be run using the FactCGI or HTTP protocols using the command-line arguments `--fcgi :<port number>` or `--http :<port number>`, respectively.
-For example
-
-```shell
-./webserver --http :8089
-```
 
 To see a full list of command-line arguments run
 
@@ -30,24 +42,23 @@ To see a full list of command-line arguments run
 ./webserver --help
 ```
 
+The web server can be run using the FactCGI or HTTP protocols using the command-line arguments `--fcgi :<port number>` or `--http :<port number>`, respectively.
+For example
+
+```shell
+./webserver --http :8089
+```
+
+The _webserver_ program can read in  a Json files to set initial configuration settings.
+A default configuration file is located in the `config/` directory, and also contain comments to explain some of the available features.
+Running the _webserver_ program with no command-line options loads the default arXiv configuration settings
+i.e. the above command is equivalent to:
+
+```shell
+./tiles --settings ../config/arxiv-settings.json --http :8089
+```
+
 The web server is run on the Paperscape server using the _run-webserver_ script.
-
-Served data
------------
-
-The web server serves data from a MySQL database containing the following tables:
-- *meta_data* - paper meta data
-- *pcite* - paper reference and citation information
-- *map_data* - paper locations and size in the map
-- *datebdry* - current date boundaries
-- *misc* - current date boundaries
-- *userdata*\* - user login and saved profile information
-- *sharedata*\* - shared profile link information
-
-The tables with a \* are only used by the _My Paperscape_ project i.e. not the map project.
-Detailing their schemas is currently beyond the scope of this documentation.
-
-The web server also serves paper abstracts from a local directory specified by the `--meta` flag.
 
 #### MySQL database access ####
 
@@ -66,17 +77,19 @@ If both a socket and hostname are specified, the socket is used.
 #### meta_data table ####
 _Only relevant fields listed_
 
-| Field      | Type             | Description                                   |
-| ---------- |----------------- | --------------------------------------------- |
-| id         | int(10) unsigned | Unique paper identifier                       |
-| allcats    | varchar(130)     | List of categories (comma separated)          |
-| title      | varchar(500)     | Paper title                                   |
-| authors    | text             | Paper authors (comma separated)               |
-| keywords   | text             | Paper keywords (comma separated)              |
-| arxiv      | varchar(16)      | unique arXiv identifier                       | 
-| maincat    | varchar(8)       | Main arXiv category                           |
-| publ       | varchar(200)     | Journal publication information               |
-| inspire    | int(8) unsigned  | Inspire record number                         |
+_Only relevant fields listed; Req. = Required, Opt = Optional._
+
+| Field      | Type             | Description                           | nbody | tiles | webserver |
+| ---------- |----------------- | ------------------------------------- | ----- | ----- | --------- |
+| id         | int(10) unsigned | Unique paper identifier               |  Req. |  Req. |      Req. |
+| allcats    | varchar(130)     | List of categories (comma separated)  |  Req. |       |      Req. |
+| maincat    | varchar(8)       | Main arXiv category                   |  Opt. |  Req. |      Req. |
+| title      | varchar(500)     | Paper title                           |  Opt. |  Opt. |      Req. |
+| authors    | text             | Paper authors (comma separated)       |  Opt. |  Opt. |      Req. |
+| keywords   | text             | Paper keywords (comma separated)      |  Opt. |  Opt. |      Req. |
+| arxiv      | varchar(16)      | unique arXiv identifier               |       |       |      Opt. |
+| publ       | varchar(200)     | Journal publication information       |       |       |      Req. |
+| inspire    | int(8) unsigned  | Inspire record number                 |       |       |      Opt. |
 
 By default the _id_ field is ordered by publication date (version 1) as follows:
 ```
@@ -85,20 +98,22 @@ ymdh = (year - 1800) * 10000000
        + (day - 1)   * 15625
 unique_id = ymdh + 4*num
 ```
-If this is not the case, the `ids_time_ordered` flag should be set to false in the configuration Json file.
+If this is not the case, the `ids_time_ordered` flag should be set to `false` in the configuration Json file.
 
 #### pcite table ####
 _Only relevant fields listed_
 
-| Field      | Type             | Description                                   |
-| ---------- | ---------------- | --------------------------------------------- |
-| id         | int(10) unsigned | Unique paper identifier                       |
-| refs       | blob             | Binary blob encoding references               |
-| numRefs    | int(10) unsigned | Number of references                          |
-| cites      | mediumblob       | Binary blob encoding citation                 |
-| numCites   | int(10) unsigned | Number of citations                           |
-| dNumCites1 | tinyint(4)       | Change in number citations past 1 day         |
-| dNumCites5 | tinyint(4)       | Change in number citations past 5 days        |
+_Only relevant fields listed; Req. = Required, Opt = Optional._
+
+| Field      | Type             | Description                             | nbody | tiles | webserver |
+| ---------- | ---------------- | --------------------------------------- | ----- | ----- | --------- |
+| id         | int(10) unsigned | Unique paper identifier                 |  Req. |       |      Req. |
+| refs       | blob             | Binary blob encoding references         |  Req. |       |      Req. |
+| numRefs    | int(10) unsigned | Number of references                    |       |       |      Req. |
+| cites      | mediumblob       | Binary blob encoding citation           |       |       |      Req. |
+| numCites   | int(10) unsigned | Number of citations                     |       |       |      Req. |
+| dNumCites1 | tinyint(4)       | Change in number citations past 1 day   |       |       |      Opt. |
+| dNumCites5 | tinyint(4)       | Change in number citations past 5 days  |       |       |      Opt. |
 
 For a given paper (A), a _reference_ is a paper (B) that paper (A) refers to in its text, while a _citation_ is a paper (C) that refers to paper (A) ie a reverse _reference_.
 
@@ -120,6 +135,9 @@ Likewise the _cites_ field has a similar encoding:
 | frequency - how often (A) appears in (C) | unsigned little-endian 16-bit int -> 2 bytes |
 | number of citations of citing paper (C)  | unsigned little-endian 16-bit int -> 2 bytes |
 
+Note that the above encoding is the default in Paperscape.
+It is possible to disable the encoding/decoding of the last three 2-byte fields in the configuration file.
+
 #### map_data table ####
 
 This table can be created as output by the n-body map generator, and used as input to the tile generator.
@@ -133,30 +151,40 @@ This table can be created as output by the n-body map generator, and used as inp
 
 #### datebdry table ####
 
-| Field   | Type             | Description                       |
-| --------| ---------------- | --------------------------------- |
-| daysAgo | int(10) unsigned | Number of days ago (0-31)         |
-| id      | int(10) unsigned | id corresponding to cut-off       |
+| Field   | Type             | Description                       | nbody | tiles | webserver |
+| --------| ---------------- | --------------------------------- | ----- | ----- | --------- |
+| daysAgo | int(10) unsigned | Number of days ago (0-31)         |       |       |      Opt. |
+| id      | int(10) unsigned | id corresponding to cut-off       |       |       |      Opt. |
 
 The cut-off _id_ does not refer to an actual paper, but is the maximum paper id for that day + 1.
 The _id_ for _daysAgo_ = 1 is therefore a lower-bound for all papers of the current (submission) day, and an upper-bound for all papers from the day before.
 Note that use of this table assumes that the ids are time ordered.
+If this is not the case, the `ids_time_ordered` flag should be set to `false` in the configuration Json file.
 
 #### misc table ####
 
-| Field   | Type          | Description                       |
-| --------| ------------- | --------------------------------- |
-| field   | varchar(16)   | Name of misc field                |
-| value   | varchar(4096) | Value of misc field               |
+| Field   | Type          | Description                       | nbody | tiles | webserver |
+| --------| ------------- | --------------------------------- | ----- | ----- | --------- |
+| field   | varchar(16)   | Name of misc field                |       |       |      Opt. |
+| value   | varchar(4096) | Value of misc field               |       |       |      Opt. |
 
 The misc table is used to access miscellaneous information, such as the last download date of arXiv meta data.
 
 #### Abstract meta data ####
 
-Paper abstracts are accessed directly from the raw arXiv meta data xml files ([example xml file](http://export.arxiv.org/oai2?verb=GetRecord&identifier=oai:arXiv.org:0804.2273&metadataPrefix=arXivRaw)) available from the [arXiv OAI](http://arxiv.org/help/oa/index).
-The root directory of these files can be specified by the `--meta` flag.
+By default paper abstracts are read by the webserver from raw arXiv meta data xml files ([example xml file](http://export.arxiv.org/oai2?verb=GetRecord&identifier=oai:arXiv.org:0804.2273&metadataPrefix=arXivRaw)) available from the [arXiv OAI](http://arxiv.org/help/oa/index).
+The root directory of these files can be specified by the `--meta <dirname>` flag.
 If no directory is specified then the server returns "(no abstract)".
 The xml files are organized by their arXiv ids into year and month subdirectories ie _YYMM.12345.xml_ is stored as `<--meta dir>/YYxx/YYMM/YYMM.12345.xml`, and _arxiv-cat/YYMM123_ as `<--meta dir>/YYxx/YYMM/arxiv-cat/YYMM123.xml`, etc. 
+
+Alternatively, if `--meta <dirnname>`,  it is possible to read paper abstracts from a MySQL table if a non-trivial name is specified in the configuration file. 
+This table has the following schema:
+
+| Field      | Type             | Description                             | nbody | tiles | webserver |
+| ---------- | ---------------- | --------------------------------------- | ----- | ----- | --------- |
+| id         | int(10) unsigned | Unique paper identifier                 |       |       |      Opt. |
+| abstract   | mediumtext       | Full abstract                           |       |       |      Opt. |
+
 
 
 About the Paperscape map
