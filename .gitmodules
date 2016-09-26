@@ -1,10 +1,10 @@
 [submodule "gopkg/src/github.com/yanatan16/GoMySQL"]
 	path = gopkg/src/github.com/yanatan16/GoMySQL
-	url = git@github.com:yanatan16/GoMySQL.git
+	url = https://github.com/yanatan16/GoMySQL.git
 [submodule "gopkg/src/github.com/ungerik/go-cairo"]
 	path = gopkg/src/github.com/ungerik/go-cairo
-    url = git@github.com:ungerik/go-cairo.git
+    url = https://github.com/ungerik/go-cairo.git
 [submodule "gopkg/src/github.com/kardianos/osext"]
 	path = gopkg/src/github.com/kardianos/osext
-	url = git@github.com:kardianos/osext.git
+	url = https://github.com/kardianos/osext.git
 
