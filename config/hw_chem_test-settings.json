@@ -1,13 +1,13 @@
 {
-"description":"Hyperwall settings",
+"description":"Hyperwall test settings",
 "ids_time_ordered":false,
 "nbody":{
-    "use_external_cites":true,
+    "use_external_cites":false,
     "mass_cites_exponent":1.0,
     "add_missing_cats":false,
     "forces":{
         "comment":"These force parameters are used by nbody.",
-        "link_strength":1.17,
+        "link_strength":1.25,
         "anti_gravity_falloff_rsq":1e6,
         "close_repulsion_a":1e9,
         "close_repulsion_b":1e14,
@@ -32,6 +32,10 @@
         "warm_col":[0.0,0.4,0.4]
     }
 },
+"webserver":{
+    "serve_mypscp":false,
+    "search_map_only":true
+},
 "sql":{
     "meta_table":{
         "comment":"This table is used to load meta data for all the papers.",
@@ -41,22 +45,39 @@
         "field_id":"id",
         "field_maincat":"maincat",
         "field_allcats":"catcodes",
-        "field_title":"",
-        "field_authors":"",
-        "field_keywords":"",
-        "field_agesort":"year"
+        "field_title":"title",
+        "field_authors":"authors",
+        "field_keywords":"keywords",
+        "field_agesort":"year",
+        "field_publ":"publ",
+        "field_arxiv":"",
+        "field_inspire":"",
+        "field_auxint1":"year",
+        "field_auxint2":"nummpg",
+        "field_auxstr1":"catcodes",
+        "field_auxstr2":"cocodes"
+    },
+    "abstract_table":{
+        "name":"abstracts",
+        "field_id":"id",
+        "field_abstract":"abstract"
     },
     "refs_table":{
-        "comment":"This table is used to load the graph of references in nbody.",
+        "comment":"This table holds the graph of references.",
         "name":"pcite",
         "field_id":"id",
         "field_refs":"refs",
+        "field_numrefs":"numRefs",
+        "field_cites":"cites",
+        "field_numcites":"numCites",
+        "field_dnc1":"",
+        "field_dnc5":"",
         "rblob_order":false,
         "rblob_freq":false,
         "rblob_cites":true
     },
     "map_table":{
-        "comment":"This table is used to store output from nbody. It can serve as input for both tiles and nbody.",
+        "comment":"This table holds the map layout positions that are output by nbody. It can serve as input for both tiles, nbody and the webserver.",
         "name":"map_data",
         "field_id":"id",
         "field_x":"x",

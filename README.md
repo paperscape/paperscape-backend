@@ -1,14 +1,15 @@
-Paperscape Map Generation
-=========================
+Paperscape Map Generation and Webserver
+=======================================
 
-This is the source code of the backend map generation for the [Paperscape map](http://paperscape.org).
-The source code of the [browser-based map client](https://github.com/paperscape/paperscape-mapclient) and [web server](https://github.com/paperscape/paperscape-webserver), as well as [Paperscape data](https://github.com/paperscape/paperscape-data), are also available on Github.
+This is the source code of the backend map generation and the webserver for the [Paperscape map](http://paperscape.org).
+The source code of the [browser-based map client](https://github.com/paperscape/paperscape-mapclient), as well as [Paperscape data](https://github.com/paperscape/paperscape-data), are also available on Github.
 
 For more details and progress on Paperscape please visit the [development blog](http://blog.paperscape.org).
 
 This file is organised as follows:
 - Map generation using N-body simulation
 - Tile and label generation for map
+- Webserver for map client
 - Data formats
 - About the Paperscape map
 - Copyright
@@ -127,6 +128,59 @@ To reduce the size of both *world_index.json* and the generated labels the *gzip
 ./gzipjson <output_dir>
 ```
 
+Webserver for map client
+------------------------
+
+The web server serves data from a MySQL database containing the following tables (schemas are detailed below):
+- *meta_data* - paper meta data
+- *pcite* - paper reference and citation information
+- *map_data* - paper locations and size in the map
+- *datebdry* - current date boundaries
+- *misc* - current date boundaries
+- *userdata*\* - user login and saved profile information
+- *sharedata*\* - shared profile link information
+
+The tables with a \* are only used by the _My Paperscape_ project i.e. not the map project.
+Detailing their schemas is currently beyond the scope of this documentation.
+
+The web server serves paper abstracts from a local directory specified by the `--meta` flag by default.
+Alternatively it can also read absracts from an *abstracts* table.
+
+#### Installation and Usage ####
+
+The web server is written in [Go](https://golang.org).
+It has two external dependencies, the Go packages [GoMySQL](https://github.com/yanatan16/GoMySQL) and [osext](https://github.com/kardianos/osext), which must be installed to a location referred to by the environment variable `GOPATH` (see this [introduction to go tool](https://golang.org/doc/code.html)).
+Once these dependencies have been met, the web server can be built with the command
+
+```shell
+go build
+```
+
+This should create the program _webserver_, named after its parent directory.
+
+To see a full list of command-line arguments run
+
+```
+./webserver --help
+```
+
+The web server can be run using the FactCGI or HTTP protocols using the command-line arguments `--fcgi :<port number>` or `--http :<port number>`, respectively.
+For example
+
+```shell
+./webserver --http :8089
+```
+
+The _webserver_ program can read in  a Json files to set initial configuration settings.
+A default configuration file is located in the `config/` directory, and also contain comments to explain some of the available features.
+Running the _webserver_ program with no command-line options loads the default arXiv configuration settings
+i.e. the above command is equivalent to:
+
+```shell
+./tiles --settings ../config/arxiv-settings.json --http :8089
+```
+
+The web server is run on the Paperscape server using the _run-webserver_ script.
 
 Data formats
 ------------
@@ -148,6 +202,7 @@ If both a socket and hostname are specified, the socket is used.
 #### meta_data table ####
 
 This table can be used as input by both the n-body map generator and the tile generator.
+It is served by the webserver.
 
 _Only relevant fields listed; Req. = Required, Opt = Optional._
 
@@ -178,6 +233,7 @@ In _nbody-gui_ categories are also used for colouring papers in the gui display.
 #### pcite table ####
 
 This table can be used as input by both the n-body map generator and the tile generator.
+It is served by the webserver.
 
 _Req. = Required, Opt. = Optional._
 
@@ -190,7 +246,6 @@ _Req. = Required, Opt. = Optional._
 | numCites   | int(10) unsigned | Number of citations                     |       |       |      Req. |
 | dNumCites1 | tinyint(4)       | Change in number citations past 1 day   |       |       |      Opt. |
 | dNumCites5 | tinyint(4)       | Change in number citations past 5 days  |       |       |      Opt. |
-
 
 For a given paper (A), a _reference_ is a paper (B) that paper (A) refers to in its text, while a _citation_ is a paper (C) that refers to paper (A) ie a reverse _reference_.
 
@@ -218,6 +273,7 @@ It is possible to disable the encoding/decoding of the last three 2-byte fields 
 #### map_data table ####
 
 This table can be created as output by the n-body map generator, and used as input to the tile generator.
+It is served by the webserver.
 
 | Field      | Type             | Description               |
 | ---------- | ---------------- | ------------------------- |
@@ -225,6 +281,42 @@ This table can be created as output by the n-body map generator, and used as inp
 | x          | int(11)          | X coordinate in map       |
 | y          | int(11)          | X coordinate in map       |
 | r          | int(11)          | Circle radius in map      |
+
+#### datebdry table ####
+
+| Field   | Type             | Description                       | nbody | tiles | webserver |
+| --------| ---------------- | --------------------------------- | ----- | ----- | --------- |
+| daysAgo | int(10) unsigned | Number of days ago (0-31)         |       |       |      Opt. |
+| id      | int(10) unsigned | id corresponding to cut-off       |       |       |      Opt. |
+
+The cut-off _id_ does not refer to an actual paper, but is the maximum paper id for that day + 1.
+The _id_ for _daysAgo_ = 1 is therefore a lower-bound for all papers of the current (submission) day, and an upper-bound for all papers from the day before.
+Note that use of this table assumes that the ids are time ordered.
+If this is not the case, the `ids_time_ordered` flag should be set to `false` in the configuration Json file.
+
+#### misc table ####
+
+| Field   | Type          | Description                       | nbody | tiles | webserver |
+| --------| ------------- | --------------------------------- | ----- | ----- | --------- |
+| field   | varchar(16)   | Name of misc field                |       |       |      Opt. |
+| value   | varchar(4096) | Value of misc field               |       |       |      Opt. |
+
+The misc table is used to access miscellaneous information, such as the last download date of arXiv meta data.
+
+#### Abstract meta data ####
+
+By default paper abstracts are read by the webserver from raw arXiv meta data xml files ([example xml file](http://export.arxiv.org/oai2?verb=GetRecord&identifier=oai:arXiv.org:0804.2273&metadataPrefix=arXivRaw)) available from the [arXiv OAI](http://arxiv.org/help/oa/index).
+The root directory of these files can be specified by the `--meta <dirname>` flag.
+If no directory is specified then the server returns "(no abstract)".
+The xml files are organized by their arXiv ids into year and month subdirectories ie _YYMM.12345.xml_ is stored as `<--meta dir>/YYxx/YYMM/YYMM.12345.xml`, and _arxiv-cat/YYMM123_ as `<--meta dir>/YYxx/YYMM/arxiv-cat/YYMM123.xml`, etc. 
+
+Alternatively, if `--meta <dirnname>`,  it is possible to read paper abstracts from a MySQL table if a non-trivial name is specified in the configuration file. 
+This table has the following schema:
+
+| Field      | Type             | Description                             | nbody | tiles | webserver |
+| ---------- | ---------------- | --------------------------------------- | ----- | ----- | --------- |
+| id         | int(10) unsigned | Unique paper identifier                 |       |       |      Opt. |
+| abstract   | mediumtext       | Full abstract                           |       |       |      Opt. |
 
 #### Json reference data ####
 
