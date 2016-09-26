@@ -32,7 +32,7 @@
         "warm_col":[1.0,0.1,0.1]
     }
 },
-    "webserver":{
+"webserver":{
     "serve_mypscp":true,
     "search_map_only":false
 },
