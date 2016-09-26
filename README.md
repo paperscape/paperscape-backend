@@ -81,6 +81,7 @@ Tile and label generation for map
 
 The tile generator source code is located in the `tiles/` directory and is written in [Go](https://golang.org).
 It has two external dependencies, the Go packages [go-cairo](github.com/ungerik/go-cairo) and [GoMySQL](https://github.com/yanatan16/GoMySQL), which must be installed to a location referred to by the environment variable `GOPATH` (see this [introduction to go tool](https://golang.org/doc/code.html)).
+Note that these packages have been added as git submodules in the `gopkg/` directory.
 Once these dependencies have been met, the web server can be built by running the following command in the `tiles/` directory
 
 ```shell
@@ -152,6 +153,7 @@ Alternatively it can also read absracts from an *abstracts* table.
 
 The web server is written in [Go](https://golang.org).
 It has two external dependencies, the Go packages [GoMySQL](https://github.com/yanatan16/GoMySQL) and [osext](https://github.com/kardianos/osext), which must be installed to a location referred to by the environment variable `GOPATH` (see this [introduction to go tool](https://golang.org/doc/code.html)).
+Note that these packages have been added as git submodules in the `gopkg/` directory.
 Once these dependencies have been met, the web server can be built with the command
 
 ```shell
