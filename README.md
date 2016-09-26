@@ -1,5 +1,5 @@
-Paperscape Map Generation and Webserver
-=======================================
+Paperscape Backend: Map Generation and Webserver
+================================================
 
 This is the source code of the backend map generation and the webserver for the [Paperscape map](http://paperscape.org).
 The source code of the [browser-based map client](https://github.com/paperscape/paperscape-mapclient), as well as [Paperscape data](https://github.com/paperscape/paperscape-data), are also available on Github.
@@ -7,15 +7,17 @@ The source code of the [browser-based map client](https://github.com/paperscape/
 For more details and progress on Paperscape please visit the [development blog](http://blog.paperscape.org).
 
 This file is organised as follows:
-- Map generation using N-body simulation
-- Tile and label generation for map
-- Webserver for map client
-- Data formats
-- About the Paperscape map
-- Copyright
+- [Map generation using N-body simulation](#Map-generation-using-N-body-simulation)
+- [Tile and label generation for map](#Tile-and-label-generation-for-map)
+- [Webserver for the map client](#Webserver-for-the-map-client)
+- [Data formats](#Data-formats)
+- [About the Paperscape map](#About-the-Paperscape-map)
+- [Copyright](#Copyright)
 
 Map generation using N-body simulation
 --------------------------------------
+
+For a more detailed explanation of the N-body simulation see the [N-body README](nbody/README.md).
 
 #### Compilation ####
 
@@ -128,8 +130,8 @@ To reduce the size of both *world_index.json* and the generated labels the *gzip
 ./gzipjson <output_dir>
 ```
 
-Webserver for map client
-------------------------
+Webserver for the map client
+----------------------------
 
 The web server serves data from a MySQL database containing the following tables (schemas are detailed below):
 - *meta_data* - paper meta data
