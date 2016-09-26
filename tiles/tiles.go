@@ -762,7 +762,7 @@ func DrawPoster(config *Config, graph *Graph, surfWidthInt, surfHeightInt int, f
     //surf.Fill()
 
     // load and paint our logo
-    surfLogo := cairo.NewSurfaceFromPNG("poster/paperscapeTransparent.png")
+    surfLogo, _ := cairo.NewSurfaceFromPNG("poster/paperscapeTransparent.png")
     surf.IdentityMatrix()
     scale := 0.2 * surfWidth / float64(surfLogo.GetWidth())
     surf.Scale(scale, scale)
@@ -770,7 +770,7 @@ func DrawPoster(config *Config, graph *Graph, surfWidthInt, surfHeightInt int, f
     surf.Paint()
 
     // load and draw the text
-    surfText := cairo.NewSurfaceFromPNG("poster/postertext.png")
+    surfText, _ := cairo.NewSurfaceFromPNG("poster/postertext.png")
     surfText.SetOperator(cairo.OPERATOR_IN)
     //surfText.SetSourceRGBA(1, 1, 1, 1) // text colour
     //surfText.Paint() // colour the text
