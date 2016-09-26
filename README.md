@@ -7,12 +7,12 @@ The source code of the [browser-based map client](https://github.com/paperscape/
 For more details and progress on Paperscape please visit the [development blog](http://blog.paperscape.org).
 
 This file is organised as follows:
-- [Map generation using N-body simulation](#Map-generation-using-N-body-simulation)
-- [Tile and label generation for map](#Tile-and-label-generation-for-map)
-- [Webserver for the map client](#Webserver-for-the-map-client)
-- [Data formats](#Data-formats)
-- [About the Paperscape map](#About-the-Paperscape-map)
-- [Copyright](#Copyright)
+- [Map generation using N-body simulation](#map-generation-using-n-body-simulation)
+- [Tile and label generation for map](#tile-and-label-generation-for-map)
+- [Webserver for the map client](#webserver-for-the-map-client)
+- [Data formats](#data-formats)
+- [About the Paperscape map](#about-the-paperscape-map)
+- [Copyright](#copyright)
 
 Map generation using N-body simulation
 --------------------------------------
