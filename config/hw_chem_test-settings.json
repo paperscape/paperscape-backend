@@ -40,7 +40,7 @@
     "meta_table":{
         "comment":"This table is used to load meta data for all the papers.",
         "name":"meta_data",
-        "where_clause":"maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'dx' OR maincat = 'dw'",
+        "where_clause":"(maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'uy' OR maincat = 'dw' OR maincat = 'fi') AND year >= 2001 AND title IS NOT NULL AND keywords IS NOT NULL",
         "extra_clause":"ORDER BY rand(42) LIMIT 200000",
         "field_id":"id",
         "field_maincat":"maincat",

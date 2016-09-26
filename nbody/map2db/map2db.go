@@ -10,7 +10,6 @@ import (
     "github.com/yanatan16/GoMySQL"
 )
 
-var flagDB       = flag.String("db", "", "MySQL database to connect to")
 var flagMapTable = flag.String("map-table","map_data", "Name of map table in db")
 var flagMapTableSuffix = flag.String("suffix","", "Suffix to append to name of map table in db")
 
@@ -23,7 +22,7 @@ func main() {
     }
 
     // connect to db
-    db := ConnectToDB(*flagDB)
+    db := ConnectToDB()
     if db == nil {
         return
     }
@@ -81,7 +80,7 @@ func main() {
 
 }
 
-func ConnectToDB(dbConnection string) *mysql.Client {
+func ConnectToDB() *mysql.Client {
     // connect to MySQL database; using a socket is preferred since it's faster
     var db *mysql.Client
     var err error
@@ -93,12 +92,11 @@ func ConnectToDB(dbConnection string) *mysql.Client {
     mysql_sock := os.Getenv("PSCP_MYSQL_SOCKET")
 
     // if nothing requested, default to something sensible
-    if dbConnection == "" {
-        if fileExists(mysql_sock) {
-            dbConnection = mysql_sock
-        } else {
-            dbConnection = mysql_host
-        }
+    var dbConnection string
+    if fileExists(mysql_sock) {
+        dbConnection = mysql_sock
+    } else {
+        dbConnection = mysql_host
     }
 
     // make the connection

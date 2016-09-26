@@ -59,9 +59,9 @@ i.e. the following two commands are equivalent:
 ```
 
 This will load all available arXiv papers from the database and begin building a new map.
-The default behaviour of _nbody-headless_, on the other hand, is to load an existing layout from the *map_data* MySQL table, check for new papers,
+The default behaviour of _nbody-headless_, on the other hand, is to load an existing layout from the *map_data* database table, check for new papers,
 and run a fixed number of iterations.
-To load an existing layout from the *map_data* MySQL table in _nbody-gui_ add the flag `--layout-db`.
+To load an existing layout from the *map_data* database table in _nbody-gui_ add the flag `--layout-db`.
 To instead load an existing map layout from a Json file use `--layout <filename>` in both _nbody_ programs.
 
 Keyboard shortcuts for controlling the map in _nbody-gui_ are printed to the terminal.
@@ -73,6 +73,14 @@ To enable manual panning and zooming, toggle the view lock with __V__.
 - To write the current map layout positions to a Json file press ___J___.
 - To draw the current map layout positions to a png image file press ___w___.
 
+The _nbody-headless_ program can write map layout positions to both a Json file or the *map_data* database table by specifying the flags `--write-json` or `--write-db`, respectively.
+The _nbody-gui_ program can only write map layout positions to a Json file, which it does on request (as described above).
+To load a map layout position Json file into the database you can use the _map2db_ program in the `nbody/map2db/` directory.
+This Go program must first be compiled with `go build`.
+To load the file *out-map.json* into the table *map_data* do
+```shell
+./map2db --map-table map_data out-map.json
+```
 
 Tile and label generation for map
 ---------------------------------
@@ -195,7 +203,7 @@ Running the _webserver_ program with no command-line options loads the default a
 i.e. the above command is equivalent to:
 
 ```shell
-./tiles --settings ../config/arxiv-settings.json --http :8089
+./webserver --settings ../config/arxiv-settings.json --http :8089
 ```
 
 The web server is run on the Paperscape server using the _run-webserver_ script.
