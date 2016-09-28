@@ -7,5 +7,5 @@ XIWI_SERVER=$XIWI_ROOT/paperscape-backend/webserver
 XIWI_SERVER_SET=$XIWI_ROOT/paperscape-backend/config/arxiv-settings.json
 LOG=$XIWI_LOG/wombat.log
 
-$XIWI_SERVER/webserver --settings $XIWI_CONFIG --fcgi :9100 --log-file $LOG --meta $XIWI_META &
+$XIWI_SERVER/webserver --settings $XIWI_SERVER_SET --fcgi :9100 --log-file $LOG --meta $XIWI_META &
 disown
