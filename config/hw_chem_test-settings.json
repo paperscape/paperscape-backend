@@ -1,5 +1,5 @@
 {
-"description":"Hyperwall test settings",
+"description":"Settings to test Hyperwall",
 "ids_time_ordered":false,
 "nbody":{
     "use_external_cites":false,
@@ -25,7 +25,7 @@
     "background_col":[1, 1, 1],
     "draw_paper_outline":true,
     "heatmap":{
-        "comment":"If 'sql_meta_field' is set it is used for heat, otherwise time ordered IDs are used. Possible types: int,uint,real",
+        "comment":"'sql_meta_field' is used for heat is set, otherwise time ordered IDs are used. Possible types: int,uint,real",
         "sql_meta_field":"nummpg",
         "sql_meta_type":"uint",
         "cold_col":[0.75,0.75,0.75],

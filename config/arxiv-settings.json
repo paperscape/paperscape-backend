@@ -51,7 +51,11 @@
         "field_agesort":"id",
         "field_publ":"publ",
         "field_arxiv":"arxiv",
-        "field_inspire":"inspire"
+        "field_inspire":"inspire",
+        "field_auxint1":"",
+        "field_auxint2":"",
+        "field_auxstr1":"",
+        "field_auxstr2":""
     },
     "refs_table":{
         "comment":"This table holds the graph of references.",

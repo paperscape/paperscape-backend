@@ -25,7 +25,7 @@
     "background_col":[1, 1, 1],
     "draw_paper_outline":true,
     "heatmap":{
-        "comment":"If 'sql_meta_field' is set it is used for heat, otherwise time ordered IDs are used. Possible types: int,uint,real",
+        "comment":"'sql_meta_field' is used for heat is set, otherwise time ordered IDs are used. Possible types: int,uint,real",
         "sql_meta_field":"nummpg",
         "sql_meta_type":"uint",
         "cold_col":[0.75,0.75,0.75],
@@ -40,7 +40,7 @@
     "meta_table":{
         "comment":"This table is used to load meta data for all the papers.",
         "name":"meta_data",
-        "where_clause":"(catcodes LIKE '%dy%' OR catcodes LIKE '%ei%' OR catcodes LIKE '%ee%' OR catcodes LIKE '%ea%' OR catcodes LIKE '%ec%' OR catcodes LIKE '%hq%' OR catcodes LIKE '%uy%' OR catcodes LIKE '%dw%' OR catcodes LIKE '%fi%') AND year >= 2001 AND title IS NOT NULL AND keywords IS NOT NULL",
+        "where_clause":"(maincat = 'dy' OR maincat = 'ei' OR maincat = 'ee' OR maincat = 'ea' OR maincat = 'ec' OR maincat = 'hq' OR maincat = 'uy' OR maincat = 'dw' OR maincat = 'fi') AND year >= 2001 AND title IS NOT NULL AND keywords IS NOT NULL",
         "extra_clause":"",
         "field_id":"id",
         "field_maincat":"maincat",
