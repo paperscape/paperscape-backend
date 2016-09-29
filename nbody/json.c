@@ -42,7 +42,7 @@ static bool load_categories(jsmn_env_t *env, json_data_t *data) {
     printf("reading categories from JSON file\n");
 
     // start the JSON stream
-    bool more_objects;
+    bool more_objects = false;
     if (!jsmn_env_next_object(env, &more_objects)) {
         return false;
     }
@@ -127,7 +127,7 @@ static bool load_idc(jsmn_env_t *env, json_data_t *data) {
     }
 
     // start the JSON stream
-    bool more_objects;
+    bool more_objects = false;
     if (!jsmn_env_reset(env, &more_objects)) {
         return false;
     }
@@ -240,7 +240,7 @@ static bool load_refs(jsmn_env_t *env, json_data_t *data) {
     printf("reading refs from JSON file\n");
 
     // start the JSON stream
-    bool more_objects;
+    bool more_objects = false;
     if (!jsmn_env_reset(env, &more_objects)) {
         return false;
     }
@@ -508,7 +508,7 @@ static bool load_other_links_helper(jsmn_env_t *env, json_data_t *data) {
     printf("reading other links from JSON file\n");
 
     // start the JSON stream
-    bool more_objects;
+    bool more_objects = false;
     if (!jsmn_env_reset(env, &more_objects)) {
         return false;
     }

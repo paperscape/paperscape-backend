@@ -1,6 +1,7 @@
 #ifndef __JSMNENV_H_
 #define __JSMNENV_H_
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 

@@ -1,6 +1,7 @@
 #ifndef _INCLUDED_JSON_H
 #define _INCLUDED_JSON_H
 
+#include <stdbool.h>
 #include "util/hashmap.h"
 #include "common.h"
 
