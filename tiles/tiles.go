@@ -185,7 +185,7 @@ func ReadPaperLocationFromJSON(config *Config, filename string) []*Paper {
 
     // decode JSON
     dec := json.NewDecoder(file)
-    var layout [][]int
+    var layout [][]int64
     if err := dec.Decode(&layout); err != nil {
         log.Println(err)
         return nil
@@ -200,7 +200,7 @@ func ReadPaperLocationFromJSON(config *Config, filename string) []*Paper {
     // build paper array
     papers := make([]*Paper, 0)
     for _, item := range layout {
-        papers = append(papers, MakePaper(uint(item[0]), item[1], item[2], item[3], defaultCat))
+        papers = append(papers, MakePaper(uint(item[0]), int(item[1]), int(item[2]), int(item[3]), defaultCat))
     }
 
     // make sure papers are sorted!
