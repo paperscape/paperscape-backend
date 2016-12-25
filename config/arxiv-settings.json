@@ -28,8 +28,8 @@
         "comment":"'sql_meta_field' is used for heat is set, otherwise time ordered IDs are used. Possible types: int,uint,real",
         "sql_meta_field":"",
         "sql_meta_type":"",
-        "cold_col":[0.1,0.1,0.1],
-        "warm_col":[1.0,0.1,0.1]
+        "cold_col":[0.15,0.15,0.25],
+        "warm_col":[1.0,0.15,0.25]
     }
 },
 "webserver":{
