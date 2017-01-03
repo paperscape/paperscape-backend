@@ -712,6 +712,9 @@ func (h *MyHTTPHandler) SearchCategory(categoryList string, includeCrossLists bo
     }
 
     catQuery, categories := buildCategoryQuery(categoryList, includeCrossLists, h.papers.cfg)
+    if catQuery == "" || len(categories) == 0 {
+        return
+    }
 
     // create interface of arguments for statement
     argsInterface := make([]interface{},len(categories)+2)
