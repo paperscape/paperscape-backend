@@ -40,7 +40,7 @@
     "meta_table":{
         "comment":"This table is used to load meta data for all the papers.",
         "name":"meta_data",
-        "where_clause":"arxiv IS NOT NULL AND status != 'WDN' AND (maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000",
+        "where_clause":"arxiv IS NOT NULL AND status != 'WDN' AND (maincat='hep-th' OR maincat='hep-ph') AND id >= 2100000000 AND id < 2130000000",
         "extra_clause":"",
         "field_id":"id",
         "field_maincat":"maincat",
