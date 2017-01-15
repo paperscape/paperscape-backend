@@ -104,7 +104,7 @@ func (paper *Paper) DetermineLabel(authors, keywords, title string) {
 }
 
 func idToDaysAgo(id uint) uint {
-    tId := time.Date(((int(id) / 10000000) + 1800),time.Month((((int(id) % 10000000) / 625000) + 1)),(((int(id) % 625000) / 15625) + 1),0,0,0,0,time.UTC)
+    tId := time.Date((int(id / 10000000) + 1800),time.Month(((int(id % 10000000) / 625000) + 1)),((int(id % 625000) / 15625) + 1),0,0,0,0,time.UTC)
     days := uint(time.Now().Sub(tId).Hours()/24)
     return days
 }
