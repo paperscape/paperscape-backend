@@ -112,6 +112,27 @@ func (h *MyHTTPHandler) ResponsePscpGeneral(rw *MyResponseWriter, req *http.Requ
         // search-author: search papers for authors
         h.SearchAuthor(req.Form["sau"][0], rw)
         rw.logDescription = fmt.Sprintf("sau \"%s\"",req.Form["sau"][0])
+    } else if req.Form["saux"] != nil && req.Form["ind"] != nil && req.Form["min"] != nil && req.Form["max"] != nil {
+        // search-author-auxiliary: search papers for authors with auxiliary integer field (specified by index) in the range {min,max}
+        var index uint
+        var min, max int
+        if req.Form["ind"] != nil {
+            if res, err := strconv.ParseUint(req.Form["ind"][0], 10, 0); err == nil {
+                index = uint(res)
+            }
+        }
+        if req.Form["min"] != nil {
+            if res, err := strconv.ParseInt(req.Form["min"][0], 10, 0); err == nil {
+                min = int(res)
+            }
+        }
+        if req.Form["max"] != nil {
+            if res, err := strconv.ParseInt(req.Form["max"][0], 10, 0); err == nil {
+                max = int(res)
+            }
+        }
+        h.SearchAuthorAuxInt(req.Form["saux"][0], index, min, max, rw)
+        rw.logDescription = fmt.Sprintf("saux \"%s\" index %d in (%d,%d)",req.Form["saux"][0],index,min,max)
     } else if req.Form["sti"] != nil {
         // search-title: search papers for words in title
         h.SearchTitle(req.Form["sti"][0], rw)
@@ -145,7 +166,7 @@ func (h *MyHTTPHandler) ResponsePscpGeneral(rw *MyResponseWriter, req *http.Requ
         h.SearchCategory(req.Form["sca"][0], req.Form["x"] != nil && req.Form["x"][0] == "true", fId, tId, uint(fd), uint(td), rw)
         rw.logDescription = fmt.Sprintf("sca \"%s\" (%s,%s,%d,%d)", req.Form["sca"][0], fId,tId,fd,td)
     } else if req.Form["scax"] != nil && req.Form["ind"] != nil && req.Form["min"] != nil && req.Form["max"] != nil {
-        // search-category-auxillary: search papers on auxillary integer field in the range {min,max}, in given category
+        // search-category-auxiliary: search papers on auxiliary integer field in the range {min,max}, in given category
         // x = include cross lists
         var index uint
         var min, max int
@@ -522,11 +543,11 @@ func (h *MyHTTPHandler) SearchGeneral(searchString string, rw http.ResponseWrite
     fmt.Fprintf(rw, "]")
 }
 
-func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
+
+func authorBooleanSearchString(authors string) (searchString bytes.Buffer) {
     // turn authors into boolean search terms
     // add surrounding double quotes for each author in case they have initials with them
     newWord := true
-    var searchString bytes.Buffer
     for _, r := range authors {
         if unicode.IsSpace(r) || r == '\'' || r == '+' || r == '\\' {
             // this characted is a word separator
@@ -546,11 +567,37 @@ func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
     if !newWord {
         searchString.WriteRune('"')
     }
+    return
+}
 
+func (h *MyHTTPHandler) SearchAuthor(authors string, rw http.ResponseWriter) {
+    searchString := authorBooleanSearchString(authors)
     //whereClause := "MATCH (authors) AGAINST (? IN BOOLEAN MODE)"
     whereClause := "MATCH (" + h.papers.cfg.Sql.Meta.FieldAuthors + ") AGAINST (? IN BOOLEAN MODE)"
     // do the search
     h.SearchGeneric(rw, whereClause, 500, searchString.String())
+}
+
+
+func (h *MyHTTPHandler) SearchAuthorAuxInt(authors string, index uint, min int, max int, rw http.ResponseWriter) {
+
+    var auxIntField string
+    if index == 1 {
+        auxIntField += h.papers.cfg.Sql.Meta.FieldAuxInt1
+    } else if index == 2 {
+        auxIntField += h.papers.cfg.Sql.Meta.FieldAuxInt2
+    } else {
+        return
+    }
+
+    searchString := authorBooleanSearchString(authors)
+    
+    whereClause := h.papers.cfg.Sql.Meta.Name + "." + auxIntField + " >= ?"
+    whereClause += " AND " + h.papers.cfg.Sql.Meta.Name + "." + auxIntField + " <= ?"
+    whereClause += " AND MATCH (" + h.papers.cfg.Sql.Meta.FieldAuthors + ") AGAINST (? IN BOOLEAN MODE)"
+    h.SearchGeneric(rw, whereClause, 500, min, max, searchString.String())
+    //h.SearchGeneric(rw, whereClause, 500, argsInterface...)
+    //h.SearchGeneric(rw, whereClause, 500, searchString.String())
 }
 
 func (h *MyHTTPHandler) SearchTitle(titleWords string, rw http.ResponseWriter) {
@@ -712,9 +759,6 @@ func (h *MyHTTPHandler) SearchCategory(categoryList string, includeCrossLists bo
     }
 
     catQuery, categories := buildCategoryQuery(categoryList, includeCrossLists, h.papers.cfg)
-    if catQuery == "" || len(categories) == 0 {
-        return
-    }
 
     // create interface of arguments for statement
     argsInterface := make([]interface{},len(categories)+2)
