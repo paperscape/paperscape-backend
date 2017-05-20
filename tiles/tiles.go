@@ -146,7 +146,7 @@ func main() {
         GenerateAllTiles(config, graph, w, outPrefix)
         runtime.GC()
 
-        GenerateAllLabelZones(graph, w, outPrefix)
+        GenerateAllLabelZones(config, graph, w, outPrefix)
 
         fmt.Fprintf(w,"})")
         w.Flush()
@@ -562,14 +562,13 @@ func GenerateAllTiles(config *Config, graph *Graph, w *bufio.Writer, outPrefix s
 
     fmt.Fprintf(w,",\"tilings\":[")
 
-    //divisionSet := [...]int{4,8,16,32,64}
-    //divisionSet := [...]int{4,8,16,32,64,128}
-    divisionSet := [...]int{4,8,16,32,64,128,256}
+    divisionSet := [...]int{4, 8, 16, 32, 64, 128, 256, 512}
 
     first := true
-    //var depth uint
-    //for depth = 0; depth <= depths; depth++ {
     for depth, divs := range divisionSet {
+        if divs > int(config.Tiles.MaxTileDivision) {
+            break
+        }
         //divs := int(math.Pow(2.,float64(depth)))
         worldDim := int(math.Max(float64(graph.BoundsX)/float64(divs), float64(graph.BoundsY)/float64(divs)))
 
@@ -579,7 +578,7 @@ func GenerateAllTiles(config *Config, graph *Graph, w *bufio.Writer, outPrefix s
         first = false
         fmt.Fprintf(w,"{\"z\":%d,\"tw\":%d,\"th\":%d,\"nx\":%d,\"ny\":%d}",depth, worldDim, worldDim, divs,divs)
 
-        fmt.Printf("Generating tiles at depth %d\n",divs)
+        fmt.Printf("Generating tiles at depth %d with %d divisions\n", depth, divs)
         // TODO if graph far from from square, shorten tile directions accordingly
 
         // parallelise the drawing of tiles, using as many cpus as we have available to us
@@ -609,7 +608,7 @@ func GenerateAllTiles(config *Config, graph *Graph, w *bufio.Writer, outPrefix s
     fmt.Fprintf(w,"]")
 }
 
-func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
+func GenerateAllLabelZones(config *Config, graph *Graph, w *bufio.Writer, outPrefix string) {
 
     fmt.Fprintf(w,",\"zones\":[")
 
@@ -627,11 +626,15 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
         {8,64,false,false},
         {16,128,false,false},
         {32,256,false,false},
+        {64,512,false,false},
     }
 
     first := true
 
     for depth, labelDepth := range depthSet {
+        if labelDepth.tdivs > config.Tiles.MaxLabelDivision {
+            break
+        }
         tile_width := int(math.Max(float64(graph.BoundsX)/float64(labelDepth.tdivs), float64(graph.BoundsY)/float64(labelDepth.tdivs)))
         tile_height := tile_width
 
@@ -645,7 +648,7 @@ func GenerateAllLabelZones(graph *Graph, w *bufio.Writer, outPrefix string) {
         fmt.Fprintf(w,"{\"z\":%d,\"s\":%d,\"w\":%d,\"h\":%d,\"nx\":%d,\"ny\":%d}",depth, scale, tile_width, tile_height,labelDepth.tdivs,labelDepth.tdivs)
 
         if !*flagNoLabels {
-            fmt.Printf("Generating label zones at depth %d\n",depth)
+            fmt.Printf("Generating labels at depth %d with %d divisions\n", depth, labelDepth.tdivs)
             // TODO if graph far from from square, shorten tile directions accordingly
 
             // parallelise the drawing of zones, using as many cpus as we have available to us

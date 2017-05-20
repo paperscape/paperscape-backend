@@ -19,6 +19,8 @@ type TilesSettings struct {
     Heatmap             HeatmapSettings `json:"heatmap"`
     BackgroundCol       []float64       `json:"background_col"`
     DrawPaperOutline    bool            `json:"draw_paper_outline"`
+    MaxTileDivision     uint            `json:"max_tile_division"`
+    MaxLabelDivision    uint            `json:"max_label_division"`
 }
 
 type MetaTable struct {

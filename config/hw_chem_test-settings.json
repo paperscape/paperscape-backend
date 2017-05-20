@@ -30,7 +30,9 @@
         "sql_meta_type":"uint",
         "cold_col":[0.75,0.75,0.75],
         "warm_col":[0.0,0.4,0.4]
-    }
+    },
+    "max_tile_division":128,
+    "max_label_division":16
 },
 "webserver":{
     "serve_mypscp":false,
