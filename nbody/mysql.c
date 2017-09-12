@@ -271,8 +271,12 @@ static bool env_load_ids(env_t *env, bool load_display_fields) {
 
         // load authors and title if wanted
         if (num_fields >= 4) {
-            paper->authors = strdup(row[2]);
-            paper->title = strdup(row[3]);
+            if(row[2] != NULL) {
+                paper->authors = strdup(row[2]);
+            }
+            if(row[3] != NULL) {
+                paper->title = strdup(row[3]);
+            }
         }
 
         i += 1;
