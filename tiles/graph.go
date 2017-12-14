@@ -24,6 +24,7 @@ type CategoryLabel struct {
 
 // need to have members start with upper case so json parser loads them
 type RegionLabel struct {
+    Paperid uint
     X, Y, Radius int
     Label string
 }
@@ -253,6 +254,14 @@ func (graph *Graph) ReadRegionLabels(filename string) {
 
     // close file
     file.Close()
+
+    // if a paperid is specified for a region label, then update region with that paper's position
+    for _, regLabel := range(graph.regLabels) {
+        if paper := graph.GetPaperById(regLabel.Paperid); paper != nil {
+            regLabel.X = paper.x
+            regLabel.Y = paper.y
+        }
+    }
 
     // print info
     fmt.Printf("read %v region labels\n", len(graph.regLabels))
