@@ -256,10 +256,10 @@ func (graph *Graph) ReadRegionLabels(filename string) {
     file.Close()
 
     // if a paperid is specified for a region label, then update region with that paper's position
-    for _, regLabel := range(graph.regLabels) {
-        if paper := graph.GetPaperById(regLabel.Paperid); paper != nil {
-            regLabel.X = paper.x
-            regLabel.Y = paper.y
+    for i := range graph.regLabels {
+        if paper := graph.GetPaperById(graph.regLabels[i].Paperid); paper != nil {
+            graph.regLabels[i].X = paper.x
+            graph.regLabels[i].Y = paper.y
         }
     }
 
