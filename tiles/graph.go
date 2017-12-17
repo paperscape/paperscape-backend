@@ -264,7 +264,7 @@ func (graph *Graph) ReadRegionLabels(filename string) {
     }
 
     // print info
-    fmt.Printf("read %v region labels\n", len(graph.regLabels))
+    fmt.Printf("read %v region labels from JSON file %v\n", len(graph.regLabels), filename)
 }
 
 func (graph *Graph) QueryLastMetaDownload(config *Config) {

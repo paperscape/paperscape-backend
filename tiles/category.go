@@ -28,8 +28,6 @@ func MakeDefaultCategory(name string) *Category {
 
 // read categories in form [{"cat":"name","col":[r,g,b]},...] from JSON file
 func ReadCategoriesFromJSON(filename string) *CategorySet {
-    fmt.Printf("reading categories from JSON file %v\n", filename)
-
     // open JSON file
     file, err := os.Open(filename)
     if err != nil {
@@ -59,7 +57,7 @@ func ReadCategoriesFromJSON(filename string) *CategorySet {
     }
 
     // print info
-    fmt.Printf("read %v categories\n", len(catSet.Cats))
+    fmt.Printf("read %v categories from JSON file %v\n", len(catSet.Cats), filename)
 
     return catSet
 }
