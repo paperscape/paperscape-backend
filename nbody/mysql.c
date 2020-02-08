@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-#include <mysql/mysql.h>
+#include <mariadb/mysql.h>
 
 #include "util/xiwilib.h"
 #include "common.h"

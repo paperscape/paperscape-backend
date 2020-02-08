@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <mysql/mysql.h>
+#include <mariadb/mysql.h>
 #include "xiwilib.h"
 
 void vstr_add_mysql_real_escape_string(MYSQL *mysql, vstr_t *vstr0, vstr_t *vstr1) {

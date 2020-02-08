@@ -39,7 +39,7 @@ OBJ_HEADLESS = $(SRC_HEADLESS:.c=.o)
 OBJ_GUI = $(SRC_GUI:.c=.o)
 
 LIB_COMMON = -lm -lpthread util/xiwilib.a
-LIB_MYSQL  = -lmysqlclient
+LIB_MYSQL  = -lmariadb
 
 PROG_HEADLESS = nbody-headless
 PROG_GUI = nbody-gui
