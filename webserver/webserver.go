@@ -215,6 +215,7 @@ func (h *MyHTTPHandler) ServeHTTP(rwIn http.ResponseWriter, req *http.Request) {
     if req.Form["callback"] != nil {
         // construct a JSON object to return
         rw.Header().Set("Content-Type", "application/json")
+        rw.Header().Set("Access-Control-Allow-Origin", "*")
         callback := req.Form["callback"][0]
         fmt.Fprintf(rw, "%s({\"r\":", callback)
         resultBytesStart := rw.bytesWritten
